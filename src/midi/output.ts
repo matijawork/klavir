@@ -41,14 +41,29 @@ export function panic(): void {
   }
 }
 
+const CLICK_ACCENT = 96; // C7
+const CLICK_BEAT = 91; // G6
+const CLICK_MS = 40;
+
+/**
+ * Sends song notes and metronome clicks for whatever the transport is about to reach.
+ * Works from plain arrays so it never allocates while running.
+ */
 export class SongPlayback {
+  /** hands to play: bit 0 = left, bit 1 = right; 0 = none */
+  handMask = 0;
+  /** returns the song time from which notes are held back (wait-mode gate); null = no gate */
+  getLimit: (() => number) | null = null;
+  /** click times in song seconds, ascending, with accent flags */
+  private clickTime: ArrayLike<number> = [];
+  private clickAccent: ArrayLike<number> = [];
+
   private timer: ReturnType<typeof setInterval> | null = null;
   private next = 0;
+  private nextClick = 0;
   /** indices of notes that are sounding and still need a note-off */
   private readonly offs = new Int32Array(256);
   private offCount = 0;
-  /** hands to play: bit 0 = left, bit 1 = right */
-  handMask = 3;
   private readonly song: LoadedSong;
   private readonly transport: Transport;
 
@@ -61,15 +76,32 @@ export class SongPlayback {
     return this.timer !== null;
   }
 
-  start(): void {
-    this.stop();
-    if (!hasOutput()) return;
+  setClicks(time: ArrayLike<number>, accent: ArrayLike<number>): void {
+    this.clickTime = time;
+    this.clickAccent = accent;
+    this.resync();
+  }
+
+  /** Re-reads the transport position; call after any seek. Silences what was sounding. */
+  resync(): void {
     const t = this.transport.time();
-    const { start } = this.song;
+    const { start, count } = this.song;
     let i = 0;
-    while (i < this.song.count && start[i]! < t) i++;
+    while (i < count && start[i]! < t - 1e-4) i++;
     this.next = i;
-    this.offCount = 0;
+    let c = 0;
+    while (c < this.clickTime.length && this.clickTime[c]! < t - 1e-4) c++;
+    this.nextClick = c;
+    if (this.offCount > 0) {
+      this.offCount = 0;
+      if (this.timer !== null) panic();
+    }
+  }
+
+  start(): void {
+    if (this.timer !== null) return;
+    this.resync();
+    if (!hasOutput()) return;
     this.timer = setInterval(this.tick, TICK_MS);
     this.tick();
   }
@@ -80,6 +112,11 @@ export class SongPlayback {
     this.timer = null;
     this.offCount = 0;
     panic();
+  }
+
+  /** Runs the scheduler immediately, e.g. right after a wait-mode gate opens. */
+  flush(): void {
+    if (this.timer !== null) this.tick();
   }
 
   private tick = (): void => {
@@ -99,14 +136,28 @@ export class SongPlayback {
     }
     this.offCount = kept;
 
+    const limit = this.getLimit ? this.getLimit() : Number.POSITIVE_INFINITY;
     while (this.next < count) {
       const i = this.next;
+      if (start[i]! >= limit) break;
       const onAt = tr.wallAt(start[i]!);
       if (onAt > horizon) break;
       this.next++;
       if (!(this.handMask & (1 << hand[i]!))) continue;
       send([0x90 | CH_PLAYBACK, pitch[i]!, 72], Math.max(onAt, now));
       if (this.offCount < this.offs.length) this.offs[this.offCount++] = i;
+    }
+
+    while (this.nextClick < this.clickTime.length) {
+      const at = tr.wallAt(this.clickTime[this.nextClick]!);
+      if (at > horizon) break;
+      const accent = this.clickAccent[this.nextClick]! > 0;
+      this.nextClick++;
+      if (at < now - 30) continue; // stale after a pause: skip instead of bunching up
+      const note = accent ? CLICK_ACCENT : CLICK_BEAT;
+      const when = Math.max(at, now);
+      send([0x90 | CH_CLICK, note, accent ? 112 : 84], when);
+      send([0x80 | CH_CLICK, note, 64], when + CLICK_MS);
     }
   };
 }

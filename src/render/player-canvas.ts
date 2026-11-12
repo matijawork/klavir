@@ -4,8 +4,8 @@
  */
 import { type Tokens, tokens, withAlpha } from '../design/tokens.ts';
 import { HIGH, isBlack, keyW, keyX, LOW, noteName, WHITE_COUNT } from '../engine/keys.ts';
+import { HIT, MISSED, type PracticeSession } from '../engine/session.ts';
 import type { LoadedSong } from '../engine/song.ts';
-import type { Transport } from '../engine/transport.ts';
 import { clearLastNoteOn, held, lastNoteOnAt } from '../midi/midi.ts';
 
 export interface RenderStats {
@@ -29,6 +29,16 @@ export class PlayerCanvas {
   /** vertical zoom: pixels per second of song time at 100 % speed */
   pxPerSec = 220;
   showFingers = true;
+  /** how the hand that is not being practised is drawn */
+  otherHand: 'dim' | 'hide' | 'play' = 'dim';
+  noteNames: 'off' | 'upcoming' | 'all' = 'upcoming';
+  octaveNumbers = false;
+  /** flash the hit line on metronome beats */
+  beatPulse = false;
+  /** draw every note as if it were practised (Listen mode) */
+  demo = false;
+  /** live sustain pedal state, set by the UI */
+  pedalDown = false;
   readonly stats: RenderStats = {
     hz: 0,
     avgFrameMs: 0,
@@ -41,7 +51,7 @@ export class PlayerCanvas {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly song: LoadedSong;
-  private readonly transport: Transport;
+  private readonly session: PracticeSession;
   private readonly tk: Tokens;
   private readonly glow: Record<string, HTMLCanvasElement> = {};
   private readonly observer: ResizeObserver;
@@ -59,17 +69,20 @@ export class PlayerCanvas {
   private latencyCount = 0;
   /** which hand's song note is sounding on each key: 0 none, 1 left, 2 right */
   private readonly due = new Uint8Array(128);
+  /** keys with a note of the practised hand coming up soon */
+  private readonly soon = new Uint8Array(128);
   private first = 0;
+  private beatPtr = 0;
 
-  constructor(canvas: HTMLCanvasElement, song: LoadedSong, transport: Transport) {
+  constructor(canvas: HTMLCanvasElement, session: PracticeSession) {
     this.canvas = canvas;
-    this.song = song;
-    this.transport = transport;
+    this.song = session.song;
+    this.session = session;
     this.tk = tokens();
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D is not available');
     this.ctx = ctx;
-    for (const name of ['accent', 'hand-left', 'hand-right'] as const)
+    for (const name of ['accent', 'hand-left', 'hand-right', 'fb-correct'] as const)
       this.glow[name] = makeGlow(this.tk[name]);
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
@@ -106,7 +119,7 @@ export class PlayerCanvas {
       this.latencyCount++;
       clearLastNoteOn();
     }
-    this.draw(this.transport.time(now));
+    this.draw(this.session.update(now));
     this.drawSum += performance.now() - t0;
     this.stats.frames++;
     if (this.stats.frames % 60 === 0) this.updateStats();
@@ -131,9 +144,11 @@ export class PlayerCanvas {
   }
 
   private draw(t: number): void {
-    const { ctx, w, h, tk, song } = this;
+    const { ctx, w, h, tk, song, session } = this;
     const hitY = h - this.keysH;
-    const pps = this.pxPerSec;
+    const rate = session.transport.rate;
+    // zoom is in pixels per real second, so slowing the song down spreads the notes out
+    const pps = this.pxPerSec / rate;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.fillStyle = tk.bg;
     ctx.fillRect(0, 0, w, h);
@@ -153,9 +168,27 @@ export class PlayerCanvas {
       ctx.fillRect(0, Math.round(hitY - (mt - t) * pps), w, 1);
     }
 
+    // practised section: boundaries, and a veil over what lies after it
+    const { rangeStart, rangeEnd } = session;
+    if (rangeEnd < song.duration - 1e-6 && rangeEnd < tTop) {
+      const y = hitY - (rangeEnd - t) * pps;
+      ctx.fillStyle = withAlphaCached(tk['surface-1'], 0.7);
+      ctx.fillRect(0, 0, w, Math.max(0, y));
+      ctx.fillStyle = withAlphaCached(tk.accent, 0.7);
+      ctx.fillRect(0, Math.round(y) - 1, w, 2);
+    }
+    if (rangeStart > t && rangeStart < tTop && rangeStart > 1e-6) {
+      ctx.fillStyle = withAlphaCached(tk.accent, 0.7);
+      ctx.fillRect(0, Math.round(hitY - (rangeStart - t) * pps) - 1, w, 2);
+    }
+
     // falling notes
     const { start, end, pitch, hand, finger, count, maxLen } = song;
+    const state = session.state;
+    const mask = session.config.handMask;
+    const soonUntil = t + 1.5 * rate;
     this.due.fill(0);
+    this.soon.fill(0);
     while (this.first > 0 && start[this.first - 1]! + maxLen >= t) this.first--;
     while (this.first < count && start[this.first]! + maxLen < t) this.first++;
     ctx.font = '600 11px Inter, system-ui, sans-serif';
@@ -170,30 +203,114 @@ export class PlayerCanvas {
         if (e < t) continue;
         const p = pitch[i]!;
         if ((isBlack(p) ? 1 : 0) !== pass) continue;
+        const mine = this.demo || (mask & (1 << hand[i]!)) !== 0;
+        if (!mine && this.otherHand === 'hide') continue;
+        const inRange = s >= rangeStart - 1e-6 && s < rangeEnd - 1e-6;
         const active = s <= t;
-        if (active) this.due[p] = hand[i]! + 1;
-        const color = hand[i] ? tk['hand-right'] : tk['hand-left'];
+        if (active && (mine || this.otherHand !== 'hide')) this.due[p] = mine ? hand[i]! + 1 : 0;
+        if (mine && inRange && !active && s <= soonUntil) this.soon[p] = 1;
+        const st = state[i]!;
+        const base =
+          st === HIT
+            ? tk['fb-correct']
+            : st === MISSED
+              ? tk['fb-missed']
+              : hand[i]
+                ? tk['hand-right']
+                : tk['hand-left'];
         const x = keyX[p]! * w + 1;
         const bw = keyW[p]! * w - 2;
         const yBottom = Math.min(hitY, hitY - (s - t) * pps);
         const yTop = hitY - (e - t) * pps;
         const bh = Math.max(4, yBottom - yTop - 2);
-        ctx.fillStyle = active ? color : withAlphaCached(color, pass ? 0.78 : 0.9);
+        ctx.fillStyle =
+          !mine || !inRange
+            ? withAlphaCached(base, 0.2)
+            : active
+              ? base
+              : withAlphaCached(base, pass ? 0.78 : 0.9);
         ctx.beginPath();
         ctx.roundRect(x, yBottom - bh, bw, bh, NOTE_RADIUS);
         ctx.fill();
-        if (this.showFingers && finger[i] && bh > 16 && bw > 10 && !active) {
+        if (mine && inRange && this.showFingers && finger[i] && bh > 16 && bw > 10 && !active) {
           ctx.fillStyle = tk.bg;
           ctx.fillText(String(finger[i]), x + bw / 2, yBottom - 9);
         }
       }
     }
 
-    // hit line
+    this.drawPedalLane(t, pps, hitY);
+
+    // hit line, pulsing on count-in and metronome beats
+    let pulse = 0;
+    let countNumber = 0;
+    const ci = session.countInTimes;
+    if (t < rangeStart) {
+      for (let k = ci.length - 1; k >= 0; k--) {
+        if (ci[k]! <= t) {
+          pulse = Math.max(0, 1 - (t - ci[k]!) / (0.22 * rate));
+          countNumber = k + 1;
+          break;
+        }
+      }
+    } else if (this.beatPulse) {
+      const bt = session.beats.time;
+      while (this.beatPtr > 0 && bt[this.beatPtr]! > t) this.beatPtr--;
+      while (this.beatPtr + 1 < bt.length && bt[this.beatPtr + 1]! <= t) this.beatPtr++;
+      if (bt.length && bt[this.beatPtr]! <= t)
+        pulse = Math.max(0, 1 - (t - bt[this.beatPtr]!) / (0.18 * rate));
+    }
     ctx.fillStyle = withAlphaCached(tk.accent, 0.5);
     ctx.fillRect(0, hitY - 1, w, 2);
+    if (pulse > 0) {
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = tk['accent-strong'];
+      ctx.fillRect(0, hitY - 3, w, 6);
+      ctx.globalAlpha = 1;
+    }
+    if (countNumber > 0) {
+      ctx.globalAlpha = 0.35 + 0.65 * pulse;
+      ctx.fillStyle = tk['accent-strong'];
+      ctx.font = '650 96px Inter, system-ui, sans-serif';
+      ctx.fillText(String(countNumber), w / 2, hitY * 0.42);
+      ctx.globalAlpha = 1;
+    }
 
     this.drawKeyboard(hitY);
+  }
+
+  /** Narrow lane at the left edge: when the song holds the sustain pedal, plus the live pedal. */
+  private drawPedalLane(t: number, pps: number, hitY: number): void {
+    const { ctx, tk, song } = this;
+    const pt = song.pedalTime;
+    const laneW = 10;
+    const x = 6;
+    if (pt.length > 0) {
+      ctx.fillStyle = tk['surface-1'];
+      ctx.fillRect(x, 0, laneW, hitY);
+      ctx.fillStyle = withAlphaCached(tk.pedal, 0.75);
+      let downAt = -1;
+      for (let i = 0; i < pt.length; i++) {
+        if (song.pedalOn[i]) {
+          if (downAt < 0) downAt = pt[i]!;
+        } else if (downAt >= 0) {
+          const y1 = hitY - (downAt - t) * pps;
+          const y0 = hitY - (pt[i]! - t) * pps;
+          downAt = -1;
+          if (y1 < 0) break;
+          if (y0 > hitY) continue;
+          ctx.beginPath();
+          ctx.roundRect(x, Math.max(0, y0), laneW, Math.min(hitY, y1) - Math.max(0, y0), 3);
+          ctx.fill();
+        }
+      }
+    }
+    if (this.pedalDown) {
+      ctx.fillStyle = tk.pedal;
+      ctx.beginPath();
+      ctx.roundRect(x - 2, hitY - 12, laneW + 4, 12, 3);
+      ctx.fill();
+    }
   }
 
   private drawKeyboard(top: number): void {
@@ -244,14 +361,32 @@ export class PlayerCanvas {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
 
-    // C labels
-    ctx.fillStyle = 'rgba(11, 10, 16, 0.5)';
-    ctx.font = '500 10px Inter, system-ui, sans-serif';
+    // key labels
+    const whiteW = w / WHITE_COUNT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    if (w / WHITE_COUNT > 16)
-      for (let p = 24; p <= HIGH; p += 12)
-        ctx.fillText(noteName(p), (keyX[p]! + keyW[p]! / 2) * w, top + kh - 6);
+    const mode = this.noteNames;
+    for (let p = LOW; p <= HIGH; p++) {
+      const black = isBlack(p);
+      const isC = p % 12 === 0;
+      const wanted = mode === 'all' || (mode === 'upcoming' && (this.soon[p]! > 0 || due[p]! > 0));
+      if (!wanted && !(isC && !black && whiteW > 16)) continue;
+      if (wanted && whiteW < 13) continue;
+      const cx = (keyX[p]! + keyW[p]! / 2) * w;
+      if (wanted) {
+        ctx.font = `600 ${black ? 9 : 11}px Inter, system-ui, sans-serif`;
+        ctx.fillStyle = black ? 'rgba(241, 238, 251, 0.92)' : 'rgba(11, 10, 16, 0.85)';
+        ctx.fillText(
+          noteName(p, this.octaveNumbers || isC),
+          cx,
+          black ? top + blackH - 6 : top + kh - 6,
+        );
+      } else {
+        ctx.font = '500 10px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(11, 10, 16, 0.5)';
+        ctx.fillText(noteName(p), cx, top + kh - 6);
+      }
+    }
   }
 
   private keyFill(p: number): string | null {

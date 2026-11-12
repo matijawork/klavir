@@ -17,8 +17,9 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `npm run import-song [slug] [-- --pdf]` — sources in `songs/` → `public/songs/`
 
 ## Map
-- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `keys.ts` (88-key geometry)
+- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry)
 - `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `mock.ts` (virtual device, `window.__midi`)
+- `src/store/settings.ts` practice settings signal, persisted
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
 - `src/ui/` Preact screens; hash routes `#/` and `#/play/<song>/<version>`
 - `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)

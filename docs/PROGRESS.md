@@ -13,17 +13,32 @@ Updated 2026-11-12.
   - Virtual MIDI device (`?mockmidi`), 30 unit tests, 4 e2e tests.
   - `add-song` skill.
 
+- **M2 (code complete, awaiting Korg test)**
+  - Wait mode (chords need all notes, early presses within 300 ms count) and tempo mode (per-pitch windowed matching, hit/miss/wrong).
+  - Hands L/R/both; other hand dimmed, hidden or played by the piano.
+  - Speed 10–150 %, zoom, section selection on the measure ruler, loop, auto speed-up after clean passes.
+  - Count-in and metronome: visual pulse plus clicks on the piano (channel 4, Marimba).
+  - Pedal lane, note names (off/upcoming/all), octave numbers, finger numbers.
+  - Fullscreen, shortcuts, screen wake lock, settings persisted in localStorage.
+  - 48 unit tests, 11 e2e tests.
+
+## Shortcuts
+Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right · ↑↓ speed ±5 % · C count-in · M metronome · F fullscreen · D frame stats
+
 ## Measurements
+- Scheduled click timestamps are evenly spaced to within 2 ms in the virtual device (e2e). **Real MIDI-out timing on the Korg is not measured.**
 - Headless Chromium, 60 Hz, 1512×982: draw 0.3 ms per frame on Prelude in C. **Not yet measured on the real 120 Hz display or with real key presses** — needs Matija's Mac with the Korg (`?debug` overlay).
 
 ## Next
-- M1 follow-up from Matija's Korg checklist (channel independence, sounds, stuck notes).
-- **M2** modes (wait/tempo), hands, speed, section loop + auto speed-up, count-in, metronome, pedal lane, fullscreen, shortcuts, wake lock.
+- M1/M2 follow-up from Matija's Korg checklists (channel independence, sounds, stuck notes, click sound, timing feel).
+- **M3** calibration, full scoring (strictness presets, duration, extras), results screen, heatmap, local history (IndexedDB).
 
 ## Known issues / not done
 - No Firebase, scoring, review, exercises yet (M3–M7).
 - MIDI file import not implemented.
 - Gymnopédie source has 6 unmatched ties and 8 trimmed overlaps (warnings from the source file).
-- Note names on keys, finger-number settings, zoom controls: M2.
+- Tempo-mode windows use the Normal preset only; no calibration offset yet, so timing is not yet trustworthy (M3).
+- No seeking by clicking the ruler; a click selects one measure.
+- None of the demo pieces has pedal marks, so the pedal lane is untested with real data.
 - PWA manifest and service worker: M8.
 - The demo scores come from a collection that states "public domain" but has no license file.

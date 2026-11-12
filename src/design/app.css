@@ -278,3 +278,195 @@ button.chip {
   font-family: var(--font-mono);
   font-size: 12px;
 }
+
+/* practice toolbar */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-5);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.seg {
+  display: inline-flex;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+.seg button {
+  height: 28px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.toolbar .btn {
+  height: 32px;
+  padding: 0 var(--s-3);
+  font-size: 13px;
+}
+.speed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.speed output {
+  min-width: 4ch;
+  color: var(--text);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+input[type="range"] {
+  accent-color: var(--accent);
+}
+.speed input {
+  width: 180px;
+}
+.menu {
+  position: relative;
+  margin-left: auto;
+}
+.menu summary {
+  display: inline-grid;
+  place-items: center;
+  list-style: none;
+}
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+.panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--s-2));
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 280px;
+  padding: var(--s-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  box-shadow: var(--e-2);
+}
+.panel h4 {
+  margin: var(--s-2) 0 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.panel .row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.panel input[type="number"] {
+  width: 64px;
+  margin-left: auto;
+  padding: 2px var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+}
+.panel input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* measure ruler */
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-5);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.timeline {
+  position: relative;
+  flex: 1;
+  height: 26px;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  cursor: col-resize;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding-left: 4px;
+  border-left: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 26px;
+  pointer-events: none;
+}
+.timeline-range {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--accent-soft);
+  border-inline: 2px solid var(--accent);
+  pointer-events: none;
+}
+.playhead {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--text);
+  pointer-events: none;
+}
+.icon-btn.small {
+  width: 26px;
+  height: 26px;
+}
+
+/* last pass */
+.pass {
+  position: absolute;
+  top: var(--s-3);
+  left: 50%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: rgba(19, 17, 27, 0.85);
+  color: var(--text-dim);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+.pass strong {
+  color: var(--fb-correct);
+  font-size: 18px;
+}
+.pass .wrong {
+  color: var(--fb-wrong);
+}
