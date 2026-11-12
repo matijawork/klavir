@@ -25,7 +25,9 @@ test('pressed keys show in the live readout, pedal lights up', async ({ page }) 
   await expect(page.locator('.pedal-dot')).toHaveAttribute('data-on', 'true');
 });
 
-test('listen mode sends notes on the playback channel and leaves none hanging', async ({ page }) => {
+test('listen mode sends notes on the playback channel and leaves none hanging', async ({
+  page,
+}) => {
   await page.goto('./?mockmidi#/play/ode-to-joy/original');
   await page.getByTestId('midi-connect').click();
   await expect(page.getByTestId('stage')).toBeVisible();
