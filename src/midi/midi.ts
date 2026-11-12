@@ -28,6 +28,10 @@ export const outputName = signal<string | null>(null);
 /** bumps whenever the set of held keys or the pedal changes; UI subscribes to this */
 export const inputVersion = signal(0);
 export const sustainDown = signal(false);
+/** true once any message (even active sensing) has arrived from the current input */
+export const midiSeen = signal(false);
+/** true once a key press or pedal move has arrived from the current input */
+export const midiPlayed = signal(false);
 
 /** velocity of each held key (0 = up), indexed by MIDI pitch; read directly by the render loop */
 export const held = new Uint8Array(128);
@@ -74,12 +78,14 @@ const write = (k: string, v: string): void => {
 function handleMessage(e: MIDIMessageEvent): void {
   const d = e.data;
   if (!d || d.length === 0) return;
+  if (!midiSeen.peek()) midiSeen.value = true;
   const status = d[0]! & 0xf0;
   const time = e.timeStamp || performance.now();
   if (status === 0x90 || status === 0x80) {
     const pitch = d[1]!;
     const velocity = d[2] ?? 0;
     const on = status === 0x90 && velocity > 0;
+    if (!midiPlayed.peek()) midiPlayed.value = true;
     held[pitch] = on ? velocity : 0;
     if (on) {
       heldAt[pitch] = time;
@@ -115,6 +121,8 @@ function refreshPorts(): void {
   if (nextIn !== input) {
     if (input) input.onmidimessage = null;
     releaseAll();
+    midiSeen.value = false;
+    midiPlayed.value = false;
     input = nextIn;
     if (input) input.onmidimessage = handleMessage;
   }

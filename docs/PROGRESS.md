@@ -42,3 +42,12 @@ Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right
 - None of the demo pieces has pedal marks, so the pedal lane is untested with real data.
 - PWA manifest and service worker: M8.
 - The demo scores come from a collection that states "public domain" but has no license file.
+
+## 2026-11-12: feedback pass after M2 (Matija: "keys do not work", visuals)
+- Diagnosis on his Mac: Chrome sees the interface (CME C2MIDI Pro, permission granted) but **zero MIDI messages arrived** from the piano in several minutes (not even active sensing). App code path untested with real input; suspect cabling (IN/OUT plugs swapped) or piano off. Not confirmed.
+- MIDI chip: yellow "no signal" until the first key arrives; **Test** button plays C-E-G on the playback channel to check the cable towards the piano.
+- Theme: neutral black surfaces (no purple tint); purple stays as accent only.
+- Renderer: note halo + sheen + leading edge, light beam and larger glow on keys, sparks on correct held notes (off with reduced motion), pressed key is green when it is the right one.
+- Finger numbers: badge on every note. Sources had no fingering, so `scripts/lib/fingering.ts` computes suggestions (provenance `claude`, Viterbi over ergonomic costs). `meta.json`: `"fingering": "none"` disables.
+- Pedal: `meta.json` `"pedal": "measure"` generates one change per measure (provenance `claude`; used for Gymnopédie). Lane segment turns green while the pedal is held where the song wants it; strip on the hit line shows the live pedal.
+- Still open: real-piano test of everything; exercises (M5) and scoring/calibration (M3) not started.

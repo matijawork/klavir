@@ -41,3 +41,7 @@ Two staves or two single-staff parts as hands; chords; voices; ties; grace notes
 
 ## Not yet (milestone 6)
 MIDI import, Easy (C major / A minor) transposed versions, adding suggested fingering or pedal.
+
+## Optional meta.json fields
+- `"fingering": "none"`: do not compute finger suggestions (default: computed when the source has none, marked `claude`).
+- `"pedal": "measure"`: suggest one pedal change per measure when the source has no pedal marks. Only for pieces that are pedalled throughout; ask Matija if unsure.

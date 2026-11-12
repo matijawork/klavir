@@ -1,14 +1,14 @@
 /* Single source of truth for design tokens. Canvas code reads these through src/design/tokens.ts. */
 :root {
   /* surfaces */
-  --bg: #0b0a10;
-  --surface-1: #13111b;
-  --surface-2: #1b1826;
-  --surface-3: #262238;
-  --border: #2e2a42;
-  --text: #f1eefb;
-  --text-dim: #a9a3c2;
-  --text-faint: #6f6a88;
+  --bg: #000000;
+  --surface-1: #0c0c0d;
+  --surface-2: #161618;
+  --surface-3: #222225;
+  --border: #2c2c30;
+  --text: #f4f4f5;
+  --text-dim: #a1a1aa;
+  --text-faint: #6b6b74;
 
   /* UI accent */
   --accent: #9d7bff;
@@ -24,14 +24,14 @@
   --fb-early: #ffd166;
   --fb-late: #ff9f43;
   --fb-wrong: #ff5d5d;
-  --fb-missed: #7c7890;
+  --fb-missed: #77777f;
 
   /* pedal */
   --pedal: #5eead4;
 
   /* keyboard */
-  --key-white: #ece9f5;
-  --key-black: #17141f;
+  --key-white: #f2f2f3;
+  --key-black: #121214;
 
   /* spacing, radius, elevation, motion */
   --s-1: 4px;

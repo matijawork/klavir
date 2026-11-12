@@ -3,6 +3,7 @@
   "composer": "Erik Satie",
   "difficulty": 3,
   "youtube": null,
+  "pedal": "measure",
   "source": {
     "url": "https://github.com/musetrainer/library/blob/master/scores/Erik_Satie_-_Gymnopedie_No.1.mxl",
     "license": "Public domain (as stated by the musetrainer/library collection; the repository has no license file)"

@@ -52,7 +52,14 @@ export function Library() {
                 </span>
                 <span class="badge">{fmtTime(s.durationSec)}</span>
                 {s.fingering && (
-                  <span class="badge" title="Finger numbers come from the source score">
+                  <span
+                    class="badge"
+                    title={
+                      s.fingering === 'claude'
+                        ? 'Finger numbers are computed suggestions, not from the score'
+                        : 'Finger numbers come from the source score'
+                    }
+                  >
                     Fingering
                   </span>
                 )}

@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LibraryEntry, SongFile } from '../src/engine/song.ts';
 import { TempoMap } from '../src/engine/song.ts';
+import { autoFinger, measurePedal } from './lib/fingering.ts';
 import { importMusicXml, readScoreXml } from './lib/musicxml.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,6 +36,10 @@ interface Meta {
   youtube: string | null;
   source: { url: string; license: string; notes?: string };
   versions: { id: string; label: string; file: string; splitAt?: number }[];
+  /** 'auto' (default) suggests fingering when the source has none; 'none' leaves it empty */
+  fingering?: 'auto' | 'none';
+  /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
+  pedal?: 'measure';
 }
 
 const MAJOR = ['C♭', 'G♭', 'D♭', 'A♭', 'E♭', 'B♭', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F♯', 'C♯'];
@@ -66,6 +71,11 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     if (errors.length) {
       for (const e of errors.slice(0, 30)) console.error(`  ERROR ${slug}/${v.id}: ${e}`);
       throw new Error(`${slug}/${v.id}: ${errors.length} validation error(s)`);
+    }
+    if (meta.fingering !== 'none' && !song.notes.some((n) => n.f)) autoFinger(song.notes);
+    if (meta.pedal === 'measure' && song.pedal.length === 0) {
+      song.pedal = measurePedal(song.measures, song.notes);
+      song.pedalSource = 'claude';
     }
     writeFileSync(join(outDir, slug, `${v.id}.json`), JSON.stringify(song));
     const fingered = song.notes.filter((n) => n.f).length;
@@ -100,7 +110,7 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     source: { url: meta.source.url, license: meta.source.license },
     durationSec: Math.round(tempo.toSeconds(last.b + last.len)),
     noteCount: song.notes.length,
-    fingering: song.notes.some((n) => n.f) ? 'arranger' : null,
+    fingering: song.notes.find((n) => n.f)?.fs ?? null,
   };
 }
 

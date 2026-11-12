@@ -41,6 +41,15 @@ export function panic(): void {
   }
 }
 
+/** Plays a short chord on the playback channel so the cable to the piano can be checked by ear. */
+export function testSound(): void {
+  const now = performance.now();
+  [60, 64, 67].forEach((p, k) => {
+    send([0x90 | CH_PLAYBACK, p, 90], now + k * 140);
+    send([0x80 | CH_PLAYBACK, p, 0], now + k * 140 + 500);
+  });
+}
+
 const CLICK_ACCENT = 96; // C7
 const CLICK_BEAT = 91; // G6
 const CLICK_MS = 40;

@@ -22,7 +22,14 @@ export interface RenderStats {
 }
 
 const SAMPLE = 240;
-const NOTE_RADIUS = 5;
+const NOTE_RADIUS = 6;
+const FINGER = ['', '1', '2', '3', '4', '5'];
+const FONT_FINGER = '700 12px Inter, system-ui, sans-serif';
+const FONT_FINGER_SMALL = '700 9px Inter, system-ui, sans-serif';
+const GLOW_COLORS = ['accent', 'hand-left', 'hand-right', 'fb-correct', 'text'] as const;
+const SPARKS = 256;
+/** sparks per second from one sounding key */
+const SPARK_RATE = 50;
 const BLACK_RADII = [0, 0, 3, 3];
 
 export class PlayerCanvas {
@@ -54,6 +61,17 @@ export class PlayerCanvas {
   private readonly session: PracticeSession;
   private readonly tk: Tokens;
   private readonly glow: Record<string, HTMLCanvasElement> = {};
+  private readonly beam: Record<string, HTMLCanvasElement> = {};
+  private readonly sparkX = new Float32Array(SPARKS);
+  private readonly sparkY = new Float32Array(SPARKS);
+  private readonly sparkVx = new Float32Array(SPARKS);
+  private readonly sparkVy = new Float32Array(SPARKS);
+  private readonly sparkLife = new Float32Array(SPARKS);
+  private readonly sparkColor = new Uint8Array(SPARKS);
+  private sparkNext = 0;
+  private sparkAcc = 0;
+  private dt = 0;
+  private readonly calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private readonly observer: ResizeObserver;
   private raf = 0;
   private w = 0;
@@ -82,8 +100,10 @@ export class PlayerCanvas {
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Canvas 2D is not available');
     this.ctx = ctx;
-    for (const name of ['accent', 'hand-left', 'hand-right', 'fb-correct'] as const)
+    for (const name of GLOW_COLORS) {
       this.glow[name] = makeGlow(this.tk[name]);
+      this.beam[name] = makeBeam(this.tk[name]);
+    }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
     this.resize();
@@ -109,6 +129,7 @@ export class PlayerCanvas {
   private frame = (now: number): void => {
     this.raf = requestAnimationFrame(this.frame);
     const t0 = performance.now();
+    this.dt = this.lastFrame > 0 ? Math.min(0.05, (now - this.lastFrame) / 1000) : 0;
     if (this.lastFrame > 0) {
       this.intervals[this.sampleCount % SAMPLE] = now - this.lastFrame;
       this.sampleCount++;
@@ -191,9 +212,11 @@ export class PlayerCanvas {
     this.soon.fill(0);
     while (this.first > 0 && start[this.first - 1]! + maxLen >= t) this.first--;
     while (this.first < count && start[this.first]! + maxLen < t) this.first++;
-    ctx.font = '600 11px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const sheen = withAlphaCached(tk.text, 0.16);
+    const edge = withAlphaCached(tk.text, 0.6);
+    const badge = withAlphaCached(tk.bg, 0.62);
     for (let pass = 0; pass < 2; pass++) {
       // pass 0: white-key notes, pass 1: black-key notes on top
       for (let i = this.first; i < count; i++) {
@@ -223,18 +246,47 @@ export class PlayerCanvas {
         const yBottom = Math.min(hitY, hitY - (s - t) * pps);
         const yTop = hitY - (e - t) * pps;
         const bh = Math.max(4, yBottom - yTop - 2);
-        ctx.fillStyle =
-          !mine || !inRange
-            ? withAlphaCached(base, 0.2)
-            : active
-              ? base
-              : withAlphaCached(base, pass ? 0.78 : 0.9);
+        const dim = !mine || !inRange;
+        if (!dim) {
+          // soft halo around the note
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = withAlphaCached(base, active ? 0.34 : 0.15);
+          ctx.beginPath();
+          ctx.roundRect(x - 4, yBottom - bh - 4, bw + 8, bh + 8, NOTE_RADIUS + 4);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.fillStyle = dim
+          ? withAlphaCached(base, 0.18)
+          : pass
+            ? withAlphaCached(base, 0.8)
+            : base;
         ctx.beginPath();
         ctx.roundRect(x, yBottom - bh, bw, bh, NOTE_RADIUS);
         ctx.fill();
-        if (mine && inRange && this.showFingers && finger[i] && bh > 16 && bw > 10 && !active) {
-          ctx.fillStyle = tk.bg;
-          ctx.fillText(String(finger[i]), x + bw / 2, yBottom - 9);
+        if (dim) continue;
+        if (bh > 8) {
+          ctx.fillStyle = sheen;
+          ctx.beginPath();
+          ctx.roundRect(x + 2, yBottom - bh + 2, Math.max(2, bw * 0.26), bh - 4, 3);
+          ctx.fill();
+        }
+        if (!active && bw > 8) {
+          ctx.fillStyle = edge;
+          ctx.fillRect(x + 3, yBottom - 3, bw - 6, 2);
+        }
+        const f = finger[i]!;
+        if (this.showFingers && f > 0 && f < 6 && bw > 9) {
+          const r = Math.min(9, bw / 2 - 1);
+          const cx = x + bw / 2;
+          const cy = yBottom - r - (active ? 3 : 6);
+          ctx.fillStyle = badge;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, 6.2832);
+          ctx.fill();
+          ctx.font = r < 7 ? FONT_FINGER_SMALL : FONT_FINGER;
+          ctx.fillStyle = tk.text;
+          ctx.fillText(FINGER[f]!, cx, cy + 0.5);
         }
       }
     }
@@ -279,37 +331,50 @@ export class PlayerCanvas {
     this.drawKeyboard(hitY);
   }
 
-  /** Narrow lane at the left edge: when the song holds the sustain pedal, plus the live pedal. */
+  /** Lane at the left edge: where the song holds the sustain pedal, and the live pedal. */
   private drawPedalLane(t: number, pps: number, hitY: number): void {
-    const { ctx, tk, song } = this;
+    const { ctx, tk, song, w } = this;
     const pt = song.pedalTime;
-    const laneW = 10;
+    const laneW = 14;
     const x = 6;
+    let wanted = false;
     if (pt.length > 0) {
       ctx.fillStyle = tk['surface-1'];
       ctx.fillRect(x, 0, laneW, hitY);
-      ctx.fillStyle = withAlphaCached(tk.pedal, 0.75);
       let downAt = -1;
       for (let i = 0; i < pt.length; i++) {
         if (song.pedalOn[i]) {
           if (downAt < 0) downAt = pt[i]!;
         } else if (downAt >= 0) {
+          const now = downAt <= t && pt[i]! > t;
+          if (now) wanted = true;
           const y1 = hitY - (downAt - t) * pps;
           const y0 = hitY - (pt[i]! - t) * pps;
           downAt = -1;
           if (y1 < 0) break;
           if (y0 > hitY) continue;
+          ctx.fillStyle = now
+            ? this.pedalDown
+              ? tk['fb-correct']
+              : tk.pedal
+            : withAlphaCached(tk.pedal, 0.55);
           ctx.beginPath();
-          ctx.roundRect(x, Math.max(0, y0), laneW, Math.min(hitY, y1) - Math.max(0, y0), 3);
+          ctx.roundRect(x, Math.max(0, y0), laneW, Math.min(hitY, y1) - Math.max(0, y0) - 2, 4);
           ctx.fill();
         }
       }
     }
-    if (this.pedalDown) {
-      ctx.fillStyle = tk.pedal;
-      ctx.beginPath();
-      ctx.roundRect(x - 2, hitY - 12, laneW + 4, 12, 3);
-      ctx.fill();
+    if (this.pedalDown || wanted) {
+      // strip along the hit line: solid while the pedal is down, faint while the song asks for it
+      const color = this.pedalDown
+        ? wanted || pt.length === 0
+          ? tk['fb-correct']
+          : tk.pedal
+        : tk.pedal;
+      ctx.globalAlpha = this.pedalDown ? 0.9 : 0.3;
+      ctx.fillStyle = color;
+      ctx.fillRect(0, hitY - 5, w, 3);
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -330,7 +395,7 @@ export class PlayerCanvas {
         ctx.fillStyle = fill;
         ctx.fillRect(x, top, kw, kh);
       }
-      ctx.fillStyle = 'rgba(11, 10, 16, 0.28)';
+      ctx.fillStyle = withAlphaCached(tk.bg, 0.3);
       ctx.fillRect(Math.round(x + kw) - 1, top, 1, kh);
     }
     for (let p = LOW; p <= HIGH; p++) {
@@ -343,21 +408,35 @@ export class PlayerCanvas {
       ctx.fill();
     }
 
-    // glow above pressed and due keys (additive, pre-rendered sprites)
+    // light above pressed and sounding keys (additive, pre-rendered sprites)
     ctx.globalCompositeOperation = 'lighter';
+    this.sparkAcc += this.dt * SPARK_RATE;
+    const spawn = this.calm ? 0 : Math.floor(this.sparkAcc);
+    this.sparkAcc -= Math.floor(this.sparkAcc);
     for (let p = LOW; p <= HIGH; p++) {
       const pressed = held[p]! > 0;
-      if (!pressed && !due[p]) continue;
-      const sprite = pressed
-        ? this.glow.accent!
-        : due[p] === 2
-          ? this.glow['hand-right']!
-          : this.glow['hand-left']!;
-      const cx = (keyX[p]! + keyW[p]! / 2) * w;
-      const size = Math.max(36, keyW[p]! * w * 3.2);
-      ctx.globalAlpha = pressed ? 0.95 : 0.6;
-      ctx.drawImage(sprite, cx - size / 2, top - size / 2, size, size);
+      const d = due[p]!;
+      if (!pressed && !d) continue;
+      const ci = pressed ? (d ? 3 : 0) : d;
+      const name = GLOW_COLORS[ci]!;
+      const kw = keyW[p]! * w;
+      const cx = (keyX[p]! + kw / w / 2) * w;
+      const gw = Math.max(70, kw * 4.6);
+      const gh = gw * 1.5;
+      const bw = Math.max(22, kw * 1.7);
+      const bh = Math.min(top * 0.5, 240);
+      ctx.globalAlpha = pressed ? 0.9 : 0.4;
+      ctx.drawImage(this.beam[name]!, cx - bw / 2, top - bh, bw, bh);
+      ctx.globalAlpha = pressed ? 1 : 0.65;
+      ctx.drawImage(this.glow[name]!, cx - gw / 2, top - gh / 2, gw, gh);
+      if (pressed) {
+        ctx.globalAlpha = 0.75;
+        ctx.drawImage(this.glow.text!, cx - gw / 5, top - gw / 5, gw / 2.5, gw / 2.5);
+      }
+      if ((pressed && d) || (this.demo && d))
+        for (let k = 0; k < spawn; k++) this.addSpark(cx, top, kw, ci);
     }
+    this.drawSparks();
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
 
@@ -375,7 +454,7 @@ export class PlayerCanvas {
       const cx = (keyX[p]! + keyW[p]! / 2) * w;
       if (wanted) {
         ctx.font = `600 ${black ? 9 : 11}px Inter, system-ui, sans-serif`;
-        ctx.fillStyle = black ? 'rgba(241, 238, 251, 0.92)' : 'rgba(11, 10, 16, 0.85)';
+        ctx.fillStyle = black ? tk.text : withAlphaCached(tk.bg, 0.85);
         ctx.fillText(
           noteName(p, this.octaveNumbers || isC),
           cx,
@@ -383,15 +462,45 @@ export class PlayerCanvas {
         );
       } else {
         ctx.font = '500 10px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(11, 10, 16, 0.5)';
+        ctx.fillStyle = withAlphaCached(tk.bg, 0.5);
         ctx.fillText(noteName(p), cx, top + kh - 6);
       }
     }
   }
 
+  private addSpark(cx: number, y: number, kw: number, color: number): void {
+    const i = this.sparkNext;
+    this.sparkNext = (i + 1) % SPARKS;
+    this.sparkX[i] = cx + (Math.random() - 0.5) * kw;
+    this.sparkY[i] = y;
+    this.sparkVx[i] = (Math.random() - 0.5) * 60;
+    this.sparkVy[i] = -(70 + Math.random() * 170);
+    this.sparkLife[i] = 0.5 + Math.random() * 0.5;
+    this.sparkColor[i] = color;
+  }
+
+  private drawSparks(): void {
+    const { ctx, tk, dt } = this;
+    for (let i = 0; i < SPARKS; i++) {
+      const life = this.sparkLife[i]! - dt * 1.4;
+      if (life <= 0) {
+        this.sparkLife[i] = 0;
+        continue;
+      }
+      this.sparkLife[i] = life;
+      this.sparkX[i]! += this.sparkVx[i]! * dt;
+      this.sparkY[i]! += this.sparkVy[i]! * dt;
+      this.sparkVy[i]! += 60 * dt;
+      const size = 1.5 + life * 2;
+      ctx.globalAlpha = Math.min(1, life * 1.4);
+      ctx.fillStyle = tk[GLOW_COLORS[this.sparkColor[i]!]!];
+      ctx.fillRect(this.sparkX[i]! - size / 2, this.sparkY[i]! - size / 2, size, size);
+    }
+  }
+
   private keyFill(p: number): string | null {
-    if (held[p]! > 0) return this.tk.accent;
     const d = this.due[p]!;
+    if (held[p]! > 0) return d ? this.tk['fb-correct'] : this.tk.accent;
     if (d === 0) return null;
     const color = d === 2 ? this.tk['hand-right'] : this.tk['hand-left'];
     return withAlphaCached(color, isBlack(p) ? 0.9 : 0.55);
@@ -416,10 +525,33 @@ function makeGlow(hex: string): HTMLCanvasElement {
   c.height = size;
   const g = c.getContext('2d')!;
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  grad.addColorStop(0, withAlpha(hex, 0.85));
-  grad.addColorStop(0.35, withAlpha(hex, 0.32));
+  grad.addColorStop(0, withAlpha(hex, 1));
+  grad.addColorStop(0.25, withAlpha(hex, 0.6));
+  grad.addColorStop(0.55, withAlpha(hex, 0.18));
   grad.addColorStop(1, withAlpha(hex, 0));
   g.fillStyle = grad;
   g.fillRect(0, 0, size, size);
+  return c;
+}
+
+/** Column of light rising from a key: bright at the bottom, fading up and to the sides. */
+function makeBeam(hex: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const up = g.createLinearGradient(0, 128, 0, 0);
+  up.addColorStop(0, withAlpha(hex, 0.75));
+  up.addColorStop(0.4, withAlpha(hex, 0.22));
+  up.addColorStop(1, withAlpha(hex, 0));
+  g.fillStyle = up;
+  g.fillRect(0, 0, 32, 128);
+  g.globalCompositeOperation = 'destination-in';
+  const side = g.createLinearGradient(0, 0, 32, 0);
+  side.addColorStop(0, withAlpha(hex, 0));
+  side.addColorStop(0.5, withAlpha(hex, 1));
+  side.addColorStop(1, withAlpha(hex, 0));
+  g.fillStyle = side;
+  g.fillRect(0, 0, 32, 128);
   return c;
 }

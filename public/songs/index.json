@@ -18,7 +18,7 @@
     },
     "durationSec": 29,
     "noteCount": 123,
-    "fingering": null
+    "fingering": "claude"
   },
   {
     "id": "minuet-in-g",
@@ -39,7 +39,7 @@
     },
     "durationSec": 91,
     "noteCount": 408,
-    "fingering": null
+    "fingering": "claude"
   },
   {
     "id": "gymnopedie-1",
@@ -60,7 +60,7 @@
     },
     "durationSec": 185,
     "noteCount": 461,
-    "fingering": null
+    "fingering": "claude"
   },
   {
     "id": "prelude-in-c",
@@ -81,6 +81,6 @@
     },
     "durationSec": 119,
     "noteCount": 533,
-    "fingering": null
+    "fingering": "claude"
   }
 ]
