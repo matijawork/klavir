@@ -1,0 +1,11 @@
+{
+  "title": "Minuet in G major, BWV Anh. 114",
+  "composer": "Christian Petzold (attr. J. S. Bach)",
+  "difficulty": 2,
+  "youtube": null,
+  "source": {
+    "url": "https://github.com/musetrainer/library/blob/master/scores/Bach_Minuet_in_G_Major_BWV_Anh._114.mxl",
+    "license": "Public domain (as stated by the musetrainer/library collection; the repository has no license file)"
+  },
+  "versions": [{ "id": "original", "label": "Original", "file": "original.mxl" }]
+}

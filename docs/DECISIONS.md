@@ -14,24 +14,23 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
   - A. Code public. Song sources in a local gitignored `songs/` (optionally a second, private repo as backup). Normalized JSON and sheet PDFs pushed by script into Firestore under Matija's user, readable only by him; the app caches them in IndexedDB. Public repo ships one or two public-domain demo pieces.
   - B. As in the brief: everything public. Low probability of a takedown, real cost if it happens.
   - C. Songs public but excluded from git and only deployed to Pages. Still publicly served; little gained.
-- **Decision (proposed):** A.
-- **Consequences:** Firebase project and Google sign-in move from M7 to M1 (minimal: sign in, fetch songs). Full sync stays in M7. Song content needs a login on every device. E2E tests run on the public-domain demo piece.
+- **Decision (Matija, 2026-11-11):** B. Songs are public, in the repo and on Pages, as in the brief. He was told about the takedown risk and accepted it.
+- **Consequences:** Firebase stays in M7. If a takedown ever arrives, option A is the migration path.
+- **Status:** Decided.
 
 ## ADR-003 No GPL code reuse; MIT license — Decided
 - **Context:** Sightread is GPL-3.0, frozen, renderer tied to its player and state library; MusicXML parser lacks voltas and jumps. MIDIano has no license.
 - **Decision:** read Sightread for ideas (viewport model, key geometry), write our own. License MIT.
 - **Why:** the reusable part is a few hundred lines that would be rewritten for signals and 120 fps anyway; avoids binding the project to GPL.
 
-## ADR-004 All seven songs are Claude-arranged — Proposed
-- **Context:** sourcing steps 1 and 2 of the brief return nothing usable.
-- **Decision (proposed):** arrange each song as easy piano (RH melody, LH roots/fifths/broken chords) from chord data and the known melody. Every song carries "Claude-arranged"; fingering and pedal are "Claude suggested".
-- **Risk, stated plainly:** I cannot hear. Melodies written from memory and chord charts can contain wrong notes or rhythms. Mitigations: a **Listen** button that plays the arrangement through the Korg; Matija compares with the YouTube tutorial and reports wrong bars; bar-length validator in the import script. Expect one or two correction rounds per song.
-- **Alternative:** Matija buys a licensed easy edition (PDF) for songs that matter most and I transcribe it into private storage — more accurate, costs a few euros per song.
+## ADR-004 Songs are supplied by Matija; Claude does not arrange — Decided (Matija, 2026-11-11)
+- **Context:** sourcing steps 1 and 2 of the brief return nothing usable for the seven songs. Matija rejected Claude-made arrangements.
+- **Decision:** Claude never composes or arranges songs. Matija finds MusicXML/MIDI files himself and hands them over; Claude imports them with the `/add-song` skill. Until then the app ships public-domain starter pieces from legitimately licensed files.
+- **Consequences:** the seven songs of brief §6.8 are no longer a V1 deliverable; the deliverable is a robust import pipeline and clear instructions. MusicXML and MIDI import therefore matter more: MIDI import and repeat/volta/jump handling are in scope for M6. Fingering or pedal missing from a supplied file may still be added as "Claude suggested".
+- **Kept:** a Listen button (plays the song through the Korg) so he can check an imported file by ear.
 
 ## ADR-005 Arrangement source format — Decided, to be confirmed in M1
-- **Context:** with no external files, MusicXML as the authoring format is overhead; LLM-written music fails mostly on bar lengths.
-- **Decision:** author in a compact text format (ABC, two voices, fingering and pedal inline) → MusicXML → normalized JSON + PDF. If the ABC → MusicXML round trip loses fingering or pedal (unverified), switch to our own JSON note-list as the source and generate MusicXML only for the PDF.
-- **Scope note:** the import script still accepts MusicXML (simple repeats and voltas; fails loudly on D.S./coda jumps it cannot unroll) and MIDI with separate hand tracks, so future legitimate files work. Full jump unrolling is deferred until a song needs it.
+- **Superseded by ADR-004:** nothing is authored by Claude, so there is no authoring format. Source formats are MusicXML (`.musicxml`, `.mxl`), MuseScore (`.mscz`, converted by the MuseScore CLI) and MIDI. The importer fails loudly on anything it cannot represent faithfully.
 
 ## ADR-006 MIDI output scheduling — Decided
 - **Context:** Chrome has no `MIDIOutput.clear()`; messages sent with a future timestamp cannot be cancelled.
@@ -72,5 +71,5 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 ## ADR-014 Routing and hosting details — Decided
 - Hash routing; app-prefixed IndexedDB and cache names (github.io origin is shared between repos); service worker at site root with relative registration; Actions deploy with current action majors.
 
-## ADR-015 Learning order — Proposed, minor
-- Research rates Faded (easy version, A minor) as the easiest and Clocks as the hardest; Viva la Vida easier than Clocks. The brief's order is kept as the default library order unless Matija prefers difficulty order; the difficulty badge shows the rating either way.
+## ADR-015 Easy versions — Decided
+- With supplied files, an Easy version is produced by transposing the supplied file to C major / A minor in the import script (no re-arranging). Offered when the original key has three or more accidentals.

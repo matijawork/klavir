@@ -1,0 +1,11 @@
+{
+  "title": "Prelude in C major, BWV 846",
+  "composer": "Johann Sebastian Bach",
+  "difficulty": 3,
+  "youtube": null,
+  "source": {
+    "url": "https://github.com/musetrainer/library/blob/master/scores/Prelude_I_in_C_major_BWV_846_-_Well_Tempered_Clavier_First_Book.mxl",
+    "license": "Public domain (as stated by the musetrainer/library collection; the repository has no license file)"
+  },
+  "versions": [{ "id": "original", "label": "Original", "file": "original.mxl" }]
+}

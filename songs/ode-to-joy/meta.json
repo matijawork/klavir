@@ -1,0 +1,11 @@
+{
+  "title": "Ode to Joy (easy)",
+  "composer": "Ludwig van Beethoven",
+  "difficulty": 1,
+  "youtube": null,
+  "source": {
+    "url": "https://github.com/musetrainer/library/blob/master/scores/Ode_to_Joy_Easy_variation.mxl",
+    "license": "Public domain (as stated by the musetrainer/library collection; the repository has no license file)"
+  },
+  "versions": [{ "id": "original", "label": "Original", "file": "original.mxl" }]
+}
