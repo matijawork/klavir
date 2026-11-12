@@ -32,4 +32,5 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - MIDI channels (0-based): 0 = player's keys, never send there; 2 = playback; 3 = click. Channel 1 is avoided (Korg layer mode).
 - Input timing always from `MIDIMessageEvent.timeStamp`, never `Date.now()` or render time.
 - Scripts run with plain `node` (type stripping): relative imports need the `.ts` extension, no enums or parameter properties.
+- `git push` can hang on the macOS keychain helper; use `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`.
 - TypeScript 7 + Biome (typescript-eslint does not support TS 7).
