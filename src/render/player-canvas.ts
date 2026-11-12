@@ -4,7 +4,7 @@
  */
 import { type Tokens, tokens, withAlpha } from '../design/tokens.ts';
 import { HIGH, isBlack, keyW, keyX, LOW, noteName, WHITE_COUNT } from '../engine/keys.ts';
-import { HIT, MISSED, type PracticeSession, SHORT } from '../engine/session.ts';
+import { EARLY, HIT, LATE, MISSED, type PracticeSession, SHORT } from '../engine/session.ts';
 import type { LoadedSong } from '../engine/song.ts';
 import { clearLastNoteOn, held, lastNoteOnAt } from '../midi/midi.ts';
 
@@ -26,7 +26,19 @@ const NOTE_RADIUS = 6;
 const FINGER = ['', '1', '2', '3', '4', '5'];
 const FONT_FINGER = '700 12px Inter, system-ui, sans-serif';
 const FONT_FINGER_SMALL = '700 9px Inter, system-ui, sans-serif';
-const GLOW_COLORS = ['accent', 'hand-left', 'hand-right', 'fb-correct', 'text'] as const;
+const GLOW_COLORS = [
+  'accent',
+  'hand-left',
+  'hand-right',
+  'fb-correct',
+  'text',
+  'fb-wrong',
+  'fb-late',
+] as const;
+const GLOW_WRONG = 5;
+const GLOW_RELEASE = 6;
+/** seconds (real time) the "let go" flash stays on the hit line after a note ends */
+const RELEASE_FLASH = 0.35;
 const SPARKS = 256;
 /** sparks per second from one sounding key */
 const SPARK_RATE = 10;
@@ -92,6 +104,8 @@ export class PlayerCanvas {
   /** start and end (song seconds) of the practised note most recently sounding on each key */
   private readonly dueStart = new Float64Array(128);
   private readonly dueEnd = new Float64Array(128).fill(-1);
+  /** keys that were down while their note sounded and have not come up since */
+  private readonly ride = new Uint8Array(128);
   private now = 0;
   private first = 0;
   private beatPtr = 0;
@@ -211,6 +225,7 @@ export class PlayerCanvas {
     // falling notes
     const { start, end, pitch, hand, finger, count, maxLen } = song;
     const state = session.state;
+    const grade = session.grade;
     const mask = session.config.handMask;
     const soonUntil = t + 1.5 * rate;
     this.due.fill(0);
@@ -222,6 +237,7 @@ export class PlayerCanvas {
     const sheen = withAlphaCached(tk.text, 0.16);
     const edge = withAlphaCached(tk.text, 0.6);
     const badge = withAlphaCached(tk.bg, 0.62);
+    const cap = withAlphaCached(tk.text, 0.9);
     for (let pass = 0; pass < 2; pass++) {
       // pass 0: white-key notes, pass 1: black-key notes on top
       for (let i = this.first; i < count; i++) {
@@ -242,13 +258,18 @@ export class PlayerCanvas {
           this.dueEnd[p] = e;
         }
         const st = state[i]!;
+        // green on time, yellow early, orange late, red let go too soon, grey missed
         const base =
           st === HIT
-            ? tk['fb-correct']
+            ? grade[i] === EARLY
+              ? tk['fb-early']
+              : grade[i] === LATE
+                ? tk['fb-late']
+                : tk['fb-correct']
             : st === MISSED
               ? tk['fb-missed']
               : st === SHORT
-                ? tk['fb-late']
+                ? tk['fb-wrong']
                 : hand[i]
                   ? tk['hand-right']
                   : tk['hand-left'];
@@ -285,6 +306,11 @@ export class PlayerCanvas {
         if (!active && bw > 8) {
           ctx.fillStyle = edge;
           ctx.fillRect(x + 3, yBottom - 3, bw - 6, 2);
+        }
+        // end cap: when this line reaches the keys, let go
+        if (!this.demo && (e - s) * pps > 22 && bh > 10) {
+          ctx.fillStyle = cap;
+          ctx.fillRect(x + 2, yBottom - bh + 2, bw - 4, 3);
         }
         const f = finger[i]!;
         if (this.showFingers && f > 0 && f < 6 && bw > 9) {
@@ -393,6 +419,7 @@ export class PlayerCanvas {
     const { ctx, w, tk, due } = this;
     const kh = this.keysH;
     const blackH = kh * 0.62;
+    const rate = this.session.transport.rate;
     ctx.fillStyle = tk['key-white'];
     ctx.fillRect(0, top, w, kh);
 
@@ -401,10 +428,14 @@ export class PlayerCanvas {
       if (isBlack(p)) continue;
       const x = keyX[p]! * w;
       const kw = keyW[p]! * w;
+      const pressed = held[p]! > 0;
+      if (!pressed) this.ride[p] = 0;
+      else if (due[p]) this.ride[p] = 1;
       const fill = this.keyFill(p);
       if (fill) {
         ctx.fillStyle = fill;
         ctx.fillRect(x, top, kw, kh * this.holdLeft(p));
+        if (this.letGo(p)) this.drawArrow(x + kw / 2, top + kh * 0.2, Math.min(7, kw * 0.3));
       }
       ctx.fillStyle = withAlphaCached(tk.bg, 0.3);
       ctx.fillRect(Math.round(x + kw) - 1, top, 1, kh);
@@ -417,12 +448,16 @@ export class PlayerCanvas {
       ctx.beginPath();
       ctx.roundRect(x, top, kw, blackH, BLACK_RADII);
       ctx.fill();
+      const pressed = held[p]! > 0;
+      if (!pressed) this.ride[p] = 0;
+      else if (due[p]) this.ride[p] = 1;
       const fill = this.keyFill(p);
       if (fill) {
         ctx.fillStyle = fill;
         ctx.beginPath();
         ctx.roundRect(x, top, kw, Math.max(4, blackH * this.holdLeft(p)), BLACK_RADII);
         ctx.fill();
+        if (this.letGo(p)) this.drawArrow(x + kw / 2, top + blackH * 0.3, Math.min(5, kw * 0.32));
       }
     }
 
@@ -434,8 +469,24 @@ export class PlayerCanvas {
     for (let p = LOW; p <= HIGH; p++) {
       const pressed = held[p]! > 0;
       const d = due[p]!;
+      // a note just ended on this key: flash the hit line above it
+      const since = (this.now - this.dueEnd[p]!) / rate;
+      if (!d && !this.demo && this.dueEnd[p]! >= 0 && since >= 0 && since < RELEASE_FLASH) {
+        const kx = keyX[p]! * w;
+        ctx.globalAlpha = 1 - since / RELEASE_FLASH;
+        ctx.fillStyle = tk['fb-late'];
+        ctx.fillRect(kx - 2, top - 7, keyW[p]! * w + 4, 7);
+      }
       if (!pressed && !d) continue;
-      const ci = pressed ? (d ? 3 : 0) : d;
+      const ci = pressed
+        ? this.session.wrongDown[p]
+          ? GLOW_WRONG
+          : d
+            ? 3
+            : this.letGo(p)
+              ? GLOW_RELEASE
+              : 0
+        : d;
       const name = GLOW_COLORS[ci]!;
       const kw = keyW[p]! * w;
       const cx = (keyX[p]! + kw / w / 2) * w;
@@ -522,16 +573,31 @@ export class PlayerCanvas {
     return Math.min(1, Math.max(0.04, (this.dueEnd[p]! - this.now) / len));
   }
 
+  /** True while key `p` is still down although the note it was holding has ended: time to let go. */
+  private letGo(p: number): boolean {
+    if (!this.ride[p] || this.due[p] || held[p] === 0) return false;
+    const over = this.now - this.dueEnd[p]!;
+    return this.dueEnd[p]! >= 0 && over >= 0 && over < 4 * this.session.transport.rate;
+  }
+
+  /** Small upward arrow on a key: lift the finger. */
+  private drawArrow(cx: number, cy: number, r: number): void {
+    const { ctx } = this;
+    ctx.fillStyle = this.tk.bg;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r, cy + r * 0.7);
+    ctx.lineTo(cx - r, cy + r * 0.7);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   private keyFill(p: number): string | null {
     const d = this.due[p]!;
     if (held[p]! > 0) {
+      if (this.session.wrongDown[p]) return this.tk['fb-wrong'];
       if (d) return this.tk['fb-correct'];
-      // still down after its note ended: time to let go
-      const over = this.now - this.dueEnd[p]!;
-      const rate = this.session.transport.rate;
-      return this.dueEnd[p]! >= 0 && over > 0.15 * rate && over < 4 * rate
-        ? this.tk['fb-late']
-        : this.tk.accent;
+      return this.letGo(p) ? this.tk['fb-late'] : this.tk.accent;
     }
     if (d === 0) return null;
     const color = d === 2 ? this.tk['hand-right'] : this.tk['hand-left'];

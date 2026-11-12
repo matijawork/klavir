@@ -43,10 +43,12 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 - **Context:** fixed ±200 ms is ambiguous for fast notes; ±50 ms as pass/fail is harsh for a beginner.
 - **Decision:** presets keep the brief's names and nominal values but scale with the beat and are clamped: Easy ±25 % of a beat (120–200 ms), Normal ±15 % (80–120 ms), Strict ±8 % (40–60 ms). Also capped at 45 % of the gap to the next same-pitch note. Custom values remain. Each hit is graded perfect / good / ok, not just pass/fail.
 - **Why:** matches published rhythm-game ranges; stays unambiguous at any speed. Defaults get revisited after Matija's first real sessions.
+- **Revised 2026-11-12 (his first sessions):** a single pass/fail window felt broken (late key = miss + wrong). The window above is now only the "on time" grade; a press counts up to half a beat away (250–400 ms, long notes up to half their length, max 1 s), graded early/late with a timing score falling from 1 to 0.2. Pass score per note: key 40 %, timing 35 %, hold 25 %; wrong keys add to the total.
 
 ## ADR-008 Note matching — Decided
 - **Decision:** tempo mode uses per-pitch windowed matching in real time (earliest unmatched candidate inside the window), with a wrong-pitch pairing step and extras counted separately, then a per-pitch monotone alignment pass at the end for the stored score. Chords: each tone matched independently; chord timing = mean deviation; spread reported separately. Wait mode needs no matching: it gates on the required pitch set.
 - **Why:** the app owns the clock, so score-following is unnecessary complexity.
+- **As built:** earliest open note of the pitch wins, unless a later one is inside its on-time window (the earlier one was skipped). No wrong-pitch pairing or end-of-pass alignment yet.
 
 ## ADR-009 Calibration — Decided (deviates from the brief's "tap to a flash")
 - **Decision:** two settings. (1) Input offset: play one key along with 16–20 Korg clicks; median with MAD outlier rejection; first taps discarded; repeat requested if spread is too wide; stored per device, clamped to −80…+40 ms. (2) Visual offset: a slider nudged until the falling note and the click coincide; applied only to drawing.

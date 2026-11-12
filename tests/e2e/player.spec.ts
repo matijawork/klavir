@@ -112,25 +112,50 @@ test('tempo mode: a clean pass of a section scores 100 %', async ({ page }) => {
   await page.getByTestId('loop').click(); // selecting turned loop on; turn it off for a single pass
   await page.getByTestId('play').click();
   await perform(page);
-  await expect(page.getByTestId('pass')).toContainText('100%', { timeout: 20_000 });
+  await expect(page.getByTestId('pass-score')).toHaveText('100%', { timeout: 20_000 });
 });
 
 test('tempo mode: playing nothing scores 0 % and the loop restarts', async ({ page }) => {
   await open(page, { mode: 'tempo', speed: 1.5 });
   await selectStart(page, 0.05);
   await page.getByTestId('play').click();
-  await expect(page.getByTestId('pass')).toContainText('0%', { timeout: 20_000 });
+  await expect(page.getByTestId('pass-score')).toHaveText('0%', { timeout: 20_000 });
   expect(await page.evaluate(() => window.__klavir!.session.running)).toBe(true);
 });
 
-test('tempo mode: playing 160 ms late misses everything', async ({ page }) => {
+test('tempo mode: playing 160 ms late still counts, graded late', async ({ page }) => {
   await open(page, { mode: 'tempo', speed: 1.5 });
   await selectStart(page, 0.05);
   await page.getByTestId('loop').click();
   await page.getByTestId('play').click();
-  // outside the 80–120 ms window, and nowhere near the next note either
   await perform(page, 160);
-  await expect(page.getByTestId('pass')).toContainText('0%', { timeout: 20_000 });
+  await expect(page.getByTestId('hud')).toContainText('late', { timeout: 20_000 });
+  await expect(page.getByTestId('pass-score')).toBeVisible({ timeout: 20_000 });
+  const score = Number(await page.getByTestId('pass').getAttribute('data-score'));
+  expect(score).toBeGreaterThan(50);
+  expect(score).toBeLessThan(100);
+  const r = await page.evaluate(() => window.__klavir!.session.result(true));
+  expect(r.hits).toBe(r.expected);
+  expect(r.late).toBe(r.expected);
+  expect(r.wrong).toBe(0);
+});
+
+test('a wrong key shows up at once and lowers the score', async ({ page }) => {
+  await open(page, { mode: 'tempo' }, 'test-c');
+  await page.getByTestId('play').click();
+  await page.waitForFunction(() => window.__klavir!.transport.time() > 0.5);
+  await page.evaluate(() => window.__midi!.noteOn(60));
+  await expect(page.getByTestId('hud')).toContainText('1 wrong');
+  expect(await page.evaluate(() => window.__klavir!.session.wrongDown[60])).toBe(1);
+  await page.evaluate(() => window.__midi!.noteOff(60));
+  // changing the volume must not restart the pass
+  const before = await page.evaluate(() => window.__klavir!.transport.time());
+  await page.locator('summary[title="Settings"]').click();
+  await page.getByLabel('Volume', { exact: true }).fill('2');
+  expect(await page.evaluate(() => window.__klavir!.transport.time())).toBeGreaterThanOrEqual(
+    before,
+  );
+  expect(await page.evaluate(() => window.__klavir!.session.wrong)).toBe(1);
 });
 
 test('auto speed-up raises the speed after a clean looped pass', async ({ page }) => {

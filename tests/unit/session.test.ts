@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  acceptWindowMs,
   buildBeats,
+  EARLY,
   HIT,
   hitWindowMs,
+  LATE,
   MISSED,
+  noteScore,
   PENDING,
   PracticeSession,
-  passAccuracy,
   SHORT,
+  timingScore,
 } from '../../src/engine/session.ts';
 import { loadSong, type SongFile, type SongNote } from '../../src/engine/song.ts';
 import { Transport } from '../../src/engine/transport.ts';
@@ -100,13 +104,57 @@ describe('tempo mode', () => {
     expect(song.count).toBe(3);
   });
 
-  it('rejects a press outside the window', () => {
-    const { session } = make([R(60, 0)]);
+  it('counts a late press as a late hit, not as a miss plus a wrong key', () => {
+    const { session } = make([R(60, 0), R(62, 1)]);
     session.configure({ ...base, mode: 'tempo' }, 0);
     session.play(0);
     session.noteOn(60, at(0) + 200);
+    session.noteOn(62, at(1) - 180);
+    expect([...session.state]).toEqual([HIT, HIT]);
+    expect([...session.grade]).toEqual([LATE, EARLY]);
+    expect(session.wrong).toBe(0);
+    expect(session.timing[0]).toBeLessThan(1);
+    expect(session.timing[0]).toBeGreaterThan(0.2);
+  });
+
+  it('rejects a press far outside the window and flags the key', () => {
+    const { session } = make([R(60, 0)]);
+    session.configure({ ...base, mode: 'tempo' }, 0);
+    session.play(0);
+    session.noteOn(60, at(0) + 600);
     expect(session.state[0]).toBe(PENDING);
     expect(session.wrong).toBe(1);
+    expect(session.wrongDown[60]).toBe(1);
+    session.noteOff(60, at(0) + 700);
+    expect(session.wrongDown[60]).toBe(0);
+    session.update(at(0) + 700);
+    expect(session.state[0]).toBe(MISSED);
+  });
+
+  it('lets a long note be struck later than a short one', () => {
+    const { session } = make([R(60, 0, 4), R(62, 4, 1)], 2);
+    session.configure({ ...base, mode: 'tempo' }, 0);
+    session.play(0);
+    session.update(at(0) + 600);
+    expect(session.state[0]).toBe(PENDING);
+    session.noteOn(60, at(0) + 900);
+    expect(session.state[0]).toBe(HIT);
+    expect(session.timing[0]).toBeCloseTo(0.2);
+    session.update(at(4) + 600);
+    expect(session.state[1]).toBe(MISSED);
+  });
+
+  it('reports a live result while the pass is running', () => {
+    const { session } = make([R(60, 0), R(62, 1), R(64, 2)]);
+    session.configure({ ...base, mode: 'tempo' }, 0);
+    session.play(0);
+    expect(session.result(false, 0).judged).toBe(0);
+    session.noteOn(60, at(0));
+    session.noteOn(61, at(0) + 500);
+    const r = session.result(false, at(0) + 500);
+    expect(r).toMatchObject({ judged: 1, hits: 1, wrong: 1, accuracy: 0.5, timing: 1, hold: 1 });
+    session.update(at(2));
+    expect(session.result(false, at(2))).toMatchObject({ judged: 2, missed: 1 });
   });
 
   it('matches repeated notes in order', () => {
@@ -118,6 +166,26 @@ describe('tempo mode', () => {
     session.noteOn(60, at(1) - 20);
     expect([...session.state]).toEqual([HIT, HIT, HIT]);
     expect(session.wrong).toBe(0);
+  });
+
+  it('gives a late press to the note it is late for, not to the next one of the same pitch', () => {
+    const { session } = make([R(60, 0, 0.3), R(60, 0.3, 0.3)]);
+    session.configure({ ...base, mode: 'tempo' }, 0);
+    session.play(0);
+    session.noteOn(60, at(0) + 170); // 170 ms late for the first, 130 ms early for the second
+    expect([...session.state]).toEqual([HIT, PENDING]);
+    session.noteOff(60, at(0) + 250);
+    session.noteOn(60, at(0.3) + 170);
+    expect([...session.state]).toEqual([HIT, HIT]);
+    expect([...session.grade]).toEqual([LATE, LATE]);
+  });
+
+  it('skips to the next note of the same pitch when the press is right on it', () => {
+    const { session } = make([R(60, 0, 0.3), R(60, 0.3, 0.3)]);
+    session.configure({ ...base, mode: 'tempo' }, 0);
+    session.play(0);
+    session.noteOn(60, at(0.3) - 20);
+    expect([...session.state]).toEqual([PENDING, HIT]);
   });
 
   it('keeps going and reports the pass at the end', () => {
@@ -236,6 +304,20 @@ describe('wait mode', () => {
     expect(session.waiting).toBe(true);
   });
 
+  it('does not call a key of the next note wrong when it is pressed a little ahead', () => {
+    const { session } = make([R(60, 0, 0.5), R(62, 0.5, 0.5), R(64, 3)]);
+    session.configure({ ...base, mode: 'wait' }, 0);
+    session.play(0);
+    session.noteOn(60, at(0) - 100);
+    session.noteOn(62, at(0) - 20); // ahead of the first gate
+    expect(session.wrong).toBe(0);
+    session.noteOn(64, at(0) - 10); // far ahead: a mistake
+    expect(session.wrong).toBe(1);
+    session.update(at(0) + 10);
+    session.update(at(0.5) + 10);
+    expect(session.hits).toBe(2);
+  });
+
   it('only waits for the selected hand', () => {
     const { session } = make([R(60, 0), L(48, 0), L(50, 1)]);
     session.configure({ ...base, mode: 'wait', handMask: 2 }, 0);
@@ -311,10 +393,27 @@ describe('releasing keys', () => {
     expect(session.state[0]).toBe(HIT);
   });
 
-  it('scores wrong keys and short notes', () => {
-    expect(passAccuracy(10, 0, 0, 10)).toBe(1);
-    expect(passAccuracy(10, 4, 0, 10)).toBe(0.8);
-    expect(passAccuracy(10, 0, 10, 10)).toBe(0.5);
-    expect(passAccuracy(0, 0, 0, 10)).toBe(0);
+  it('scores the held share of a note that was let go early', () => {
+    const { session } = make(long);
+    session.configure(cfg, 0);
+    session.play(0);
+    session.noteOn(60, 2000);
+    session.noteOff(60, 2500);
+    expect(session.hold[0]).toBeCloseTo(0.25);
+    const r = session.result(true, 5000);
+    expect(r.hold).toBeCloseTo(0.25);
+    expect(r.accuracy).toBeCloseTo(noteScore(1, 0.25));
+  });
+
+  it('weighs right key, timing and hold', () => {
+    expect(noteScore(1, 1)).toBeCloseTo(1);
+    expect(noteScore(null, 1)).toBeCloseTo(1);
+    expect(noteScore(0.2, 0)).toBeCloseTo(0.47);
+    expect(noteScore(null, 0)).toBeCloseTo(0.4 / 0.65);
+    expect(acceptWindowMs(60, 1)).toBe(400);
+    expect(acceptWindowMs(200, 1)).toBe(250);
+    expect(timingScore(50, 100, 300)).toBe(1);
+    expect(timingScore(200, 100, 300)).toBeCloseTo(0.6);
+    expect(timingScore(500, 100, 300)).toBe(0.2);
   });
 });

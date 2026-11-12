@@ -50,15 +50,40 @@ function loadSamples(c: AudioContext): void {
 /** Overall loudness, 0..2 (1 = default). */
 export function setVolume(v: number): void {
   volume = v;
-  if (master && ctx) master.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
+  if (master && ctx) master.gain.setTargetAtTime(v * DRIVE, ctx.currentTime, 0.02);
 }
 
 /** voice groups, so one group can be silenced without touching the other */
 export const VOICE_PLAYER = 0;
 export const VOICE_SONG = 1;
 
+/** Drive into the limiter: the samples peak near 0.4, so this lifts them to a healthy level. */
+const DRIVE = 1.5;
+/** share of the piano sent through the room reverb */
+const ROOM = 0.14;
+
 let ctx: AudioContext | null = null;
+/** everything: volume, then the limiter */
 let master: GainNode | null = null;
+/** piano voices: dry to the master plus a little room */
+let piano: GainNode | null = null;
+
+/** Impulse response of a small room: decaying noise that gets duller as it fades. */
+function roomImpulse(c: AudioContext): AudioBuffer {
+  const len = Math.floor(c.sampleRate * 1.4);
+  const buf = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let low = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / c.sampleRate;
+      const k = 0.25 + 0.6 * Math.min(1, t / 0.5);
+      low += (1 - k) * (Math.random() * 2 - 1 - low);
+      d[i] = low * Math.exp(-t / 0.28) * Math.min(1, t / 0.004);
+    }
+  }
+  return buf;
+}
 const voices = new Map<number, Voice>();
 /** player notes released while the sustain pedal is down */
 const sustained = new Set<number>();
@@ -69,12 +94,24 @@ function context(): AudioContext | null {
   const Ctor = window.AudioContext;
   if (!Ctor) return null;
   ctx = new Ctor({ latencyHint: 'interactive' });
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = -14;
-  comp.ratio.value = 6;
+  // a limiter, not a compressor: single notes pass untouched, only big chords are held back,
+  // and it lets go quickly so the ringing notes do not pump
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -6;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 12;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.12;
   master = ctx.createGain();
-  master.gain.value = volume;
-  master.connect(comp).connect(ctx.destination);
+  master.gain.value = volume * DRIVE;
+  master.connect(limiter).connect(ctx.destination);
+  piano = ctx.createGain();
+  piano.connect(master);
+  const room = ctx.createConvolver();
+  room.buffer = roomImpulse(ctx);
+  const wet = ctx.createGain();
+  wet.gain.value = ROOM;
+  piano.connect(room).connect(wet).connect(master);
   return ctx;
 }
 
@@ -98,13 +135,13 @@ function release(key: number, when: number): void {
   if (!v) return;
   voices.delete(key);
   v.gain.gain.cancelScheduledValues(when);
-  v.gain.gain.setTargetAtTime(0, when, 0.09);
+  v.gain.gain.setTargetAtTime(0, when, 0.07);
   for (const o of v.sources) o.stop(when + 0.8);
 }
 
 export function synthOn(group: number, pitch: number, velocity: number, time?: number): void {
   const c = context();
-  if (!c || !master || c.state !== 'running') return;
+  if (!c || !piano || c.state !== 'running') return;
   const key = group * 128 + pitch;
   const when = at(c, time);
   release(key, when);
@@ -123,7 +160,7 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
     filter.frequency.value = 1200 + 17000 * vel ** 2;
     const gain = c.createGain();
     gain.gain.setValueAtTime(0.25 + 1.75 * vel ** 1.7, when);
-    src.connect(filter).connect(gain).connect(master);
+    src.connect(filter).connect(gain).connect(piano);
     src.start(when, lead[k]);
     voices.set(key, { gain, sources: [src] });
     return;
@@ -137,7 +174,7 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
   gain.gain.setValueAtTime(0, when);
   gain.gain.linearRampToValueAtTime(level, when + 0.004);
   gain.gain.setTargetAtTime(level * 0.02, when + 0.004, decay);
-  gain.connect(master);
+  gain.connect(piano);
   const sources: OscillatorNode[] = [];
   for (const [mult, amount] of [
     [1, 0.7],
@@ -190,7 +227,8 @@ export function synthClick(accent: boolean, time?: number, level = 1): void {
   o.type = 'square';
   o.frequency.value = accent ? 1760 : 1175;
   const g = c.createGain();
-  g.gain.setValueAtTime((accent ? 0.6 : 0.4) * level, when);
+  // the click keeps its own level whatever the piano drive is
+  g.gain.setValueAtTime(((accent ? 0.6 : 0.4) * level) / DRIVE, when);
   g.gain.exponentialRampToValueAtTime(0.001, when + 0.045);
   o.connect(g).connect(master);
   o.start(when);

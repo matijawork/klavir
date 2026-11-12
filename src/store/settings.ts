@@ -21,7 +21,7 @@ export interface Settings {
   soundOut: SoundOut;
   /** play the player's own keys through the computer */
   monitor: boolean;
-  /** computer sound loudness, 0..2 */
+  /** computer sound loudness, 0..3 */
   volume: number;
   /** metronome loudness relative to the rest, 0..2 */
   clickVolume: number;

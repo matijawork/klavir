@@ -117,6 +117,78 @@ function Pct(props: {
   );
 }
 
+const pct = (v: number): string => `${Math.round(v * 100)}%`;
+
+function Meter(props: { label: string; value: number; text: string; title: string; kind: string }) {
+  return (
+    <div class="meter" title={props.title} data-kind={props.kind}>
+      <span>{props.label}</span>
+      <i>
+        <b style={{ width: pct(Math.min(1, Math.max(0, props.value))) }} />
+      </i>
+      <output>{props.text}</output>
+    </div>
+  );
+}
+
+/** Result of a finished pass: overall score and what it is made of. */
+function PassCard({ r, onAgain }: { r: PassResult; onAgain: () => void }) {
+  const dev = r.meanDeviation;
+  return (
+    <div class="pass card" data-testid="pass" data-score={Math.round(r.accuracy * 100)}>
+      <strong
+        data-testid="pass-score"
+        data-level={r.accuracy >= 0.9 ? 'high' : r.accuracy >= 0.6 ? 'mid' : 'low'}
+        title="Right keys, timing and hold together; every wrong key lowers it"
+      >
+        {pct(r.accuracy)}
+      </strong>
+      <Meter
+        kind="notes"
+        label="Notes"
+        value={r.notes}
+        text={`${r.hits}/${r.expected}`}
+        title="Notes you played out of all notes"
+      />
+      {r.timing !== null && (
+        <Meter
+          kind="timing"
+          label="Timing"
+          value={r.timing}
+          text={
+            dev === null || Math.abs(dev) < 15
+              ? pct(r.timing)
+              : `${Math.round(Math.abs(dev))} ms ${dev < 0 ? 'early' : 'late'}`
+          }
+          title={`How close to the beat: ${r.early} early, ${r.late} late`}
+        />
+      )}
+      {r.hold !== null && (
+        <Meter
+          kind="hold"
+          label="Hold"
+          value={r.hold}
+          text={r.short > 0 ? `${r.short} short` : pct(r.hold)}
+          title="How fully you held the notes before letting go"
+        />
+      )}
+      <div
+        class="meter"
+        data-kind="wrong"
+        data-bad={r.wrong > 0}
+        title="Keys that were not in the song"
+      >
+        <span>Wrong keys</span>
+        <i />
+        <output>{r.wrong}</output>
+      </div>
+      <button type="button" class="btn" onClick={onAgain} title="R">
+        Again
+      </button>
+    </div>
+  );
+}
+
 export function Player({ songId, version }: { songId: string; version: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [song, setSong] = useState<LoadedSong | null>(null);
@@ -128,6 +200,10 @@ export function Player({ songId, version }: { songId: string; version: string })
   const loop = useSignal(false);
   const range = useSignal<{ a: number; b: number } | null>(null);
   const lastPass = useSignal<PassResult | null>(null);
+  /** running result of the pass being played; null before anything is judged */
+  const live = useSignal<PassResult | null>(null);
+  const lastConfig = useRef('');
+  const lastClicks = useRef('');
   const debug = useSignal(new URLSearchParams(location.search).has('debug'));
   const statsText = useSignal('');
   const wakeLock = useRef<WakeLockSentinel | null>(null);
@@ -162,6 +238,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     session.onSeek = () => playback.resync();
     session.onPass = (r) => {
       lastPass.value = r;
+      live.value = null;
       const s = settings.peek();
       if (
         s.autoSpeed &&
@@ -184,6 +261,8 @@ export function Player({ songId, version }: { songId: string; version: string })
       playback.flush();
     });
     window.__klavir = { stats: view.stats, transport, session };
+    lastConfig.current = '';
+    lastClicks.current = '';
     engineSig.value = { transport, session, playback, view };
 
     const onHide = () => {
@@ -193,6 +272,13 @@ export function Player({ songId, version }: { songId: string; version: string })
         playing.value = false;
       }
     };
+    let seen = -1;
+    const liveTimer = setInterval(() => {
+      if (session.revision === seen) return;
+      seen = session.revision;
+      const r = session.result(false);
+      live.value = r.judged + r.wrong > 0 ? r : null;
+    }, 120);
     const timer = setInterval(() => {
       if (!debug.value) return;
       const s = view.stats;
@@ -202,6 +288,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     window.addEventListener('pagehide', panic);
     return () => {
       clearInterval(timer);
+      clearInterval(liveTimer);
       offNote();
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', panic);
@@ -220,40 +307,54 @@ export function Player({ songId, version }: { songId: string; version: string })
     const demo = listen.value;
     const handMask = s.hands === 'both' ? 3 : s.hands === 'L' ? 1 : 2;
     const { session, playback, view, transport } = engine;
-    const wasRunning = session.running;
-    if (wasRunning) session.pause();
-    playback.stop();
     setSoundTarget(s.soundOut);
     setClickLevel(s.clickVolume);
     transport.setRate(s.speed);
-    session.configure({
-      mode: demo ? 'tempo' : s.mode,
-      handMask: demo ? 0 : handMask,
-      range: range.value,
-      loop: loop.value,
-      countIn: s.countIn,
-    });
-    lastPass.value = null;
+    const loopOn = loop.value;
+
+    // only what changes the notes to play restarts the pass; volume, zoom or speed do not
+    const r = range.value;
+    const configKey = `${session.song.file.id}|${demo}|${s.mode}|${handMask}|${r?.a}-${r?.b}|${s.countIn}`;
+    const reconfigure = configKey !== lastConfig.current;
+    lastConfig.current = configKey;
+    const wasRunning = session.running;
+    if (reconfigure) {
+      if (wasRunning) session.pause();
+      playback.stop();
+      session.configure({
+        mode: demo ? 'tempo' : s.mode,
+        handMask: demo ? 0 : handMask,
+        range: r,
+        loop: loopOn,
+        countIn: s.countIn,
+      });
+      lastPass.value = null;
+      live.value = null;
+    } else if (session.config.loop !== loopOn) session.config = { ...session.config, loop: loopOn };
 
     playback.handMask = demo ? 3 : s.otherHand === 'play' ? 3 & ~handMask : 0;
     playback.getLimit = demo || s.mode !== 'wait' ? null : () => session.gateTime;
-    const times: number[] = [];
-    const accents: number[] = [];
-    if (s.countIn && s.countInClick)
-      session.countInTimes.forEach((t, k) => {
-        times.push(t);
-        accents.push(k === 0 ? 1 : 0);
-      });
-    if (s.metronome && s.metronomeClick) {
-      const b = session.beats;
-      for (let i = 0; i < b.time.length; i++) {
-        if (b.time[i]! < session.rangeStart - 1e-6 || b.time[i]! >= session.rangeEnd - 1e-6)
-          continue;
-        times.push(b.time[i]!);
-        accents.push(b.accent[i]!);
+    const clickKey = `${configKey}|${s.countInClick}|${s.metronome}|${s.metronomeClick}`;
+    if (clickKey !== lastClicks.current) {
+      lastClicks.current = clickKey;
+      const times: number[] = [];
+      const accents: number[] = [];
+      if (s.countIn && s.countInClick)
+        session.countInTimes.forEach((t, k) => {
+          times.push(t);
+          accents.push(k === 0 ? 1 : 0);
+        });
+      if (s.metronome && s.metronomeClick) {
+        const b = session.beats;
+        for (let i = 0; i < b.time.length; i++) {
+          if (b.time[i]! < session.rangeStart - 1e-6 || b.time[i]! >= session.rangeEnd - 1e-6)
+            continue;
+          times.push(b.time[i]!);
+          accents.push(b.accent[i]!);
+        }
       }
+      playback.setClicks(times, accents);
     }
-    playback.setClicks(times, accents);
     playback.freeClicks = !demo && s.mode === 'wait' && s.metronome && s.metronomeClick;
 
     view.demo = demo;
@@ -263,7 +364,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     view.showFingers = s.fingers;
     view.pxPerSec = s.zoom;
     view.beatPulse = s.metronome;
-    if (wasRunning) {
+    if (reconfigure && wasRunning) {
       session.play();
       playback.start();
     }
@@ -279,6 +380,7 @@ export function Player({ songId, version }: { songId: string; version: string })
   const setPlaying = (on: boolean) => {
     if (!engine) return;
     if (on) {
+      if (!engine.session.config.loop) lastPass.value = null;
       engine.session.play();
       engine.playback.start();
       navigator.wakeLock
@@ -302,6 +404,11 @@ export function Player({ songId, version }: { songId: string; version: string })
     if (!engine) return;
     engine.session.rewind();
     lastPass.value = null;
+    live.value = null;
+  };
+  const again = () => {
+    restart();
+    setPlaying(true);
   };
   const fullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
@@ -368,6 +475,7 @@ export function Player({ songId, version }: { songId: string; version: string })
   inputVersion.value; // re-render the live input readout when keys change
   const s = settings.value;
   const pass = lastPass.value;
+  const now = live.value;
   const noOut = outputName.value === null;
 
   return (
@@ -532,7 +640,7 @@ export function Player({ songId, version }: { songId: string; version: string })
               <input
                 type="range"
                 min={0}
-                max={2}
+                max={3}
                 step={0.05}
                 value={s.volume}
                 aria-label="Volume"
@@ -617,20 +725,39 @@ export function Player({ songId, version }: { songId: string; version: string })
             Ped
           </span>
         </div>
-        {pass && !listen.value && (
-          <div class="pass" data-testid="pass" title="Last pass">
-            <strong>{Math.round(pass.accuracy * 100)}%</strong>
+        {now && !listen.value && (
+          <div class="hud" data-testid="hud" title="This pass so far">
+            <strong data-level={now.accuracy >= 0.9 ? 'high' : now.accuracy >= 0.6 ? 'mid' : 'low'}>
+              {pct(now.accuracy)}
+            </strong>
             <span>
-              {pass.hits}/{pass.expected}
+              {now.hits}/{now.expected}
             </span>
-            {pass.wrong > 0 && <span class="wrong">{pass.wrong} wrong</span>}
-            {pass.short > 0 && (
-              <span class="short" title="Keys let go before the note ended">
-                {pass.short} short
+            {now.missed > 0 && <span class="missed">{now.missed} missed</span>}
+            {now.wrong > 0 && <span class="wrong">{now.wrong} wrong</span>}
+            {now.early + now.late > 0 && (
+              <span class="late" title="Played before or after the beat">
+                {now.early > 0 && `${now.early} early`}
+                {now.early > 0 && now.late > 0 && ' · '}
+                {now.late > 0 && `${now.late} late`}
+              </span>
+            )}
+            {now.short > 0 && (
+              <span class="wrong" title="Keys let go before the note ended">
+                {now.short} short
               </span>
             )}
           </div>
         )}
+        {pass &&
+          !listen.value &&
+          (now ? (
+            <div class="pass chip" data-testid="pass" title="Previous pass">
+              {pct(pass.accuracy)}
+            </div>
+          ) : (
+            <PassCard r={pass} onAgain={again} />
+          ))}
         {debug.value && (
           <div class="debug" data-testid="debug">
             {statsText.value}

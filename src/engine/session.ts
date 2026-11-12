@@ -24,14 +24,32 @@ export interface SessionConfig {
   countIn: boolean;
 }
 
+/** timing grade of a hit note, for drawing */
+export const ON_TIME = 0;
+export const EARLY = 1;
+export const LATE = 2;
+
 export interface PassResult {
   expected: number;
+  /** notes whose outcome is known so far (= expected once the pass is over) */
+  judged: number;
   hits: number;
   missed: number;
   wrong: number;
   /** notes that were hit but released too early */
   short: number;
-  /** 0..1: early releases count half, every wrong key adds to the total */
+  /** hits outside the on-time window */
+  early: number;
+  late: number;
+  /** 0..1 share of judged notes that were played */
+  notes: number;
+  /** 0..1 how close to the beat the hits were; null when not measured (wait mode, no hits) */
+  timing: number | null;
+  /** 0..1 how fully the notes were held; null without hits */
+  hold: number | null;
+  /** mean onset deviation of the hits in ms (positive = late); null when not measured */
+  meanDeviation: number | null;
+  /** 0..1 overall score: see noteScore; every wrong key adds to the total */
   accuracy: number;
   /** wall-clock seconds the pass took */
   seconds: number;
@@ -42,17 +60,35 @@ const EARLY_MS = 1000;
 /** Lead-in when count-in is off, seconds of song time. */
 const SHORT_LEAD = 1;
 
-/** Score of a pass. Wrong keys and early releases both pull it down. */
-export const passAccuracy = (
-  hits: number,
-  short: number,
-  wrong: number,
-  expected: number,
-): number => (expected + wrong > 0 ? Math.max(0, hits - 0.5 * short) / (expected + wrong) : 1);
+/** Weights of the three things a played note is judged on. */
+const W_NOTE = 0.4;
+const W_TIMING = 0.35;
+const W_HOLD = 0.25;
 
-/** Normal-preset onset window in wall milliseconds (ADR-007): 15 % of a beat, clamped. */
+/**
+ * Score of one played note, 0..1: right key, how close to the beat (`timing` 0..1, null when the
+ * mode does not measure it) and how fully it was held (`hold` 0..1).
+ */
+export const noteScore = (timing: number | null, hold: number): number =>
+  timing === null
+    ? (W_NOTE + W_HOLD * hold) / (W_NOTE + W_HOLD)
+    : W_NOTE + W_TIMING * timing + W_HOLD * hold;
+
+/** "On time" onset window in wall milliseconds (ADR-007 Normal): 15 % of a beat, clamped. */
 export const hitWindowMs = (bpm: number, rate: number): number =>
   Math.min(120, Math.max(80, (0.15 * 60000) / (bpm * rate)));
+
+const ACCEPT_MIN_MS = 250;
+const ACCEPT_MAX_MS = 400;
+/** A press this far from its note (wall ms) still counts, graded early or late: half a beat, clamped. */
+export const acceptWindowMs = (bpm: number, rate: number): number =>
+  Math.min(ACCEPT_MAX_MS, Math.max(ACCEPT_MIN_MS, (0.5 * 60000) / (bpm * rate)));
+/** Long notes may be struck even later than the accept window: up to half their length, capped. */
+const LATE_MAX_MS = 1000;
+
+/** 1 inside the on-time window, falling to 0.2 at the edge of the accept window and beyond. */
+export const timingScore = (absDevMs: number, win: number, accept: number): number =>
+  absDevMs <= win ? 1 : absDevMs >= accept ? 0.2 : 1 - (0.8 * (absDevMs - win)) / (accept - win);
 
 export interface Beats {
   time: Float64Array;
@@ -79,10 +115,20 @@ export class PracticeSession {
   readonly song: LoadedSong;
   readonly transport: Transport;
   readonly beats: Beats;
-  /** per note: PENDING, HIT or MISSED */
+  /** per note: PENDING, HIT, MISSED or SHORT */
   readonly state: Uint8Array;
   /** per note: onset deviation in wall ms (negative = early); NaN when not measured */
   readonly deviation: Float32Array;
+  /** per note: ON_TIME, EARLY or LATE (meaningful once the note is hit) */
+  readonly grade: Uint8Array;
+  /** per note: timing score 0..1; NaN when not measured */
+  readonly timing: Float32Array;
+  /** per note: hold score 0..1 (1 until the key is let go too early) */
+  readonly hold: Float32Array;
+  /** per pitch: 1 while a key judged wrong is down */
+  readonly wrongDown = new Uint8Array(128);
+  /** bumps whenever a note is judged or a wrong key is counted, so the UI can poll cheaply */
+  revision = 0;
 
   config: SessionConfig = { mode: 'wait', handMask: 3, range: null, loop: false, countIn: true };
   rangeStart = 0;
@@ -132,6 +178,9 @@ export class PracticeSession {
     this.beats = buildBeats(song);
     this.state = new Uint8Array(song.count);
     this.deviation = new Float32Array(song.count).fill(Number.NaN);
+    this.grade = new Uint8Array(song.count);
+    this.timing = new Float32Array(song.count).fill(Number.NaN);
+    this.hold = new Float32Array(song.count).fill(1);
     this.configure(this.config);
   }
 
@@ -179,7 +228,12 @@ export class PracticeSession {
       const i = this.active[k]!;
       this.state[i] = PENDING;
       this.deviation[i] = Number.NaN;
+      this.grade[i] = ON_TIME;
+      this.timing[i] = Number.NaN;
+      this.hold[i] = 1;
     }
+    this.wrongDown.fill(0);
+    this.revision++;
     this.hits = 0;
     this.missed = 0;
     this.wrong = 0;
@@ -239,6 +293,7 @@ export class PracticeSession {
       const i = this.active[k]!;
       this.state[i] = HIT;
       this.hits++;
+      this.revision++;
       const p = this.song.pitch[i]!;
       this.usedOn[p] = this.lastOn[p]!;
       if (this.down[p]) this.holding[p] = i;
@@ -255,20 +310,46 @@ export class PracticeSession {
     return false;
   }
 
+  /** Wait mode: is `p` one of the keys due now or within the early-press allowance after song time `t`? */
+  private expectedSoon(p: number, t: number): boolean {
+    const until = Math.max(t, this.gateTime) + (EARLY_MS / 1000) * this.transport.rate;
+    for (let g = this.group; g < this.groupCount; g++) {
+      if (g > this.group && this.groupTime(g) > until) break;
+      if (this.inGroup(g, p)) return true;
+    }
+    return false;
+  }
+
+  private countWrong(p: number): void {
+    this.wrong++;
+    this.wrongDown[p] = 1;
+    this.revision++;
+  }
+
+  /** Wall ms after its start until which note `i` can still be struck. */
+  private lateLimitMs(i: number, accept: number): number {
+    const lenMs = ((this.song.end[i]! - this.song.start[i]!) / this.transport.rate) * 1000;
+    return Math.max(accept, Math.min(LATE_MAX_MS, 0.5 * lenMs));
+  }
+
   /** Marks note `i` as SHORT when it was let go at song time `t` with too much of it left. */
   private checkRelease(i: number, t: number): void {
     if (this.pedalDown || this.state[i] !== HIT) return;
     const { start, end } = this.song;
+    const len = end[i]! - start[i]!;
     const left = end[i]! - t;
-    if (left > Math.max(0.18 * this.transport.rate, 0.3 * (end[i]! - start[i]!))) {
+    if (left > Math.max(0.18 * this.transport.rate, 0.3 * len)) {
       this.state[i] = SHORT;
       this.short++;
+      this.hold[i] = Math.min(1, Math.max(0, 1 - left / len));
+      this.revision++;
     }
   }
 
   /** Feed every note-off from the player. */
   noteOff(p: number, wall: number): void {
     this.down[p] = 0;
+    this.wrongDown[p] = 0;
     const i = this.holding[p]!;
     if (i < 0) return;
     this.holding[p] = -1;
@@ -279,6 +360,7 @@ export class PracticeSession {
   noteOn(p: number, wall: number): void {
     this.lastOn[p] = wall;
     this.down[p] = 1;
+    this.wrongDown[p] = 0;
     if (!this.running) return;
     const tr = this.transport;
     const t = tr.time(wall);
@@ -286,7 +368,8 @@ export class PracticeSession {
 
     if (this.config.mode === 'wait') {
       if (!this.inGroup(this.group, p)) {
-        if (t >= this.rangeStart - 0.05) this.wrong++;
+        // a key of one of the next notes, pressed a little ahead, is not a mistake
+        if (t >= this.rangeStart - 0.05 && !this.expectedSoon(p, t)) this.countWrong(p);
         return;
       }
       if (this.waiting && this.groupSatisfied(this.group, 0)) {
@@ -297,28 +380,93 @@ export class PracticeSession {
       return;
     }
 
-    // tempo mode: nearest pending note of this pitch inside the window
+    // tempo mode: the pending note of this pitch that the press most likely belongs to
     const { start, pitch, tempo } = this.song;
     const rate = tr.rate;
     let best = -1;
     let bestDev = Number.POSITIVE_INFINITY;
+    let bestWin = 0;
+    let bestAccept = 0;
     for (let k = this.missPtr; k < this.active.length; k++) {
       const i = this.active[k]!;
       const dev = ((t - start[i]!) / rate) * 1000;
-      if (dev < -200) break; // further notes are even later
+      if (dev < -ACCEPT_MAX_MS) break; // further notes are even later
       if (pitch[i] !== p || this.state[i] !== PENDING) continue;
-      const win = hitWindowMs(tempo.bpmAt(tempo.toBeats(start[i]!)), rate);
-      if (Math.abs(dev) <= win && Math.abs(dev) < Math.abs(bestDev)) {
+      const bpm = tempo.bpmAt(tempo.toBeats(start[i]!));
+      const accept = acceptWindowMs(bpm, rate);
+      if (dev < -accept || dev > this.lateLimitMs(i, accept)) continue;
+      const win = hitWindowMs(bpm, rate);
+      // The earliest open note wins (people run late more than early), unless a later one is
+      // right on time, or the earliest is only open because it is a long note.
+      const take =
+        best < 0 ||
+        Math.abs(dev) <= win ||
+        (bestDev > bestAccept && Math.abs(dev) < Math.abs(bestDev));
+      if (take) {
         best = i;
         bestDev = dev;
+        bestWin = win;
+        bestAccept = accept;
       }
     }
     if (best >= 0) {
       this.state[best] = HIT;
       this.deviation[best] = bestDev;
+      this.grade[best] = Math.abs(bestDev) <= bestWin ? ON_TIME : bestDev < 0 ? EARLY : LATE;
+      this.timing[best] = timingScore(Math.abs(bestDev), bestWin, bestAccept);
       this.hits++;
+      this.revision++;
       this.holding[p] = best;
-    } else if (t >= this.rangeStart - 0.05) this.wrong++;
+    } else if (t >= this.rangeStart - 0.05) this.countWrong(p);
+  }
+
+  /**
+   * Result of the pass so far (`final` = false: only notes already judged count) or of the whole
+   * pass. Allocates; not for the frame loop.
+   */
+  result(final: boolean, wall: number = performance.now()): PassResult {
+    const tempoMode = this.config.mode === 'tempo';
+    let sum = 0;
+    let timingSum = 0;
+    let holdSum = 0;
+    let devSum = 0;
+    let early = 0;
+    let late = 0;
+    for (let k = 0; k < this.active.length; k++) {
+      const i = this.active[k]!;
+      const st = this.state[i]!;
+      if (st !== HIT && st !== SHORT) continue;
+      const h = this.hold[i]!;
+      holdSum += h;
+      if (tempoMode) {
+        const tm = this.timing[i]!;
+        timingSum += tm;
+        devSum += this.deviation[i]!;
+        if (this.grade[i] === EARLY) early++;
+        else if (this.grade[i] === LATE) late++;
+        sum += noteScore(tm, h);
+      } else sum += noteScore(null, h);
+    }
+    const hits = this.hits;
+    const missed = !tempoMode ? 0 : final ? this.expected - hits : this.missed;
+    const judged = final ? this.expected : hits + missed;
+    const total = judged + this.wrong;
+    return {
+      expected: this.expected,
+      judged,
+      hits,
+      missed,
+      wrong: this.wrong,
+      short: this.short,
+      early,
+      late,
+      notes: judged > 0 ? hits / judged : 1,
+      timing: tempoMode && hits > 0 ? timingSum / hits : null,
+      hold: hits > 0 ? holdSum / hits : null,
+      meanDeviation: tempoMode && hits > 0 ? devSum / hits : null,
+      accuracy: total > 0 ? sum / total : 1,
+      seconds: (wall - this.passStartWall) / 1000,
+    };
   }
 
   /** Call once per frame. Returns the song time to draw. */
@@ -340,30 +488,27 @@ export class PracticeSession {
         }
       }
     } else {
+      // notes whose last chance has passed become misses; long ones stay open a little longer
       const { start, tempo } = this.song;
-      while (this.missPtr < this.active.length) {
-        const i = this.active[this.missPtr]!;
-        const win = hitWindowMs(tempo.bpmAt(tempo.toBeats(start[i]!)), tr.rate);
-        if (((t - start[i]!) / tr.rate) * 1000 <= win) break;
+      const rate = tr.rate;
+      for (let k = this.missPtr; k < this.active.length; k++) {
+        const i = this.active[k]!;
+        const dev = ((t - start[i]!) / rate) * 1000;
+        if (dev <= ACCEPT_MIN_MS) break;
         if (this.state[i] === PENDING) {
-          this.state[i] = MISSED;
-          this.missed++;
+          const accept = acceptWindowMs(tempo.bpmAt(tempo.toBeats(start[i]!)), rate);
+          if (dev > this.lateLimitMs(i, accept)) {
+            this.state[i] = MISSED;
+            this.missed++;
+            this.revision++;
+          }
         }
-        this.missPtr++;
+        if (k === this.missPtr && this.state[i] !== PENDING) this.missPtr++;
       }
     }
 
     if (!this.waiting && t >= this.rangeEnd - 1e-6) {
-      const result: PassResult = {
-        expected: this.expected,
-        hits: this.hits,
-        missed: this.config.mode === 'tempo' ? this.expected - this.hits : 0,
-        wrong: this.wrong,
-        short: this.short,
-        accuracy: passAccuracy(this.hits, this.short, this.wrong, this.expected),
-        seconds: (wall - this.passStartWall) / 1000,
-      };
-      this.onPass?.(result);
+      this.onPass?.(this.result(true, wall));
       if (this.config.loop) {
         this.rewind(wall);
         t = tr.time(wall);

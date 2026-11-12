@@ -60,7 +60,7 @@ Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right
 - Glow toned down (smaller, dimmer, fewer sparks) on his request.
 - Not verified: how the synth sounds and its latency on his Mac (no way to listen from here); timing windows still uncalibrated.
 
-## 2026-11-12 (evening): sound, release cue, wait-mode fix — HANDOFF, read this first
+## 2026-11-12 (evening): sound, release cue, wait-mode fix
 State: everything below is deployed (https://matijawork.github.io/klavir/), 57 unit + 11 e2e green. Matija plays through the Mac (wired), Korg D1 over CME C2MIDI Pro. He confirmed earlier today: keys, pedal, right-hand mode, computer sound without noticeable lag.
 
 Done in this pass:
@@ -83,3 +83,26 @@ Matija must test on the real piano (cannot be checked from here):
 
 Next (in order): M3 calibration (latency offset) + results screen with per-measure errors and history; then M5 exercises (scales, chords, warm-up); M4 recording; M6 MIDI import and library; M7 Firebase; M8 polish/PWA; M9 audit.
 Known gaps: timing windows uncalibrated (Normal preset only); no seeking by clicking the ruler; `PassResult.seconds` counts from configure, not from Play; LH scale fingering suggestion is 4-3-2-1-4-3-2-1 instead of 5-4-3-2-1-3-2-1.
+
+## 2026-11-12 (night): scoring rework after his Korg test — HANDOFF, read this first
+His test of the 7 points: pedal OK, metronome OK, wait mode OK, no lag. Complaints: scoring "terrible" and too simple, tempo mode ignores a late key, release cue unclear, sound odd on chords and too quiet.
+
+Root causes and fixes (deployed, 64 unit + 12 e2e green):
+- **Tempo mode ignored late keys**: the only window was ±80–120 ms; anything outside was a miss *and* a wrong key (0 % for playing everything slightly late). Now: on-time window unchanged, but a press counts up to half a beat away (250–400 ms; long notes up to half their length, max 1 s) and is graded early/late. The earliest open note of a pitch wins unless a later one is right on time.
+- **Score from several criteria** (`noteScore`): right key 40 %, timing 35 %, hold 25 % per note; every wrong key adds 1 to the total. Wait mode has no timing part. `session.result(final)` gives notes/timing/hold/mean deviation.
+- **Live feedback**: HUD chip with running %, hits, missed, wrong, early/late, short (polls `session.revision`). Wrong key is red on the keyboard while down. Notes: green on time, yellow early, orange late, red let go too soon, grey missed.
+- **Result card** after a pass: overall % plus Notes / Timing (mean ms early/late) / Hold / Wrong keys, Again button. While looping the previous pass is a small chip.
+- **Release cue**: white end cap on every note bar; orange flash on the hit line when a note ends; a key still down after its note turns orange with an up arrow.
+- **Sound**: the old compressor (−14 dB, 6:1, slow release) squashed chords. Now per-voice gain → drive ×1.5 → fast limiter (−6 dB, 12:1, 120 ms release), plus a light synthetic room reverb. About 4 dB louder at the same slider value; slider now goes to 3. Not heard by anyone yet.
+- Changing volume, zoom, speed or note names no longer restarts the pass (only mode, hands, section, count-in, Listen do).
+- Wait mode: a key of the next note pressed a little ahead is no longer counted wrong.
+
+Matija must test on the real piano:
+1. Sound: chords (5+ keys) still piano-like? Loud enough? (⚙ → Volume now up to 3.)
+2. Tempo mode, test song: play every note on purpose a bit late → notes turn orange, HUD shows "late", score well above 0 %.
+3. Wrong key → key red at once, HUD "1 wrong", % drops.
+4. Hold: white line at the top of the bar reaches the keys → let go. Holding longer → orange key with arrow. Letting go early → rest of the bar red, "short".
+5. Result card: do Notes / Timing / Hold / Wrong keys match what he played? Is the timing number (ms early/late) steady across passes? (That number is the calibration offset to apply in M3.)
+
+Next (in order): M3 calibration (apply measured offset; strictness presets), per-measure error view, history; M5 exercises; then M4, M6–M9.
+Known gaps: no latency calibration yet; `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green although a new press is needed; over-holding is shown but not scored.
