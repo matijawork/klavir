@@ -1,5 +1,7 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { tonicOf } from '../engine/exercises.ts';
+import { calibrationHint, feedback } from '../engine/feedback.ts';
 import { noteName } from '../engine/keys.ts';
 import { type PassResult, PracticeSession } from '../engine/session.ts';
 import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
@@ -7,6 +9,7 @@ import { Transport } from '../engine/transport.ts';
 import { held, inputVersion, onNote, outputName, sustainDown } from '../midi/midi.ts';
 import { panic, SongPlayback, setClickLevel, setSoundTarget } from '../midi/output.ts';
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
+import { addPass, bestOf, passesOf } from '../store/history.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
 import { MidiChip } from './MidiChip.tsx';
 import { Timeline } from './Timeline.tsx';
@@ -77,11 +80,12 @@ function Toggle(props: {
   );
 }
 
-function Check(props: { k: keyof Settings; label: string; title?: string }) {
+function Check(props: { k: keyof Settings; label: string; title?: string; disabled?: boolean }) {
   return (
-    <label class="row" title={props.title}>
+    <label class="row" title={props.title} data-disabled={props.disabled}>
       <input
         type="checkbox"
+        disabled={props.disabled}
         checked={settings.value[props.k] as boolean}
         onChange={(e) => setSetting(props.k, (e.target as HTMLInputElement).checked as never)}
       />
@@ -131,65 +135,135 @@ function Meter(props: { label: string; value: number; text: string; title: strin
   );
 }
 
-/** Result of a finished pass: overall score and what it is made of. */
-function PassCard({ r, onAgain }: { r: PassResult; onAgain: () => void }) {
-  const dev = r.meanDeviation;
+interface PassInfo {
+  r: PassResult;
+  /** best earlier score (0..100) of comparable passes, or null */
+  prevBest: number | null;
+  /** scores of the latest passes, oldest first, this one included */
+  recent: number[];
+}
+
+/** Result of a finished pass in plain words: score, what it is made of, what to work on. */
+function PassCard(props: {
+  info: PassInfo;
+  measureLabel: (i: number) => string;
+  onAgain: () => void;
+  onPractise: (w: { a: number; b: number }) => void;
+  onCalibrate: (ms: number) => void;
+}) {
+  const { r, prevBest, recent } = props.info;
+  const s = settings.value;
+  const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome });
+  const score = Math.round(r.accuracy * 100);
+  const onBeat = r.hits - r.early - r.late;
+  const heldRight = r.hits - r.short - r.long;
+  const hint = calibrationHint(r);
+  const w = r.weak;
+  const spot = w
+    ? w.a === w.b
+      ? `measure ${props.measureLabel(w.a)}`
+      : `measures ${props.measureLabel(w.a)}–${props.measureLabel(w.b)}`
+    : '';
   return (
-    <div class="pass card" data-testid="pass" data-score={Math.round(r.accuracy * 100)}>
-      <strong
-        data-testid="pass-score"
-        data-level={r.accuracy >= 0.9 ? 'high' : r.accuracy >= 0.6 ? 'mid' : 'low'}
-        title="Right keys, timing and hold together; every wrong key lowers it"
-      >
-        {pct(r.accuracy)}
-      </strong>
+    <div class="pass card" data-testid="pass" data-score={score}>
+      <div class="pass-head">
+        <strong
+          data-testid="pass-score"
+          data-level={r.accuracy >= 0.9 ? 'high' : r.accuracy >= 0.6 ? 'mid' : 'low'}
+          title="Right notes 40 %, on the beat 35 %, held right 25 %; every wrong key lowers it"
+        >
+          {pct(r.accuracy)}
+        </strong>
+        <div>
+          <b data-testid="verdict">{fb.verdict}</b>
+          <span title={recent.length > 1 ? `Latest passes: ${recent.join(' · ')}` : undefined}>
+            {prevBest === null
+              ? 'First pass'
+              : score > prevBest
+                ? `New best · was ${prevBest}%`
+                : `Best ${prevBest}%`}
+          </span>
+        </div>
+      </div>
       <Meter
         kind="notes"
-        label="Notes"
+        label="Right notes"
         value={r.notes}
-        text={`${r.hits}/${r.expected}`}
-        title="Notes you played out of all notes"
+        text={`${r.hits} of ${r.expected}`}
+        title="Notes you played out of all the notes in this pass"
       />
       {r.timing !== null && (
         <Meter
           kind="timing"
-          label="Timing"
-          value={r.timing}
-          text={
-            dev === null || Math.abs(dev) < 15
-              ? pct(r.timing)
-              : `${Math.round(Math.abs(dev))} ms ${dev < 0 ? 'early' : 'late'}`
-          }
-          title={`How close to the beat: ${r.early} early, ${r.late} late`}
+          label="On the beat"
+          value={r.hits > 0 ? onBeat / r.hits : 0}
+          text={`${onBeat} of ${r.hits}`}
+          title={`Notes pressed at the right moment. ${r.early} came too early, ${r.late} too late.`}
         />
       )}
       {r.hold !== null && (
         <Meter
           kind="hold"
-          label="Hold"
-          value={r.hold}
-          text={r.short > 0 ? `${r.short} short` : pct(r.hold)}
-          title="How fully you held the notes before letting go"
+          label="Held right"
+          value={r.hits > 0 ? heldRight / r.hits : 0}
+          text={`${heldRight} of ${r.hits}`}
+          title={`Notes held for their full length. ${r.short} let go too soon, ${r.long} held too long.`}
         />
       )}
       <div
         class="meter"
         data-kind="wrong"
         data-bad={r.wrong > 0}
-        title="Keys that were not in the song"
+        title="Keys that are not in the song"
       >
         <span>Wrong keys</span>
         <i />
         <output>{r.wrong}</output>
       </div>
-      <button type="button" class="btn" onClick={onAgain} title="R">
-        Again
-      </button>
+      <ul class="tips" data-testid="tips">
+        {fb.tips.map((t) => (
+          <li key={t}>{t}</li>
+        ))}
+        {hint !== null && (
+          <li>
+            Almost every note is about {Math.abs(hint)} ms {hint > 0 ? 'late' : 'early'}, very
+            evenly: that is probably delay in the equipment, not you.{' '}
+            <button type="button" class="link" onClick={() => props.onCalibrate(hint)}>
+              Compensate
+            </button>
+          </li>
+        )}
+      </ul>
+      <div class="pass-actions">
+        {w && (
+          <button
+            type="button"
+            class="btn"
+            onClick={() => props.onPractise(w)}
+            title="Loop the place with the most mistakes"
+            data-testid="practise-weak"
+          >
+            Practise {spot}
+          </button>
+        )}
+        <button type="button" class="btn primary" onClick={props.onAgain} title="R">
+          Again
+        </button>
+      </div>
     </div>
   );
 }
 
-export function Player({ songId, version }: { songId: string; version: string }) {
+export function Player({
+  songId,
+  version,
+  file,
+}: {
+  songId: string;
+  version: string;
+  /** a ready-made song (exercise) instead of one fetched from the library */
+  file?: SongFile;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [song, setSong] = useState<LoadedSong | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +273,7 @@ export function Player({ songId, version }: { songId: string; version: string })
   const listen = useSignal(false);
   const loop = useSignal(false);
   const range = useSignal<{ a: number; b: number } | null>(null);
-  const lastPass = useSignal<PassResult | null>(null);
+  const lastPass = useSignal<PassInfo | null>(null);
   /** running result of the pass being played; null before anything is judged */
   const live = useSignal<PassResult | null>(null);
   const lastConfig = useRef('');
@@ -209,6 +283,10 @@ export function Player({ songId, version }: { songId: string; version: string })
   const wakeLock = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
+    if (file) {
+      setSong(loadSong(file));
+      return;
+    }
     let cancelled = false;
     fetch(`${base}songs/${songId}/${version}.json`)
       .then((r) =>
@@ -225,7 +303,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     return () => {
       cancelled = true;
     };
-  }, [songId, version]);
+  }, [songId, version, file]);
 
   // engine lifetime
   useEffect(() => {
@@ -236,10 +314,28 @@ export function Player({ songId, version }: { songId: string; version: string })
     const playback = new SongPlayback(song, transport);
     const view = new PlayerCanvas(canvasRef.current, session);
     session.onSeek = () => playback.resync();
+    const historyKey = `${song.file.id}/${song.file.version}`;
     session.onPass = (r) => {
-      lastPass.value = r;
-      live.value = null;
       const s = settings.peek();
+      if (!listen.peek()) {
+        const whole = session.config.range === null;
+        const prevBest = bestOf(historyKey, whole);
+        addPass(historyKey, {
+          at: Date.now(),
+          score: Math.round(r.accuracy * 100),
+          mode: s.mode,
+          hands: s.hands,
+          speed: s.speed,
+          strict: s.strictness,
+          whole,
+        });
+        const recent = passesOf(historyKey)
+          .filter((p) => p.whole === whole)
+          .slice(-6)
+          .map((p) => p.score);
+        lastPass.value = { r, prevBest, recent };
+      }
+      live.value = null;
       if (
         s.autoSpeed &&
         session.config.loop &&
@@ -284,12 +380,19 @@ export function Player({ songId, version }: { songId: string; version: string })
       const s = view.stats;
       statsText.value = `${s.hz.toFixed(0)} Hz · frame ${s.avgFrameMs.toFixed(1)} ms (p99 ${s.p99FrameMs.toFixed(1)}) · draw ${s.avgDrawMs.toFixed(2)} ms · key→frame ${s.inputToFrameMs.toFixed(1)} ms`;
     }, 250);
+    // menus close when you click anywhere else
+    const closeMenus = (e: PointerEvent) => {
+      for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]'))
+        if (!d.contains(e.target as Node)) d.open = false;
+    };
+    document.addEventListener('pointerdown', closeMenus);
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', panic);
     return () => {
       clearInterval(timer);
       clearInterval(liveTimer);
       offNote();
+      document.removeEventListener('pointerdown', closeMenus);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', panic);
       playback.stop();
@@ -310,6 +413,8 @@ export function Player({ songId, version }: { songId: string; version: string })
     setSoundTarget(s.soundOut);
     setClickLevel(s.clickVolume);
     transport.setRate(s.speed);
+    session.strictness = s.strictness;
+    session.offsetMs = s.timingOffset;
     const loopOn = loop.value;
 
     // only what changes the notes to play restarts the pass; volume, zoom or speed do not
@@ -488,6 +593,16 @@ export function Player({ songId, version }: { songId: string; version: string })
           <strong>{song?.file.title ?? '…'}</strong>
           <span>{song?.file.composer}</span>
         </div>
+        {song && !file && (
+          <a
+            class="btn"
+            href={`#/exercise/${song.file.keys[0]?.mode === 'minor' ? 'scale-minor' : 'scale-major'}/${tonicOf(song.file.keys[0]?.fifths ?? 0, song.file.keys[0]?.mode === 'minor')}`}
+            title="Warm up with the scale of this song's key"
+            data-testid="warmup"
+          >
+            Warm-up
+          </a>
+        )}
         <button type="button" class="btn primary" onClick={toggle} title="Space" data-testid="play">
           {playing.value ? 'Pause' : 'Play'}
         </button>
@@ -528,7 +643,7 @@ export function Player({ songId, version }: { songId: string; version: string })
           onChange={(v) => setSetting('mode', v)}
           options={[
             { value: 'wait', label: 'Wait', title: 'The song waits for the right keys · W' },
-            { value: 'tempo', label: 'Tempo', title: 'The song keeps going · W' },
+            { value: 'tempo', label: 'Tempo', title: 'The song keeps going, rhythm is scored · W' },
           ]}
         />
         <Seg
@@ -541,6 +656,25 @@ export function Player({ songId, version }: { songId: string; version: string })
             { value: 'R', label: 'Right', title: '3' },
           ]}
         />
+        <Seg
+          label="strict"
+          value={s.strictness}
+          onChange={(v) => setSetting('strictness', v)}
+          options={[
+            {
+              value: 'easy',
+              label: 'Easy',
+              title: 'Forgiving: wide timing, notes may be let go early',
+            },
+            { value: 'normal', label: 'Normal', title: 'Balanced timing and hold' },
+            {
+              value: 'strict',
+              label: 'Strict',
+              title: 'Exact: tight timing, notes must be held to the end',
+            },
+          ]}
+        />
+        <span class="sep" />
         <label class="speed" title="Speed · ↑ ↓">
           <input
             type="range"
@@ -556,10 +690,50 @@ export function Player({ songId, version }: { songId: string; version: string })
           />
           <output>{Math.round(s.speed * 100)}%</output>
         </label>
+        <details class="menu">
+          <summary
+            class="btn toggle"
+            data-on={s.autoSpeed}
+            title="Raise the speed by itself after every clean pass of a loop"
+            data-testid="speedup"
+          >
+            Speed-up
+          </summary>
+          <div class="panel">
+            <label class="row">
+              <input
+                type="checkbox"
+                checked={s.autoSpeed}
+                onChange={(e) => {
+                  const on = (e.target as HTMLInputElement).checked;
+                  settings.value = {
+                    ...settings.value,
+                    autoSpeed: on,
+                    speed: on ? s.autoSpeedStart : s.speed,
+                  };
+                  if (on) loop.value = true;
+                }}
+                data-testid="autospeed"
+              />
+              On (loops the section)
+            </label>
+            <Pct k="autoSpeedStart" label="Start at" min={10} max={150} />
+            <Pct k="autoSpeedStep" label="Go up by" min={1} max={50} />
+            <Pct k="autoSpeedTarget" label="Until" min={10} max={150} />
+            <Pct
+              k="autoSpeedThreshold"
+              label="Needs a score of"
+              min={50}
+              max={100}
+              title="Score a pass needs before the speed goes up"
+            />
+          </div>
+        </details>
+        <span class="sep" />
         <Toggle
           on={loop.value}
           label="Loop"
-          title="Repeat the section · L"
+          title="Repeat the section · L (drag on the ruler to choose one)"
           onChange={(v) => {
             loop.value = v;
           }}
@@ -579,128 +753,132 @@ export function Player({ songId, version }: { songId: string; version: string })
           onChange={(v) => setSetting('metronome', v)}
           testid="metronome"
         />
-        <details class="menu">
-          <summary class="btn" title="Settings">
+        <details class="menu right">
+          <summary class="btn" title="Display and sound">
             ⚙
           </summary>
-          <div class="panel">
-            <h4>Other hand</h4>
-            <Seg
-              label="other"
-              value={s.otherHand}
-              onChange={(v) => setSetting('otherHand', v)}
-              options={[
-                { value: 'dim', label: 'Dimmed' },
-                { value: 'hide', label: 'Hidden' },
-                {
-                  value: 'play',
-                  label: 'On piano',
-                  title: 'The piano plays the hand you are not practising',
-                },
-              ]}
-            />
-            <h4>Note names</h4>
-            <Seg
-              label="names"
-              value={s.noteNames}
-              onChange={(v) => setSetting('noteNames', v)}
-              options={[
-                { value: 'off', label: 'Off' },
-                { value: 'upcoming', label: 'Upcoming' },
-                { value: 'all', label: 'All' },
-              ]}
-            />
-            <Check k="octaveNumbers" label="Octave numbers" />
-            <Check k="fingers" label="Finger numbers" />
-            <h4>Sound</h4>
-            <Seg
-              label="sound"
-              value={s.soundOut}
-              onChange={(v) => setSetting('soundOut', v)}
-              options={[
-                {
-                  value: 'computer',
-                  label: 'Computer',
-                  title: 'Clicks and song playback come from this device',
-                },
-                {
-                  value: 'piano',
-                  label: 'Piano',
-                  title: 'Clicks and song playback are sent to the piano over MIDI',
-                },
-              ]}
-            />
-            <Check
-              k="monitor"
-              label="My keys on computer"
-              title="Hear what you play through this device, without headphones in the piano"
-            />
-            <label class="row" title="Loudness of everything played through this device">
-              Volume
-              <input
-                type="range"
-                min={0}
-                max={3}
-                step={0.05}
-                value={s.volume}
-                aria-label="Volume"
-                onInput={(e) => setSetting('volume', Number((e.target as HTMLInputElement).value))}
+          <div class="panel wide">
+            <section>
+              <h4>Note names</h4>
+              <Seg
+                label="names"
+                value={s.noteNames}
+                onChange={(v) => setSetting('noteNames', v)}
+                options={[
+                  { value: 'off', label: 'None', title: 'Only the C keys are labelled' },
+                  { value: 'upcoming', label: 'Next', title: 'Name the keys coming up' },
+                  { value: 'all', label: 'All' },
+                ]}
               />
-            </label>
-            <label class="row" title="Metronome and count-in loudness">
-              Click
-              <input
-                type="range"
-                min={0}
-                max={2}
-                step={0.05}
-                value={s.clickVolume}
-                aria-label="Click volume"
-                onInput={(e) =>
-                  setSetting('clickVolume', Number((e.target as HTMLInputElement).value))
-                }
+              <Check
+                k="octaveNumbers"
+                label="Octave numbers"
+                title="C4 instead of C"
+                disabled={s.noteNames === 'off'}
               />
-            </label>
-            <Check k="countInClick" label="Count-in sound" />
-            <Check k="metronomeClick" label="Metronome sound" />
-            <h4>Zoom</h4>
-            <input
-              type="range"
-              min={80}
-              max={500}
-              step={10}
-              value={s.zoom}
-              aria-label="Zoom"
-              onInput={(e) => setSetting('zoom', Number((e.target as HTMLInputElement).value))}
-            />
-            <h4>Auto speed-up</h4>
-            <label class="row" title="After each clean pass of a looped section the speed goes up">
-              <input
-                type="checkbox"
-                checked={s.autoSpeed}
-                onChange={(e) => {
-                  const on = (e.target as HTMLInputElement).checked;
-                  settings.value = {
-                    ...settings.value,
-                    autoSpeed: on,
-                    speed: on ? s.autoSpeedStart : s.speed,
-                  };
-                  if (on) loop.value = true;
-                }}
-                data-testid="autospeed"
+              <Check k="fingers" label="Finger numbers" />
+              <h4>Other hand</h4>
+              <Seg
+                label="other"
+                value={s.otherHand}
+                onChange={(v) => setSetting('otherHand', v)}
+                options={[
+                  { value: 'dim', label: 'Dimmed' },
+                  { value: 'hide', label: 'Hidden' },
+                  {
+                    value: 'play',
+                    label: 'Played',
+                    title: 'The app plays the hand you are not practising',
+                  },
+                ]}
               />
-              On
-            </label>
-            <Pct k="autoSpeedStart" label="Start" min={10} max={150} />
-            <Pct k="autoSpeedStep" label="Step" min={1} max={50} />
-            <Pct k="autoSpeedTarget" label="Target" min={10} max={150} />
-            <Pct
-              k="autoSpeedThreshold"
-              label="Clean pass"
-              min={50}
-              max={100}
-              title="Share of notes that must be right"
-            />
+              <label class="row" title="How far apart the notes are drawn">
+                Zoom
+                <input
+                  type="range"
+                  min={80}
+                  max={500}
+                  step={10}
+                  value={s.zoom}
+                  aria-label="Zoom"
+                  onInput={(e) => setSetting('zoom', Number((e.target as HTMLInputElement).value))}
+                />
+              </label>
+            </section>
+            <section>
+              <h4>Sound</h4>
+              <Seg
+                label="sound"
+                value={s.soundOut}
+                onChange={(v) => setSetting('soundOut', v)}
+                options={[
+                  {
+                    value: 'computer',
+                    label: 'Computer',
+                    title: 'Clicks and song playback come from this device',
+                  },
+                  {
+                    value: 'piano',
+                    label: 'Piano',
+                    title: 'Clicks and song playback are sent to the piano over MIDI',
+                  },
+                ]}
+              />
+              <Check
+                k="monitor"
+                label="My keys on computer"
+                title="Hear what you play through this device, without headphones in the piano"
+              />
+              <label class="row" title="Loudness of everything played through this device">
+                Volume
+                <input
+                  type="range"
+                  min={0}
+                  max={3}
+                  step={0.05}
+                  value={s.volume}
+                  aria-label="Volume"
+                  onInput={(e) =>
+                    setSetting('volume', Number((e.target as HTMLInputElement).value))
+                  }
+                />
+              </label>
+              <label class="row" title="Metronome and count-in loudness">
+                Click
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={s.clickVolume}
+                  aria-label="Click volume"
+                  onInput={(e) =>
+                    setSetting('clickVolume', Number((e.target as HTMLInputElement).value))
+                  }
+                />
+              </label>
+              <Check k="countInClick" label="Count-in sound" />
+              <Check k="metronomeClick" label="Metronome sound" />
+              <h4>Delay</h4>
+              <label
+                class="row"
+                title="Takes a steady delay of the equipment out of the timing score. The result card offers to set it."
+              >
+                Offset
+                <input
+                  type="range"
+                  min={-150}
+                  max={150}
+                  step={5}
+                  value={s.timingOffset}
+                  aria-label="Timing offset"
+                  onInput={(e) =>
+                    setSetting('timingOffset', Number((e.target as HTMLInputElement).value))
+                  }
+                />
+                <output>{s.timingOffset} ms</output>
+              </label>
+            </section>
           </div>
         </details>
       </div>
@@ -753,10 +931,24 @@ export function Player({ songId, version }: { songId: string; version: string })
           !listen.value &&
           (now ? (
             <div class="pass chip" data-testid="pass" title="Previous pass">
-              {pct(pass.accuracy)}
+              {pct(pass.r.accuracy)}
             </div>
           ) : (
-            <PassCard r={pass} onAgain={again} />
+            <PassCard
+              info={pass}
+              measureLabel={(i) => song?.file.measures[i]?.n ?? String(i + 1)}
+              onAgain={again}
+              onPractise={(w) => {
+                range.value = w;
+                loop.value = true;
+                setPlaying(true);
+              }}
+              onCalibrate={(ms) => {
+                const next = Math.min(150, Math.max(-150, settings.peek().timingOffset + ms));
+                setSetting('timingOffset', next);
+                again();
+              }}
+            />
           ))}
         {debug.value && (
           <div class="debug" data-testid="debug">

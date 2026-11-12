@@ -149,7 +149,8 @@ button.chip {
   background: var(--accent-strong);
   box-shadow: var(--glow);
 }
-.btn.toggle[aria-pressed="true"] {
+.btn.toggle[aria-pressed="true"],
+.btn.toggle[data-on="true"] {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-strong);
@@ -361,7 +362,14 @@ input[type="range"] {
 }
 .menu {
   position: relative;
+}
+.menu.right {
   margin-left: auto;
+}
+.toolbar .sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
 }
 .menu summary {
   display: inline-grid;
@@ -385,6 +393,40 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: var(--r-3);
   box-shadow: var(--e-2);
+}
+.menu:not(.right) .panel {
+  right: auto;
+  left: 0;
+  width: 240px;
+}
+.panel.wide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+  width: min(560px, calc(100vw - var(--s-6)));
+}
+.panel section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.panel section h4:first-child {
+  margin-top: 0;
+}
+.panel .row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin-left: auto;
+}
+.row output {
+  min-width: 6ch;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.panel .row[data-disabled="true"] {
+  opacity: 0.4;
 }
 .panel h4 {
   margin: var(--s-2) 0 0;
@@ -527,7 +569,9 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  width: min(340px, calc(100% - var(--s-6)));
+  width: min(400px, calc(100% - var(--s-6)));
+  max-height: calc(100% - var(--s-7));
+  overflow: auto;
   padding: var(--s-5);
   border: 1px solid var(--border);
   border-radius: var(--r-3);
@@ -539,16 +583,53 @@ input[type="range"] {
   font-size: 56px;
   font-weight: 650;
   line-height: 1;
-  text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.pass.card .btn {
-  align-self: center;
-  margin-top: var(--s-1);
+.pass-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+.pass-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.pass-head b {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+.tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-3) 0 0 var(--s-4);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.pass-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-2);
 }
 .meter {
   display: grid;
-  grid-template-columns: 84px 1fr 92px;
+  grid-template-columns: 92px 1fr 76px;
   align-items: center;
   gap: var(--s-3);
   color: var(--text-dim);
@@ -584,4 +665,26 @@ input[type="range"] {
 }
 .meter[data-bad="true"] output {
   color: var(--fb-wrong);
+}
+
+/* exercises */
+.library h2.section {
+  margin-top: var(--s-7);
+}
+.seg.keys {
+  flex-wrap: wrap;
+  margin-bottom: var(--s-4);
+}
+.seg.keys button {
+  min-width: 40px;
+}
+.badge.best {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+a.btn {
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
 }

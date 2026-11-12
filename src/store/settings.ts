@@ -6,10 +6,15 @@ export type Hands = 'both' | 'L' | 'R';
 export type OtherHand = 'dim' | 'hide' | 'play';
 export type NoteNames = 'off' | 'upcoming' | 'all';
 export type SoundOut = 'computer' | 'piano';
+export type Strictness = 'easy' | 'normal' | 'strict';
 
 export interface Settings {
   mode: Mode;
   hands: Hands;
+  /** how closely timing and holding are followed */
+  strictness: Strictness;
+  /** ms the player's presses arrive late (equipment delay), taken out of the timing score */
+  timingOffset: number;
   otherHand: OtherHand;
   /** 0.1 .. 1.5 */
   speed: number;
@@ -41,6 +46,8 @@ export interface Settings {
 export const DEFAULTS: Settings = {
   mode: 'wait',
   hands: 'both',
+  strictness: 'normal',
+  timingOffset: 0,
   otherHand: 'dim',
   speed: 1,
   countIn: true,

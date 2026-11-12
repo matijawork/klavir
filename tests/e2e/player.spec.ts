@@ -150,7 +150,7 @@ test('a wrong key shows up at once and lowers the score', async ({ page }) => {
   await page.evaluate(() => window.__midi!.noteOff(60));
   // changing the volume must not restart the pass
   const before = await page.evaluate(() => window.__klavir!.transport.time());
-  await page.locator('summary[title="Settings"]').click();
+  await page.locator('summary[title="Display and sound"]').click();
   await page.getByLabel('Volume', { exact: true }).fill('2');
   expect(await page.evaluate(() => window.__klavir!.transport.time())).toBeGreaterThanOrEqual(
     before,
@@ -214,4 +214,86 @@ test('rendering keeps running and reports frame stats', async ({ page }) => {
   expect(stats.frames).toBeGreaterThan(60);
   expect(stats.avgDrawMs).toBeLessThan(8);
   await page.screenshot({ path: 'test-results/player.png' });
+});
+
+test('result card says in words what to work on and offers the weak spot', async ({ page }) => {
+  await open(page, { mode: 'tempo', speed: 1.5 });
+  await selectStart(page, 0.3);
+  await page.getByTestId('loop').click();
+  await page.getByTestId('play').click();
+  // play everything except the notes of the second measure
+  await page.evaluate(() => {
+    const { session, transport } = window.__klavir!;
+    const { start, end, pitch, count, measureStart } = session.song;
+    for (let i = 0; i < count; i++) {
+      if (start[i]! >= session.rangeEnd - 1e-6) continue;
+      if (start[i]! >= measureStart[1]! - 1e-6 && start[i]! < measureStart[2]! - 1e-6) continue;
+      const delay = Math.max(0, transport.wallAt(start[i]!) - performance.now());
+      setTimeout(() => window.__midi!.noteOn(pitch[i]!), delay);
+      const len = transport.wallAt(end[i]!) - transport.wallAt(start[i]!) - 40;
+      setTimeout(() => window.__midi!.noteOff(pitch[i]!), delay + len);
+    }
+  });
+  await expect(page.getByTestId('tips')).toContainText('You skipped', { timeout: 30_000 });
+  await expect(page.getByTestId('verdict')).not.toBeEmpty();
+  await expect(page.getByTestId('practise-weak')).toContainText('measure 2');
+  await page.getByTestId('practise-weak').click();
+  // the section is applied on the next frame
+  await page.waitForFunction(() => {
+    const { config, running } = window.__klavir!.session;
+    return config.range?.a === 1 && config.range.b === 1 && config.loop && running;
+  });
+});
+
+test('strictness changes how a slightly late pass is judged', async ({ page }) => {
+  await open(page, { mode: 'tempo', speed: 1.5, strictness: 'easy' });
+  await selectStart(page, 0.05);
+  await page.getByTestId('loop').click();
+  await page.getByTestId('play').click();
+  await perform(page, 100);
+  await expect(page.getByTestId('pass-score')).toBeVisible({ timeout: 20_000 });
+  const easy = await page.evaluate(() => window.__klavir!.session.result(true).late);
+  expect(easy).toBe(0);
+  await page.getByTestId('strict-strict').click();
+  await page.getByTestId('play').click();
+  await perform(page, 100);
+  await expect(page.getByTestId('pass-score')).toBeVisible({ timeout: 20_000 });
+  const strict = await page.evaluate(() => window.__klavir!.session.result(true));
+  expect(strict.late).toBe(strict.hits);
+  await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('song-ode-to-joy')).toBeVisible();
+});
+
+test('exercises: a scale opens in the player with fingering, best score shows in the library', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'klavir.settings',
+      JSON.stringify({
+        countIn: false,
+        soundOut: 'piano',
+        monitor: false,
+        mode: 'tempo',
+        speed: 1.5,
+      }),
+    );
+  });
+  await page.goto('./?mockmidi#/');
+  await page.getByTestId('midi-connect').click();
+  await page.getByTestId('key-7').click();
+  await page.getByTestId('exercise-scale-major').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  const info = await page.evaluate(() => {
+    const { song } = window.__klavir!.session;
+    return { count: song.count, first: [song.pitch[0], song.pitch[1]], finger: song.finger[1] };
+  });
+  expect(info.count).toBe(58);
+  expect(info.first).toEqual([43, 55]);
+  expect(info.finger).toBe(1);
+  await page.getByTestId('play').click();
+  await perform(page);
+  await expect(page.getByTestId('pass-score')).toHaveText('100%', { timeout: 30_000 });
+  await page.goto('./?mockmidi#/');
+  await expect(page.locator('.badge.best')).toHaveText('100%');
 });

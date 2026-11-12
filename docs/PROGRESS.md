@@ -84,7 +84,7 @@ Matija must test on the real piano (cannot be checked from here):
 Next (in order): M3 calibration (latency offset) + results screen with per-measure errors and history; then M5 exercises (scales, chords, warm-up); M4 recording; M6 MIDI import and library; M7 Firebase; M8 polish/PWA; M9 audit.
 Known gaps: timing windows uncalibrated (Normal preset only); no seeking by clicking the ruler; `PassResult.seconds` counts from configure, not from Play; LH scale fingering suggestion is 4-3-2-1-4-3-2-1 instead of 5-4-3-2-1-3-2-1.
 
-## 2026-11-12 (night): scoring rework after his Korg test — HANDOFF, read this first
+## 2026-11-12 (night): scoring rework after his Korg test
 His test of the 7 points: pedal OK, metronome OK, wait mode OK, no lag. Complaints: scoring "terrible" and too simple, tempo mode ignores a late key, release cue unclear, sound odd on chords and too quiet.
 
 Root causes and fixes (deployed, 64 unit + 12 e2e green):
@@ -106,3 +106,26 @@ Matija must test on the real piano:
 
 Next (in order): M3 calibration (apply measured offset; strictness presets), per-measure error view, history; M5 exercises; then M4, M6–M9.
 Known gaps: no latency calibration yet; `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green although a new press is needed; over-holding is shown but not scored.
+
+## 2026-11-12 (late night): second feedback pass + M3 core + M5 first cut — HANDOFF, read this first
+His feedback on the previous pass: better; "Timing" unclear, wants plain words and what to work on; Hold "does not really work" (no details given); wants to choose strictness; auto speed-up and friends do not belong in settings, nicer layout; then get on with the rest. Deployed, 76 unit + 15 e2e green.
+
+- **Strictness** Easy / Normal / Strict in the toolbar (`PRESETS` in `session.ts`): on-time window, accept window, how early a note may be let go, how long it may be over-held. Changes mid-pass without a restart.
+- **Hold**: tolerance now follows strictness; **over-holding** is scored too (`long`, hold 0.5). Not confirmed that this is what he meant: ask what exactly looked wrong if he still complains.
+- **Result card in words**: verdict, "Right notes / On the beat / Held right / Wrong keys" as counts, up to three tips ordered by cost (`feedback.ts`), best score and latest passes, **Practise measures a–b** (loops the weakest spot), **Compensate** (when the offset is steady: median ≥ 30 ms, spread ≤ 60 ms, ≥ 8 hits).
+- **Calibration, simple form** (deviates from ADR-009): `settings.timingOffset` (−150…150 ms, ⚙ → Delay) is taken out of tempo-mode judging; set by hand or by Compensate. No click-along procedure and no visual offset yet.
+- **History**: `klavir.history` in localStorage (not IndexedDB yet), 100 passes per song; best whole-piece score as a badge in the library.
+- **Layout**: toolbar = mode, hands, strictness | speed, Speed-up (own drop-down) | loop, count-in, metronome | ⚙. ⚙ is two columns: note names, other hand, zoom / sound, delay. Menus close on outside click. Octave numbers disabled when names are off. "On piano" renamed "Played".
+- **Exercises (M5 first cut)**: library section with a key picker; five-finger warm-up, major scale, harmonic minor scale, chord inversions, I–IV–V–I, arpeggio; generated at runtime, played in the normal player. **Warm-up** button in a song opens the scale of its key. Fingerings are standard ones from memory, provenance `claude`, **not yet checked against the ADR-013 sources**; black-key minor scales and black-key arpeggios have none.
+
+Matija must test on the real piano:
+1. Easy / Normal / Strict: same playing, does the score change the way he expects?
+2. Hold: let go early, on time, and far too late (key orange with arrow). Does "Held right" on the card match? If not: which note, which mode, pedal up or down.
+3. Result card: are the sentences clear and true for what he played? Does "Practise measures …" pick the place that really was hardest?
+4. If the card offers Compensate: press it, play again. Does "On the beat" go up?
+5. Toolbar and ⚙: anything still in the wrong place or not working?
+6. Exercises: a scale and the chord progression in two keys. Fingerings comfortable? Tempo OK (72 bpm, speed slider)?
+7. Still open from before: does the sound hold up on big chords, loud enough?
+
+Next: M3 rest (click-along calibration and visual offset per ADR-009, per-note review, IndexedDB history with charts), M5 rest (minor chords, more patterns, check fingerings against sources, metronome-only practice), then M4 recording, M6 MIDI import, M7 Firebase, M8 PWA/tablet, M9 audit.
+Known gaps: `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green; exercises have no sheet/PDF; history is per browser only.

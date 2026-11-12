@@ -49,6 +49,13 @@ export interface PassResult {
   hold: number | null;
   /** mean onset deviation of the hits in ms (positive = late); null when not measured */
   meanDeviation: number | null;
+  /** notes held well past their end */
+  long: number;
+  /** median onset deviation in ms and its spread (median absolute deviation); null when not measured */
+  medianDeviation: number | null;
+  spread: number | null;
+  /** measures (indices, inclusive) where most went wrong; null when nothing stands out */
+  weak: { a: number; b: number } | null;
   /** 0..1 overall score: see noteScore; every wrong key adds to the total */
   accuracy: number;
   /** wall-clock seconds the pass took */
@@ -74,15 +81,75 @@ export const noteScore = (timing: number | null, hold: number): number =>
     ? (W_NOTE + W_HOLD * hold) / (W_NOTE + W_HOLD)
     : W_NOTE + W_TIMING * timing + W_HOLD * hold;
 
-/** "On time" onset window in wall milliseconds (ADR-007 Normal): 15 % of a beat, clamped. */
-export const hitWindowMs = (bpm: number, rate: number): number =>
-  Math.min(120, Math.max(80, (0.15 * 60000) / (bpm * rate)));
+export type Strictness = 'easy' | 'normal' | 'strict';
 
-const ACCEPT_MIN_MS = 250;
-const ACCEPT_MAX_MS = 400;
-/** A press this far from its note (wall ms) still counts, graded early or late: half a beat, clamped. */
-export const acceptWindowMs = (bpm: number, rate: number): number =>
-  Math.min(ACCEPT_MAX_MS, Math.max(ACCEPT_MIN_MS, (0.5 * 60000) / (bpm * rate)));
+interface Preset {
+  /** on-time window: share of a beat, clamped to [winMin, winMax] wall ms */
+  win: number;
+  winMin: number;
+  winMax: number;
+  /** a press this far away still counts (early/late): share of a beat, clamped */
+  accept: number;
+  acceptMin: number;
+  acceptMax: number;
+  /** letting go is fine with this share of the note left, or leftMin real seconds if that is more */
+  left: number;
+  leftMin: number;
+  /** holding on is fine for this share of the note past its end (at least 0.3 s) */
+  over: number;
+}
+
+/** How closely the playing is followed (ADR-007). */
+export const PRESETS: Record<Strictness, Preset> = {
+  easy: {
+    win: 0.25,
+    winMin: 120,
+    winMax: 200,
+    accept: 0.6,
+    acceptMin: 300,
+    acceptMax: 500,
+    left: 0.45,
+    leftMin: 0.25,
+    over: 1,
+  },
+  normal: {
+    win: 0.15,
+    winMin: 80,
+    winMax: 120,
+    accept: 0.5,
+    acceptMin: 250,
+    acceptMax: 400,
+    left: 0.3,
+    leftMin: 0.18,
+    over: 0.5,
+  },
+  strict: {
+    win: 0.08,
+    winMin: 40,
+    winMax: 60,
+    accept: 0.35,
+    acceptMin: 180,
+    acceptMax: 280,
+    left: 0.15,
+    leftMin: 0.1,
+    over: 0.25,
+  },
+};
+
+/** "On time" onset window in wall milliseconds. */
+export const hitWindowMs = (bpm: number, rate: number, s: Strictness = 'normal'): number => {
+  const p = PRESETS[s];
+  return Math.min(p.winMax, Math.max(p.winMin, (p.win * 60000) / (bpm * rate)));
+};
+
+/** A press this far from its note (wall ms) still counts, graded early or late. */
+export const acceptWindowMs = (bpm: number, rate: number, s: Strictness = 'normal'): number => {
+  const p = PRESETS[s];
+  return Math.min(p.acceptMax, Math.max(p.acceptMin, (p.accept * 60000) / (bpm * rate)));
+};
+/** widest and narrowest accept window of any preset: bounds for scanning the note list */
+const ACCEPT_MIN_MS = 180;
+const ACCEPT_MAX_MS = 500;
 /** Long notes may be struck even later than the accept window: up to half their length, capped. */
 const LATE_MAX_MS = 1000;
 
@@ -148,8 +215,17 @@ export class PracticeSession {
   wrong = 0;
   short = 0;
   expected = 0;
+  long = 0;
   /** live sustain pedal: with it down, letting a key go early is fine */
   pedalDown = false;
+  /** how closely the playing is followed; can change mid-pass */
+  strictness: Strictness = 'normal';
+  /** calibration: the player's presses arrive this many ms late (tempo mode judges as if earlier) */
+  offsetMs = 0;
+  /** per note: index of its measure */
+  private readonly noteMeasure: Uint16Array;
+  /** per measure: wrong keys pressed there in this pass */
+  private readonly wrongIn: Uint16Array;
 
   onPass: ((r: PassResult) => void) | null = null;
   onEnd: (() => void) | null = null;
@@ -181,6 +257,13 @@ export class PracticeSession {
     this.grade = new Uint8Array(song.count);
     this.timing = new Float32Array(song.count).fill(Number.NaN);
     this.hold = new Float32Array(song.count).fill(1);
+    this.noteMeasure = new Uint16Array(song.count);
+    const ms = song.measureStart;
+    for (let i = 0, m = 0; i < song.count; i++) {
+      while (m + 1 < ms.length && ms[m + 1]! <= song.start[i]! + 1e-6) m++;
+      this.noteMeasure[i] = m;
+    }
+    this.wrongIn = new Uint16Array(Math.max(1, ms.length));
     this.configure(this.config);
   }
 
@@ -233,6 +316,8 @@ export class PracticeSession {
       this.hold[i] = 1;
     }
     this.wrongDown.fill(0);
+    this.wrongIn.fill(0);
+    this.long = 0;
     this.revision++;
     this.hits = 0;
     this.missed = 0;
@@ -320,7 +405,16 @@ export class PracticeSession {
     return false;
   }
 
-  private countWrong(p: number): void {
+  /** Song-time shift that takes the calibrated input delay out of tempo-mode judging. */
+  private shift(): number {
+    return this.config.mode === 'tempo' ? (this.offsetMs / 1000) * this.transport.rate : 0;
+  }
+
+  private countWrong(p: number, t: number): void {
+    const ms = this.song.measureStart;
+    let m = 0;
+    while (m + 1 < ms.length && ms[m + 1]! <= t) m++;
+    this.wrongIn[m]!++;
     this.wrong++;
     this.wrongDown[p] = 1;
     this.revision++;
@@ -338,10 +432,17 @@ export class PracticeSession {
     const { start, end } = this.song;
     const len = end[i]! - start[i]!;
     const left = end[i]! - t;
-    if (left > Math.max(0.18 * this.transport.rate, 0.3 * len)) {
+    const P = PRESETS[this.strictness];
+    const rate = this.transport.rate;
+    if (left > Math.max(P.leftMin * rate, P.left * len)) {
       this.state[i] = SHORT;
       this.short++;
       this.hold[i] = Math.min(1, Math.max(0, 1 - left / len));
+      this.revision++;
+    } else if (-left > Math.max(0.3 * rate, P.over * len)) {
+      // held on well after the note was over
+      this.long++;
+      this.hold[i] = 0.5;
       this.revision++;
     }
   }
@@ -353,7 +454,7 @@ export class PracticeSession {
     const i = this.holding[p]!;
     if (i < 0) return;
     this.holding[p] = -1;
-    if (this.running) this.checkRelease(i, this.transport.time(wall));
+    if (this.running) this.checkRelease(i, this.transport.time(wall) - this.shift());
   }
 
   /** Feed every note-on from the player. `wall` is the MIDI event timestamp. */
@@ -369,7 +470,7 @@ export class PracticeSession {
     if (this.config.mode === 'wait') {
       if (!this.inGroup(this.group, p)) {
         // a key of one of the next notes, pressed a little ahead, is not a mistake
-        if (t >= this.rangeStart - 0.05 && !this.expectedSoon(p, t)) this.countWrong(p);
+        if (t >= this.rangeStart - 0.05 && !this.expectedSoon(p, t)) this.countWrong(p, t);
         return;
       }
       if (this.waiting && this.groupSatisfied(this.group, 0)) {
@@ -383,19 +484,21 @@ export class PracticeSession {
     // tempo mode: the pending note of this pitch that the press most likely belongs to
     const { start, pitch, tempo } = this.song;
     const rate = tr.rate;
+    const tj = t - this.shift();
+    const strict = this.strictness;
     let best = -1;
     let bestDev = Number.POSITIVE_INFINITY;
     let bestWin = 0;
     let bestAccept = 0;
     for (let k = this.missPtr; k < this.active.length; k++) {
       const i = this.active[k]!;
-      const dev = ((t - start[i]!) / rate) * 1000;
+      const dev = ((tj - start[i]!) / rate) * 1000;
       if (dev < -ACCEPT_MAX_MS) break; // further notes are even later
       if (pitch[i] !== p || this.state[i] !== PENDING) continue;
       const bpm = tempo.bpmAt(tempo.toBeats(start[i]!));
-      const accept = acceptWindowMs(bpm, rate);
+      const accept = acceptWindowMs(bpm, rate, strict);
       if (dev < -accept || dev > this.lateLimitMs(i, accept)) continue;
-      const win = hitWindowMs(bpm, rate);
+      const win = hitWindowMs(bpm, rate, strict);
       // The earliest open note wins (people run late more than early), unless a later one is
       // right on time, or the earliest is only open because it is a long note.
       const take =
@@ -417,7 +520,7 @@ export class PracticeSession {
       this.hits++;
       this.revision++;
       this.holding[p] = best;
-    } else if (t >= this.rangeStart - 0.05) this.countWrong(p);
+    } else if (t >= this.rangeStart - 0.05) this.countWrong(p, t);
   }
 
   /**
@@ -432,11 +535,19 @@ export class PracticeSession {
     let devSum = 0;
     let early = 0;
     let late = 0;
+    const devs: number[] = [];
+    const err = new Float32Array(this.wrongIn.length);
+    for (let m = 0; m < err.length; m++) err[m] = this.wrongIn[m]!;
     for (let k = 0; k < this.active.length; k++) {
       const i = this.active[k]!;
       const st = this.state[i]!;
+      const m = this.noteMeasure[i]!;
+      if (st === MISSED || (final && st === PENDING)) err[m]! += 1;
       if (st !== HIT && st !== SHORT) continue;
       const h = this.hold[i]!;
+      if (h < 1) err[m]! += 0.5;
+      if (tempoMode && this.grade[i] !== ON_TIME) err[m]! += 0.5;
+      if (tempoMode) devs.push(this.deviation[i]!);
       holdSum += h;
       if (tempoMode) {
         const tm = this.timing[i]!;
@@ -451,6 +562,12 @@ export class PracticeSession {
     const missed = !tempoMode ? 0 : final ? this.expected - hits : this.missed;
     const judged = final ? this.expected : hits + missed;
     const total = judged + this.wrong;
+    let median: number | null = null;
+    let spread: number | null = null;
+    if (devs.length > 0) {
+      median = medianOf(devs);
+      spread = medianOf(devs.map((d) => Math.abs(d - median!)));
+    }
     return {
       expected: this.expected,
       judged,
@@ -464,9 +581,31 @@ export class PracticeSession {
       timing: tempoMode && hits > 0 ? timingSum / hits : null,
       hold: hits > 0 ? holdSum / hits : null,
       meanDeviation: tempoMode && hits > 0 ? devSum / hits : null,
+      long: this.long,
+      medianDeviation: median,
+      spread,
+      weak: this.weakSpot(err),
       accuracy: total > 0 ? sum / total : 1,
       seconds: (wall - this.passStartWall) / 1000,
     };
+  }
+
+  /** The few measures of the practised range with the most mistakes, when they stand out. */
+  private weakSpot(err: Float32Array): { a: number; b: number } | null {
+    const ms = this.song.measureStart;
+    let first = 0;
+    while (first + 1 < ms.length && ms[first + 1]! <= this.rangeStart + 1e-6) first++;
+    let last = first;
+    while (last + 1 < ms.length && ms[last + 1]! < this.rangeEnd - 1e-6) last++;
+    if (last - first < 2) return null;
+    let worst = first;
+    for (let m = first; m <= last; m++) if (err[m]! > err[worst]!) worst = m;
+    if (err[worst]! < 1) return null;
+    let a = worst;
+    let b = worst;
+    while (b < last && b - a < 3 && err[b + 1]! >= 1) b++;
+    while (a > first && b - a < 3 && err[a - 1]! >= 1) a--;
+    return b - a >= last - first ? null : { a, b };
   }
 
   /** Call once per frame. Returns the song time to draw. */
@@ -491,12 +630,17 @@ export class PracticeSession {
       // notes whose last chance has passed become misses; long ones stay open a little longer
       const { start, tempo } = this.song;
       const rate = tr.rate;
+      const shift = this.shift();
       for (let k = this.missPtr; k < this.active.length; k++) {
         const i = this.active[k]!;
-        const dev = ((t - start[i]!) / rate) * 1000;
+        const dev = ((t - shift - start[i]!) / rate) * 1000;
         if (dev <= ACCEPT_MIN_MS) break;
         if (this.state[i] === PENDING) {
-          const accept = acceptWindowMs(tempo.bpmAt(tempo.toBeats(start[i]!)), rate);
+          const accept = acceptWindowMs(
+            tempo.bpmAt(tempo.toBeats(start[i]!)),
+            rate,
+            this.strictness,
+          );
           if (dev > this.lateLimitMs(i, accept)) {
             this.state[i] = MISSED;
             this.missed++;
@@ -519,4 +663,10 @@ export class PracticeSession {
     }
     return t;
   }
+}
+
+function medianOf(values: number[]): number {
+  const v = [...values].sort((x, y) => x - y);
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid]! : (v[mid - 1]! + v[mid]!) / 2;
 }

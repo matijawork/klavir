@@ -1,14 +1,45 @@
 import { useEffect, useState } from 'preact/hooks';
+import { EXERCISES, keyName } from '../engine/exercises.ts';
 import type { LibraryEntry } from '../engine/song.ts';
+import { bestOf, historyVersion } from '../store/history.ts';
 import { MidiChip } from './MidiChip.tsx';
 
 const base = import.meta.env.BASE_URL;
+
+const KEY_STORE = 'klavir.exerciseKey';
+const savedKey = (): number => {
+  try {
+    return Number(localStorage.getItem(KEY_STORE)) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+function Best({ id }: { id: string }) {
+  historyVersion.value;
+  const best = bestOf(id);
+  if (best === null) return null;
+  return (
+    <span class="badge best" title="Your best score for the whole piece">
+      {best}%
+    </span>
+  );
+}
 
 const fmtTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 export function Library() {
   const [songs, setSongs] = useState<LibraryEntry[] | null>(null);
   const [error, setError] = useState(false);
+  const [pc, setPc] = useState(savedKey);
+  const pickKey = (v: number) => {
+    setPc(v);
+    try {
+      localStorage.setItem(KEY_STORE, String(v));
+    } catch {
+      /* not remembered */
+    }
+  };
   useEffect(() => {
     fetch(`${base}songs/index.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -38,6 +69,7 @@ export function Library() {
                 <p class="composer">{s.composer}</p>
               </a>
               <div class="badges">
+                <Best id={`${s.id}/${s.versions[0]?.id ?? 'original'}`} />
                 <span class="badge" title="Key from the score's key signature">
                   {s.key}
                 </span>
@@ -80,6 +112,40 @@ export function Library() {
                 <a href={s.source.url} target="_blank" rel="noreferrer" title={s.source.license}>
                   Source
                 </a>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <h2 class="section">Exercises</h2>
+        <fieldset class="seg keys" aria-label="Key">
+          {Array.from({ length: 12 }, (_, k) => (
+            <button
+              type="button"
+              key={k}
+              aria-pressed={pc === k}
+              onClick={() => pickKey(k)}
+              data-testid={`key-${k}`}
+            >
+              {keyName(k)}
+            </button>
+          ))}
+        </fieldset>
+        <div class="cards">
+          {EXERCISES.map((e) => (
+            <article class="card" key={e.kind}>
+              <a
+                class="card-main"
+                href={`#/exercise/${e.kind}/${pc}`}
+                data-testid={`exercise-${e.kind}`}
+              >
+                <h3>
+                  {keyName(pc, e.kind === 'scale-minor')} · {e.title}
+                </h3>
+                <p class="composer">{e.about}</p>
+              </a>
+              <div class="badges">
+                <Best id={`exercise-${e.kind}-${pc}/original`} />
               </div>
             </article>
           ))}
