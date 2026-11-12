@@ -4,7 +4,7 @@
  */
 import { type Tokens, tokens, withAlpha } from '../design/tokens.ts';
 import { HIGH, isBlack, keyW, keyX, LOW, noteName, WHITE_COUNT } from '../engine/keys.ts';
-import { HIT, MISSED, type PracticeSession } from '../engine/session.ts';
+import { HIT, MISSED, type PracticeSession, SHORT } from '../engine/session.ts';
 import type { LoadedSong } from '../engine/song.ts';
 import { clearLastNoteOn, held, lastNoteOnAt } from '../midi/midi.ts';
 
@@ -29,7 +29,7 @@ const FONT_FINGER_SMALL = '700 9px Inter, system-ui, sans-serif';
 const GLOW_COLORS = ['accent', 'hand-left', 'hand-right', 'fb-correct', 'text'] as const;
 const SPARKS = 256;
 /** sparks per second from one sounding key */
-const SPARK_RATE = 50;
+const SPARK_RATE = 10;
 const BLACK_RADII = [0, 0, 3, 3];
 
 export class PlayerCanvas {
@@ -238,9 +238,11 @@ export class PlayerCanvas {
             ? tk['fb-correct']
             : st === MISSED
               ? tk['fb-missed']
-              : hand[i]
-                ? tk['hand-right']
-                : tk['hand-left'];
+              : st === SHORT
+                ? tk['fb-late']
+                : hand[i]
+                  ? tk['hand-right']
+                  : tk['hand-left'];
         const x = keyX[p]! * w + 1;
         const bw = keyW[p]! * w - 2;
         const yBottom = Math.min(hitY, hitY - (s - t) * pps);
@@ -250,7 +252,7 @@ export class PlayerCanvas {
         if (!dim) {
           // soft halo around the note
           ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = withAlphaCached(base, active ? 0.34 : 0.15);
+          ctx.fillStyle = withAlphaCached(base, active ? 0.2 : 0.08);
           ctx.beginPath();
           ctx.roundRect(x - 4, yBottom - bh - 4, bw + 8, bh + 8, NOTE_RADIUS + 4);
           ctx.fill();
@@ -421,20 +423,15 @@ export class PlayerCanvas {
       const name = GLOW_COLORS[ci]!;
       const kw = keyW[p]! * w;
       const cx = (keyX[p]! + kw / w / 2) * w;
-      const gw = Math.max(70, kw * 4.6);
-      const gh = gw * 1.5;
+      const gw = Math.max(40, kw * 2.6);
+      const gh = gw * 1.2;
       const bw = Math.max(22, kw * 1.7);
-      const bh = Math.min(top * 0.5, 240);
-      ctx.globalAlpha = pressed ? 0.9 : 0.4;
+      const bh = Math.min(top * 0.25, 110);
+      ctx.globalAlpha = pressed ? 0.45 : 0.18;
       ctx.drawImage(this.beam[name]!, cx - bw / 2, top - bh, bw, bh);
-      ctx.globalAlpha = pressed ? 1 : 0.65;
+      ctx.globalAlpha = pressed ? 0.7 : 0.4;
       ctx.drawImage(this.glow[name]!, cx - gw / 2, top - gh / 2, gw, gh);
-      if (pressed) {
-        ctx.globalAlpha = 0.75;
-        ctx.drawImage(this.glow.text!, cx - gw / 5, top - gw / 5, gw / 2.5, gw / 2.5);
-      }
-      if ((pressed && d) || (this.demo && d))
-        for (let k = 0; k < spawn; k++) this.addSpark(cx, top, kw, ci);
+      if (pressed && d) for (let k = 0; k < spawn; k++) this.addSpark(cx, top, kw, ci);
     }
     this.drawSparks();
     ctx.globalAlpha = 1;

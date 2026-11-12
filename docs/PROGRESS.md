@@ -51,3 +51,11 @@ Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right
 - Finger numbers: badge on every note. Sources had no fingering, so `scripts/lib/fingering.ts` computes suggestions (provenance `claude`, Viterbi over ergonomic costs). `meta.json`: `"fingering": "none"` disables.
 - Pedal: `meta.json` `"pedal": "measure"` generates one change per measure (provenance `claude`; used for Gymnopédie). Lane segment turns green while the pedal is held where the song wants it; strip on the hit line shows the live pedal.
 - Still open: real-piano test of everything; exercises (M5) and scoring/calibration (M3) not started.
+
+## 2026-11-12 (later): real piano works
+- Cause of "no signal" was the piano being switched off. Matija confirmed: keys, pedal, right-hand mode work on the Korg.
+- Built-in synth (`src/audio/synth.ts`, Web Audio, synthesized not sampled): clicks and song playback default to **Computer** (`soundOut`), **My keys on computer** (`monitor`, default on) because the D1 has no speakers. ⚙ → Sound switches back to Piano (MIDI).
+- Key release is tracked: a hit note let go with more than max(0.18 s, 30 %) of it left becomes `SHORT` (orange), unless the sustain pedal is down.
+- Pass score is stricter: `(hits − 0.5·short) / (expected + wrong)`, so wrong keys count in wait mode too.
+- Glow toned down (smaller, dimmer, fewer sparks) on his request.
+- Not verified: how the synth sounds and its latency on his Mac (no way to listen from here); timing windows still uncalibrated.

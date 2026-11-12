@@ -5,6 +5,7 @@ export type Mode = 'wait' | 'tempo';
 export type Hands = 'both' | 'L' | 'R';
 export type OtherHand = 'dim' | 'hide' | 'play';
 export type NoteNames = 'off' | 'upcoming' | 'all';
+export type SoundOut = 'computer' | 'piano';
 
 export interface Settings {
   mode: Mode;
@@ -16,6 +17,10 @@ export interface Settings {
   countInClick: boolean;
   metronome: boolean;
   metronomeClick: boolean;
+  /** where clicks and song playback sound */
+  soundOut: SoundOut;
+  /** play the player's own keys through the computer */
+  monitor: boolean;
   noteNames: NoteNames;
   octaveNumbers: boolean;
   fingers: boolean;
@@ -38,6 +43,8 @@ export const DEFAULTS: Settings = {
   countInClick: true,
   metronome: false,
   metronomeClick: true,
+  soundOut: 'computer',
+  monitor: true,
   noteNames: 'upcoming',
   octaveNumbers: false,
   fingers: true,

@@ -9,6 +9,8 @@ import type { Transport } from './transport.ts';
 export const PENDING = 0;
 export const HIT = 1;
 export const MISSED = 2;
+/** hit, but the key was let go well before the note ended */
+export const SHORT = 3;
 
 export type Mode = 'wait' | 'tempo';
 
@@ -27,7 +29,9 @@ export interface PassResult {
   hits: number;
   missed: number;
   wrong: number;
-  /** hits / expected, 0..1 */
+  /** notes that were hit but released too early */
+  short: number;
+  /** 0..1: early releases count half, every wrong key adds to the total */
   accuracy: number;
   /** wall-clock seconds the pass took */
   seconds: number;
@@ -37,6 +41,14 @@ export interface PassResult {
 const EARLY_MS = 300;
 /** Lead-in when count-in is off, seconds of song time. */
 const SHORT_LEAD = 1;
+
+/** Score of a pass. Wrong keys and early releases both pull it down. */
+export const passAccuracy = (
+  hits: number,
+  short: number,
+  wrong: number,
+  expected: number,
+): number => (expected + wrong > 0 ? Math.max(0, hits - 0.5 * short) / (expected + wrong) : 1);
 
 /** Normal-preset onset window in wall milliseconds (ADR-007): 15 % of a beat, clamped. */
 export const hitWindowMs = (bpm: number, rate: number): number =>
@@ -88,7 +100,10 @@ export class PracticeSession {
   hits = 0;
   missed = 0;
   wrong = 0;
+  short = 0;
   expected = 0;
+  /** live sustain pedal: with it down, letting a key go early is fine */
+  pedalDown = false;
 
   onPass: ((r: PassResult) => void) | null = null;
   onEnd: (() => void) | null = null;
@@ -105,6 +120,9 @@ export class PracticeSession {
   private openWall = 0;
   private passStartWall = 0;
   private readonly lastOn = new Float64Array(128);
+  private readonly down = new Uint8Array(128);
+  /** per pitch: the song note the player is currently holding, or -1 */
+  private readonly holding = new Int32Array(128).fill(-1);
 
   constructor(song: LoadedSong, transport: Transport) {
     this.song = song;
@@ -163,6 +181,8 @@ export class PracticeSession {
     this.hits = 0;
     this.missed = 0;
     this.wrong = 0;
+    this.short = 0;
+    this.holding.fill(-1);
     this.group = 0;
     this.missPtr = 0;
     this.waiting = false;
@@ -208,8 +228,12 @@ export class PracticeSession {
 
   private completeGroup(g: number, wall: number): void {
     for (let k = this.groupAt[g]!; k < this.groupAt[g + 1]!; k++) {
-      this.state[this.active[k]!] = HIT;
+      const i = this.active[k]!;
+      this.state[i] = HIT;
       this.hits++;
+      const p = this.song.pitch[i]!;
+      if (this.down[p]) this.holding[p] = i;
+      else this.checkRelease(i, this.song.start[i]!);
     }
     this.openWall = wall;
     this.group = g + 1;
@@ -223,9 +247,30 @@ export class PracticeSession {
     return false;
   }
 
+  /** Marks note `i` as SHORT when it was let go at song time `t` with too much of it left. */
+  private checkRelease(i: number, t: number): void {
+    if (this.pedalDown || this.state[i] !== HIT) return;
+    const { start, end } = this.song;
+    const left = end[i]! - t;
+    if (left > Math.max(0.18 * this.transport.rate, 0.3 * (end[i]! - start[i]!))) {
+      this.state[i] = SHORT;
+      this.short++;
+    }
+  }
+
+  /** Feed every note-off from the player. */
+  noteOff(p: number, wall: number): void {
+    this.down[p] = 0;
+    const i = this.holding[p]!;
+    if (i < 0) return;
+    this.holding[p] = -1;
+    if (this.running) this.checkRelease(i, this.transport.time(wall));
+  }
+
   /** Feed every note-on from the player. `wall` is the MIDI event timestamp. */
   noteOn(p: number, wall: number): void {
     this.lastOn[p] = wall;
+    this.down[p] = 1;
     if (!this.running) return;
     const tr = this.transport;
     const t = tr.time(wall);
@@ -264,6 +309,7 @@ export class PracticeSession {
       this.state[best] = HIT;
       this.deviation[best] = bestDev;
       this.hits++;
+      this.holding[p] = best;
     } else if (t >= this.rangeStart - 0.05) this.wrong++;
   }
 
@@ -305,7 +351,8 @@ export class PracticeSession {
         hits: this.hits,
         missed: this.config.mode === 'tempo' ? this.expected - this.hits : 0,
         wrong: this.wrong,
-        accuracy: this.expected ? this.hits / this.expected : 1,
+        short: this.short,
+        accuracy: passAccuracy(this.hits, this.short, this.wrong, this.expected),
         seconds: (wall - this.passStartWall) / 1000,
       };
       this.onPass?.(result);

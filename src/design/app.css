@@ -488,6 +488,9 @@ input[type="range"] {
   color: var(--fb-correct);
   font-size: 18px;
 }
+.pass .short {
+  color: var(--fb-late);
+}
 .pass .wrong {
   color: var(--fb-wrong);
 }

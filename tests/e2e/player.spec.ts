@@ -6,7 +6,7 @@ async function open(page: Page, settings: Record<string, unknown> = {}, song = '
     (s) => {
       localStorage.setItem('klavir.settings', JSON.stringify(s));
     },
-    { countIn: false, ...settings },
+    { countIn: false, soundOut: 'piano', monitor: false, ...settings },
   );
   await page.goto(`./?mockmidi#/play/${song}/original`);
   await page.getByTestId('midi-connect').click();
@@ -27,13 +27,14 @@ async function selectStart(page: Page, fraction = 0.1) {
 const perform = (page: Page, offsetMs = 0) =>
   page.evaluate((offset) => {
     const { session, transport } = window.__klavir!;
-    const { start, pitch, hand, count } = session.song;
+    const { start, end, pitch, hand, count } = session.song;
     for (let i = 0; i < count; i++) {
       if (start[i]! < session.rangeStart - 1e-6 || start[i]! >= session.rangeEnd - 1e-6) continue;
       if (!(session.config.handMask & (1 << hand[i]!))) continue;
       const delay = transport.wallAt(start[i]!) + offset - performance.now();
       setTimeout(() => window.__midi!.noteOn(pitch[i]!), Math.max(0, delay));
-      setTimeout(() => window.__midi!.noteOff(pitch[i]!), Math.max(0, delay) + 60);
+      const held = transport.wallAt(end[i]!) - transport.wallAt(start[i]!) - 40;
+      setTimeout(() => window.__midi!.noteOff(pitch[i]!), Math.max(0, delay) + held);
     }
   }, offsetMs);
 

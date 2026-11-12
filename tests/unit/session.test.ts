@@ -6,6 +6,8 @@ import {
   MISSED,
   PENDING,
   PracticeSession,
+  passAccuracy,
+  SHORT,
 } from '../../src/engine/session.ts';
 import { loadSong, type SongFile, type SongNote } from '../../src/engine/song.ts';
 import { Transport } from '../../src/engine/transport.ts';
@@ -255,5 +257,48 @@ describe('sections and looping', () => {
     expect(session.hits).toBe(0);
     session.update(at(4) + 5000);
     expect(passes).toEqual([1, 0]);
+  });
+});
+
+describe('releasing keys', () => {
+  const cfg = { mode: 'tempo' as const, handMask: 3, range: null, loop: false, countIn: false };
+  // one two-beat note at beat 1 (song time 1 s .. 3 s); lead-in is 1 s, so it starts at wall 2000
+  const long: SongNote[] = [{ p: 60, b: 1, d: 2, h: 'R' }];
+
+  it('marks a note SHORT when the key is let go far too early', () => {
+    const { session } = make(long);
+    session.configure(cfg, 0);
+    session.play(0);
+    session.noteOn(60, 2000);
+    session.noteOff(60, 2300);
+    expect(session.state[0]).toBe(SHORT);
+    expect(session.short).toBe(1);
+  });
+
+  it('accepts a release close to the end of the note', () => {
+    const { session } = make(long);
+    session.configure(cfg, 0);
+    session.play(0);
+    session.noteOn(60, 2000);
+    session.noteOff(60, 3600);
+    expect(session.state[0]).toBe(HIT);
+    expect(session.short).toBe(0);
+  });
+
+  it('does not punish an early release while the sustain pedal is down', () => {
+    const { session } = make(long);
+    session.configure(cfg, 0);
+    session.pedalDown = true;
+    session.play(0);
+    session.noteOn(60, 2000);
+    session.noteOff(60, 2300);
+    expect(session.state[0]).toBe(HIT);
+  });
+
+  it('scores wrong keys and short notes', () => {
+    expect(passAccuracy(10, 0, 0, 10)).toBe(1);
+    expect(passAccuracy(10, 4, 0, 10)).toBe(0.8);
+    expect(passAccuracy(10, 0, 10, 10)).toBe(0.5);
+    expect(passAccuracy(0, 0, 0, 10)).toBe(0);
   });
 });

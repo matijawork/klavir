@@ -5,7 +5,7 @@ import { type PassResult, PracticeSession } from '../engine/session.ts';
 import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
 import { Transport } from '../engine/transport.ts';
 import { held, inputVersion, onNote, outputName, sustainDown } from '../midi/midi.ts';
-import { panic, SongPlayback } from '../midi/output.ts';
+import { panic, SongPlayback, setSoundTarget } from '../midi/output.ts';
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
 import { MidiChip } from './MidiChip.tsx';
@@ -176,7 +176,10 @@ export function Player({ songId, version }: { songId: string; version: string })
       playing.value = false;
     };
     const offNote = onNote((e) => {
-      if (!e.on) return;
+      if (!e.on) {
+        session.noteOff(e.pitch, e.time);
+        return;
+      }
       session.noteOn(e.pitch, e.time);
       playback.flush();
     });
@@ -220,6 +223,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     const wasRunning = session.running;
     if (wasRunning) session.pause();
     playback.stop();
+    setSoundTarget(s.soundOut);
     transport.setRate(s.speed);
     session.configure({
       mode: demo ? 'tempo' : s.mode,
@@ -265,7 +269,9 @@ export function Player({ songId, version }: { songId: string; version: string })
 
   useSignalEffect(() => {
     const engine = engineSig.value;
-    if (engine) engine.view.pedalDown = sustainDown.value;
+    if (!engine) return;
+    engine.view.pedalDown = sustainDown.value;
+    engine.session.pedalDown = sustainDown.value;
   });
 
   const setPlaying = (on: boolean) => {
@@ -387,7 +393,7 @@ export function Player({ songId, version }: { songId: string; version: string })
         <Toggle
           on={listen.value}
           label="Listen"
-          title={noOut ? 'Needs a MIDI output' : 'Hear the song on your piano'}
+          title={s.soundOut === 'piano' && noOut ? 'Needs a MIDI output' : 'Hear how the song goes'}
           onChange={(v) => {
             listen.value = v;
           }}
@@ -496,9 +502,31 @@ export function Player({ songId, version }: { songId: string; version: string })
             />
             <Check k="octaveNumbers" label="Octave numbers" />
             <Check k="fingers" label="Finger numbers" />
-            <h4>Clicks</h4>
-            <Check k="countInClick" label="Count-in sound" title="Played by the piano" />
-            <Check k="metronomeClick" label="Metronome sound" title="Played by the piano" />
+            <h4>Sound</h4>
+            <Seg
+              label="sound"
+              value={s.soundOut}
+              onChange={(v) => setSetting('soundOut', v)}
+              options={[
+                {
+                  value: 'computer',
+                  label: 'Computer',
+                  title: 'Clicks and song playback come from this device',
+                },
+                {
+                  value: 'piano',
+                  label: 'Piano',
+                  title: 'Clicks and song playback are sent to the piano over MIDI',
+                },
+              ]}
+            />
+            <Check
+              k="monitor"
+              label="My keys on computer"
+              title="Hear what you play through this device, without headphones in the piano"
+            />
+            <Check k="countInClick" label="Count-in sound" />
+            <Check k="metronomeClick" label="Metronome sound" />
             <h4>Zoom</h4>
             <input
               type="range"
@@ -568,6 +596,11 @@ export function Player({ songId, version }: { songId: string; version: string })
               {pass.hits}/{pass.expected}
             </span>
             {pass.wrong > 0 && <span class="wrong">{pass.wrong} wrong</span>}
+            {pass.short > 0 && (
+              <span class="short" title="Keys let go before the note ended">
+                {pass.short} short
+              </span>
+            )}
           </div>
         )}
         {debug.value && (

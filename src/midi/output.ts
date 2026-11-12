@@ -3,19 +3,43 @@
  * Chrome cannot cancel messages already sent with a future timestamp, so only a short window is
  * scheduled ahead, and stop() silences both what sounds now and what is still queued.
  */
+
+import { synthAllOff, synthClick, synthOff, synthOn, VOICE_SONG } from '../audio/synth.ts';
 import type { LoadedSong } from '../engine/song.ts';
 import type { Transport } from '../engine/transport.ts';
-import { hasOutput, onOutputReady, send } from './midi.ts';
+import { hasOutput, onOutputReady, send as sendMidi } from './midi.ts';
 
 /** 0-based MIDI channels. The player's own keys are channel 0 and are never written to. */
 export const CH_PLAYBACK = 2;
 export const CH_CLICK = 3;
 
 const LOOKAHEAD_MS = 100;
+
+let target: 'computer' | 'piano' = 'piano';
+/** Chooses where playback and clicks sound: the piano over MIDI, or the built-in synth. */
+export function setSoundTarget(t: 'computer' | 'piano'): void {
+  if (t === target) return;
+  panic();
+  target = t;
+}
+
+/** Sends a MIDI message to the piano, or plays its equivalent on the built-in synth. */
+function send(bytes: number[], time?: number): void {
+  if (target === 'piano') {
+    sendMidi(bytes, time);
+    return;
+  }
+  const status = bytes[0]! & 0xf0;
+  const ch = bytes[0]! & 0x0f;
+  if (status === 0x90 && ch === CH_CLICK) synthClick(bytes[1] === CLICK_ACCENT, time);
+  else if (status === 0x90 && ch === CH_PLAYBACK) synthOn(VOICE_SONG, bytes[1]!, bytes[2]!, time);
+  else if (status === 0x80 && ch === CH_PLAYBACK) synthOff(VOICE_SONG, bytes[1]!, time);
+}
 const TICK_MS = 25;
 
 /** Korg D1 sounds: bank MSB 121, then LSB + program. Harmless on other instruments. */
 export function setupSounds(): void {
+  const send = sendMidi;
   // playback: Pop Piano
   send([0xb0 | CH_PLAYBACK, 0, 121]);
   send([0xb0 | CH_PLAYBACK, 32, 2]);
@@ -31,6 +55,8 @@ onOutputReady(setupSounds);
 
 /** Silences the app's channels now and again just after the look-ahead window. */
 export function panic(): void {
+  synthAllOff(VOICE_SONG);
+  const send = sendMidi;
   const later = performance.now() + LOOKAHEAD_MS + 20;
   for (const ch of [CH_PLAYBACK, CH_CLICK]) {
     for (const t of [undefined, later]) {
@@ -43,6 +69,7 @@ export function panic(): void {
 
 /** Plays a short chord on the playback channel so the cable to the piano can be checked by ear. */
 export function testSound(): void {
+  const send = sendMidi;
   const now = performance.now();
   [60, 64, 67].forEach((p, k) => {
     send([0x90 | CH_PLAYBACK, p, 90], now + k * 140);
@@ -110,7 +137,7 @@ export class SongPlayback {
   start(): void {
     if (this.timer !== null) return;
     this.resync();
-    if (!hasOutput()) return;
+    if (target === 'piano' && !hasOutput()) return;
     this.timer = setInterval(this.tick, TICK_MS);
     this.tick();
   }
