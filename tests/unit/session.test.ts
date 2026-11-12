@@ -176,13 +176,29 @@ describe('wait mode', () => {
     expect(session.state[0]).toBe(HIT);
   });
 
-  it('ignores a press made long before the note', () => {
+  it('accepts a key pressed a little early and still held when the note arrives', () => {
     const { session } = make([R(60, 0)]);
     session.configure({ ...base, mode: 'wait' }, 0);
     session.play(0);
     session.noteOn(60, at(0) - 800);
     session.update(at(0) + 10);
+    expect(session.waiting).toBe(false);
+    expect(session.hits).toBe(1);
+  });
+
+  it('does not let one press count for two notes of the same pitch', () => {
+    const { session } = make([R(60, 0), R(60, 1)]);
+    session.configure({ ...base, mode: 'wait' }, 0);
+    session.play(0);
+    session.noteOn(60, at(0) - 100);
+    session.update(at(0) + 10);
+    expect(session.hits).toBe(1);
+    session.update(at(1) + 10);
     expect(session.waiting).toBe(true);
+    session.noteOff(60, at(1) + 50);
+    session.noteOn(60, at(1) + 400);
+    expect(session.waiting).toBe(false);
+    expect(session.hits).toBe(2);
   });
 
   it('needs every note of a chord', () => {

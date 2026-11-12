@@ -2,7 +2,15 @@
 import { effect } from '@preact/signals';
 import { onNote, sustainDown } from '../midi/midi.ts';
 import { settings } from '../store/settings.ts';
-import { synthAllOff, synthOff, synthOn, synthPedal, unlockAudio, VOICE_PLAYER } from './synth.ts';
+import {
+  setVolume,
+  synthAllOff,
+  synthOff,
+  synthOn,
+  synthPedal,
+  unlockAudio,
+  VOICE_PLAYER,
+} from './synth.ts';
 
 export function installMonitor(): void {
   // MIDI input is not a "user gesture", so audio is unlocked by the first click or key press
@@ -14,6 +22,7 @@ export function installMonitor(): void {
     else synthOff(VOICE_PLAYER, e.pitch);
   });
   effect(() => synthPedal(sustainDown.value));
+  effect(() => setVolume(settings.value.volume));
   effect(() => {
     if (!settings.value.monitor) synthAllOff(VOICE_PLAYER);
   });

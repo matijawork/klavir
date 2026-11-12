@@ -19,6 +19,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 ## Map
 - `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry)
 - `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `mock.ts` (virtual device, `window.__midi`)
+- `src/audio/` `synth.ts` (computer sound: sampled piano from `public/samples/piano`, clicks), `monitor.ts` (player's own keys through the computer)
 - `src/store/settings.ts` practice settings signal, persisted
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
 - `src/ui/` Preact screens; hash routes `#/` and `#/play/<song>/<version>`
@@ -33,4 +34,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - Input timing always from `MIDIMessageEvent.timeStamp`, never `Date.now()` or render time.
 - Scripts run with plain `node` (type stripping): relative imports need the `.ts` extension, no enums or parameter properties.
 - `git push` can hang on the macOS keychain helper; use `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`.
+- GitHub Pages caches `index.html` ~10 min: after a deploy tell Matija to hard-reload (Cmd+Shift+R); check the bundle name in `document.scripts`.
+- Sound has two targets (`settings.soundOut`): `computer` (Web Audio, default; the Korg D1 has no speakers) and `piano` (MIDI). E2E tests force `piano` to inspect sent MIDI.
+- `songs/test-c` is a 3-note test pattern Matija asked for (not a song); keep it.
 - TypeScript 7 + Biome (typescript-eslint does not support TS 7).

@@ -16,6 +16,11 @@ export const CH_CLICK = 3;
 const LOOKAHEAD_MS = 100;
 
 let target: 'computer' | 'piano' = 'piano';
+let clickLevel = 1;
+/** Metronome loudness, 0..2. */
+export function setClickLevel(v: number): void {
+  clickLevel = v;
+}
 /** Chooses where playback and clicks sound: the piano over MIDI, or the built-in synth. */
 export function setSoundTarget(t: 'computer' | 'piano'): void {
   if (t === target) return;
@@ -31,7 +36,7 @@ function send(bytes: number[], time?: number): void {
   }
   const status = bytes[0]! & 0xf0;
   const ch = bytes[0]! & 0x0f;
-  if (status === 0x90 && ch === CH_CLICK) synthClick(bytes[1] === CLICK_ACCENT, time);
+  if (status === 0x90 && ch === CH_CLICK) synthClick(bytes[1] === CLICK_ACCENT, time, clickLevel);
   else if (status === 0x90 && ch === CH_PLAYBACK) synthOn(VOICE_SONG, bytes[1]!, bytes[2]!, time);
   else if (status === 0x80 && ch === CH_PLAYBACK) synthOff(VOICE_SONG, bytes[1]!, time);
 }
@@ -93,6 +98,10 @@ export class SongPlayback {
   /** click times in song seconds, ascending, with accent flags */
   private clickTime: ArrayLike<number> = [];
   private clickAccent: ArrayLike<number> = [];
+  /** keep a steady click going while wait mode holds the song */
+  freeClicks = false;
+  /** wall time of the latest click that was scheduled */
+  private lastClick = 0;
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private next = 0;
@@ -157,9 +166,20 @@ export class SongPlayback {
 
   private tick = (): void => {
     const tr = this.transport;
-    if (!tr.playing) return;
     const now = performance.now();
     const horizon = now + LOOKAHEAD_MS;
+    const { tempo } = this.song;
+    const period = 60000 / (tempo.bpmAt(tempo.toBeats(Math.max(0, tr.time()))) * tr.rate);
+    if (!tr.playing) {
+      // the song is waiting for a key: tick on at the song's tempo so the pulse does not stop
+      if (!this.freeClicks) return;
+      const next = Math.max(now, this.lastClick + period);
+      if (next > horizon) return;
+      this.lastClick = next;
+      send([0x90 | CH_CLICK, CLICK_BEAT, 84], next);
+      send([0x80 | CH_CLICK, CLICK_BEAT, 64], next + CLICK_MS);
+      return;
+    }
     const { start, end, pitch, hand, count } = this.song;
 
     // note-offs first, so a repeated pitch is released before it is struck again
@@ -192,6 +212,9 @@ export class SongPlayback {
       if (at < now - 30) continue; // stale after a pause: skip instead of bunching up
       const note = accent ? CLICK_ACCENT : CLICK_BEAT;
       const when = Math.max(at, now);
+      // right after a wait the free-running pulse may just have ticked
+      if (this.freeClicks && when - this.lastClick < period * 0.45) continue;
+      this.lastClick = when;
       send([0x90 | CH_CLICK, note, accent ? 112 : 84], when);
       send([0x80 | CH_CLICK, note, 64], when + CLICK_MS);
     }

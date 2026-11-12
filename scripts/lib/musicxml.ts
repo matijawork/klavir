@@ -98,6 +98,8 @@ export interface ImportOptions {
   composer?: string;
   /** split hands at this MIDI pitch when the score has a single staff (last resort) */
   splitAt?: number;
+  /** accept a score that uses one hand only (exercises, test patterns) */
+  oneHand?: boolean;
 }
 
 export interface ImportResult {
@@ -420,16 +422,16 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
   song.pedal.sort((a, b) => a.b - b.b || Number(a.on) - Number(b.on));
   if (song.pedal.length) song.pedalSource = 'arranger';
 
-  errors.push(...validateSong(song));
+  errors.push(...validateSong(song, opts.oneHand));
   return { song, errors };
 }
 
 /** Hard checks on a normalized song. Trims harmless same-pitch overlaps and records them as warnings. */
-export function validateSong(song: SongFile): string[] {
+export function validateSong(song: SongFile, oneHand = false): string[] {
   const errors: string[] = [];
   if (song.notes.length === 0) errors.push('Song has no notes');
   const hands = new Set(song.notes.map((n) => n.h));
-  if (song.notes.length && hands.size < 2)
+  if (song.notes.length && hands.size < 2 && !oneHand)
     errors.push(`Only the ${hands.has('R') ? 'right' : 'left'} hand has notes`);
   let trimmed = 0;
   const lastByKey = new Map<string, SongNote>();

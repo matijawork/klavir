@@ -1,12 +1,56 @@
 /**
- * Small built-in synthesizer so the app can make sound through the computer: metronome clicks,
- * song playback and (optionally) the player's own keys. Synthesized, not sampled, so it sounds like
- * a simple electric piano. Times are performance.now() milliseconds, like the MIDI output.
+ * Built-in sound so the app can play through the computer: metronome clicks, song playback and
+ * (optionally) the player's own keys. Uses sampled grand-piano notes (public/samples/piano, one
+ * every minor third, pitch-shifted in between); until they are loaded a simple synthesized tone
+ * stands in. Times are performance.now() milliseconds, like the MIDI output.
  */
 
 interface Voice {
   gain: GainNode;
-  oscs: OscillatorNode[];
+  sources: AudioScheduledSourceNode[];
+}
+
+const SAMPLE_NAMES = ['A', 'C', 'Ds', 'Fs'];
+const SAMPLE_LOW = 21;
+const SAMPLE_STEP = 3;
+const SAMPLE_COUNT = 30;
+const buffers: (AudioBuffer | null)[] = new Array(SAMPLE_COUNT).fill(null);
+/** seconds of silence at the start of each decoded sample, skipped on playback */
+const lead = new Float32Array(SAMPLE_COUNT);
+let loading = false;
+let volume = 1;
+
+/** File name of sample k: A0, C1, Ds1, Fs1, A1, ... C8. */
+export function sampleName(k: number): string {
+  const pitch = SAMPLE_LOW + k * SAMPLE_STEP;
+  return `${SAMPLE_NAMES[k % 4]}${Math.floor(pitch / 12) - 1}`;
+}
+
+function loadSamples(c: AudioContext): void {
+  if (loading) return;
+  loading = true;
+  for (let k = 0; k < SAMPLE_COUNT; k++) {
+    fetch(`${import.meta.env.BASE_URL}samples/piano/${sampleName(k)}.mp3`)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => c.decodeAudioData(data))
+      .then((buf) => {
+        // MP3 decoding leaves a little silence in front; find where the note really starts
+        const d = buf.getChannelData(0);
+        let i = 0;
+        while (i < d.length && Math.abs(d[i]!) < 0.003) i++;
+        lead[k] = Math.max(0, i / buf.sampleRate - 0.002);
+        buffers[k] = buf;
+      })
+      .catch(() => {
+        /* sample unavailable: the synthesized tone keeps standing in for it */
+      });
+  }
+}
+
+/** Overall loudness, 0..2 (1 = default). */
+export function setVolume(v: number): void {
+  volume = v;
+  if (master && ctx) master.gain.setTargetAtTime(v, ctx.currentTime, 0.02);
 }
 
 /** voice groups, so one group can be silenced without touching the other */
@@ -29,7 +73,7 @@ function context(): AudioContext | null {
   comp.threshold.value = -14;
   comp.ratio.value = 6;
   master = ctx.createGain();
-  master.gain.value = 0.7;
+  master.gain.value = volume;
   master.connect(comp).connect(ctx.destination);
   return ctx;
 }
@@ -37,7 +81,9 @@ function context(): AudioContext | null {
 /** Browsers start audio only after a click or key press; call from those handlers. */
 export function unlockAudio(): void {
   const c = context();
-  if (c && c.state !== 'running') void c.resume();
+  if (!c) return;
+  if (c.state !== 'running') void c.resume();
+  loadSamples(c);
 }
 
 /** performance.now() time → audio clock, moved earlier by the output latency so sound lands on time. */
@@ -52,8 +98,8 @@ function release(key: number, when: number): void {
   if (!v) return;
   voices.delete(key);
   v.gain.gain.cancelScheduledValues(when);
-  v.gain.gain.setTargetAtTime(0, when, 0.07);
-  for (const o of v.oscs) o.stop(when + 0.6);
+  v.gain.gain.setTargetAtTime(0, when, 0.09);
+  for (const o of v.sources) o.stop(when + 0.8);
 }
 
 export function synthOn(group: number, pitch: number, velocity: number, time?: number): void {
@@ -64,38 +110,49 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
   release(key, when);
   sustained.delete(key);
 
+  const k = Math.min(SAMPLE_COUNT - 1, Math.max(0, Math.round((pitch - SAMPLE_LOW) / SAMPLE_STEP)));
+  const buf = buffers[k];
+  const vel = velocity / 127;
+  if (buf) {
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = 2 ** ((pitch - (SAMPLE_LOW + k * SAMPLE_STEP)) / 12);
+    // soft notes are duller as well as quieter
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1200 + 17000 * vel ** 2;
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.25 + 1.75 * vel ** 1.7, when);
+    src.connect(filter).connect(gain).connect(master);
+    src.start(when, lead[k]);
+    voices.set(key, { gain, sources: [src] });
+    return;
+  }
+
+  // stand-in tone while the samples load
   const freq = 440 * 2 ** ((pitch - 69) / 12);
-  const level = 0.05 + 0.3 * (velocity / 127) ** 1.6;
-  // low strings ring longer than high ones
+  const level = 0.1 + 0.5 * vel ** 1.6;
   const decay = 0.35 + 2.2 * (1 - (pitch - 21) / 87) ** 1.5;
   const gain = c.createGain();
   gain.gain.setValueAtTime(0, when);
   gain.gain.linearRampToValueAtTime(level, when + 0.004);
   gain.gain.setTargetAtTime(level * 0.02, when + 0.004, decay);
-  const filter = c.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.Q.value = 0.4;
-  filter.frequency.setValueAtTime(Math.min(16000, freq * (4 + 6 * (velocity / 127))), when);
-  filter.frequency.setTargetAtTime(Math.min(16000, freq * 2), when, 0.25);
-  filter.connect(gain).connect(master);
-
-  const oscs: OscillatorNode[] = [];
-  const add = (type: OscillatorType, mult: number, detune: number, amount: number): void => {
+  gain.connect(master);
+  const sources: OscillatorNode[] = [];
+  for (const [mult, amount] of [
+    [1, 0.7],
+    [2, 0.25],
+  ] as const) {
     const o = c.createOscillator();
-    o.type = type;
+    o.type = 'triangle';
     o.frequency.value = freq * mult;
-    o.detune.value = detune;
     const g = c.createGain();
     g.gain.value = amount;
-    o.connect(g).connect(filter);
+    o.connect(g).connect(gain);
     o.start(when);
-    oscs.push(o);
-  };
-  add('triangle', 1, -3, 0.6);
-  add('triangle', 1, 4, 0.4);
-  add('sine', 2, 0, 0.28);
-  add('sine', 3, 0, 0.1);
-  voices.set(key, { gain, oscs });
+    sources.push(o);
+  }
+  voices.set(key, { gain, sources });
 }
 
 export function synthOff(group: number, pitch: number, time?: number): void {
@@ -125,7 +182,7 @@ export function synthAllOff(group: number): void {
 }
 
 /** Metronome tick: a short, dry blip; higher on the first beat. */
-export function synthClick(accent: boolean, time?: number): void {
+export function synthClick(accent: boolean, time?: number, level = 1): void {
   const c = context();
   if (!c || !master || c.state !== 'running') return;
   const when = at(c, time);
@@ -133,7 +190,7 @@ export function synthClick(accent: boolean, time?: number): void {
   o.type = 'square';
   o.frequency.value = accent ? 1760 : 1175;
   const g = c.createGain();
-  g.gain.setValueAtTime(accent ? 0.32 : 0.2, when);
+  g.gain.setValueAtTime((accent ? 0.6 : 0.4) * level, when);
   g.gain.exponentialRampToValueAtTime(0.001, when + 0.045);
   o.connect(g).connect(master);
   o.start(when);

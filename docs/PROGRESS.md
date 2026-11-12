@@ -59,3 +59,27 @@ Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right
 - Pass score is stricter: `(hits − 0.5·short) / (expected + wrong)`, so wrong keys count in wait mode too.
 - Glow toned down (smaller, dimmer, fewer sparks) on his request.
 - Not verified: how the synth sounds and its latency on his Mac (no way to listen from here); timing windows still uncalibrated.
+
+## 2026-11-12 (evening): sound, release cue, wait-mode fix — HANDOFF, read this first
+State: everything below is deployed (https://matijawork.github.io/klavir/), 57 unit + 11 e2e green. Matija plays through the Mac (wired), Korg D1 over CME C2MIDI Pro. He confirmed earlier today: keys, pedal, right-hand mode, computer sound without noticeable lag.
+
+Done in this pass:
+- **Sampled piano** (Salamander Grand, CC BY 3.0, 30 MP3s, 2 MB, `public/samples/piano/`) replaces the synthesized tone; loads after the first click; leading MP3 silence is skipped. Sustain pedal holds the player's notes in the computer sound.
+- **Volume**: default 1.2, sliders ⚙ → Sound → Volume / Click.
+- **When to let go**: the coloured fill on the key drains towards the top while the note runs; empty = release. A key still held >0.15 s after its note ended turns orange. Early release still marks the note orange (`SHORT`).
+- **Wait mode sticking** (his report: "pressed the key, song does not continue"): a press made more than 300 ms before the note arrived was thrown away. Now any unused press from this pass counts if the key is still down or was pressed ≤1 s before; one press never counts for two notes. Not yet confirmed by him as the cause.
+- **Metronome in wait mode**: clicks used to stop whenever the song waited (his "metronome does not work"). Now a free-running click at the song tempo × speed continues while waiting. Metronome is off by default and always follows the song tempo.
+- **Test pattern** `songs/test-c` ("Test: three C notes"): top C (C8) ×3 at 60 BPM: 4 beats, 1 beat, rest, 2 beats. Importer option `oneHand` added for it. If he meant another C, change the octave in `original.musicxml` and re-import.
+- Verified here with the virtual piano in Chrome: 4 count-in + 8 metronome clicks fired, sampled notes played, holding 2 notes fully and dropping the 3rd early gave "83% 3/3 1 short".
+
+Matija must test on the real piano (cannot be checked from here):
+1. Piano sound: does it sound like a real piano now, loud enough, any lag?
+2. Pedal: hold pedal, play and release keys → notes keep ringing through the Mac; pedal up → they stop.
+3. Test: three C notes, **Tempo** mode: hold the long one fully, the short one, release the last one early → expect about 83 %, "1 short", last note orange. Then all three held properly → 100 %.
+4. Same in **Wait** mode: does the song always continue after the right key? If it sticks, note what he did just before.
+5. Key fill draining: is "when to let go" clear enough?
+6. Metronome (M) in both modes: audible, right tempo, loudness OK?
+7. A wrong key on purpose: % goes down and shows "1 wrong".
+
+Next (in order): M3 calibration (latency offset) + results screen with per-measure errors and history; then M5 exercises (scales, chords, warm-up); M4 recording; M6 MIDI import and library; M7 Firebase; M8 polish/PWA; M9 audit.
+Known gaps: timing windows uncalibrated (Normal preset only); no seeking by clicking the ruler; `PassResult.seconds` counts from configure, not from Play; LH scale fingering suggestion is 4-3-2-1-4-3-2-1 instead of 5-4-3-2-1-3-2-1.

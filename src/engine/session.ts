@@ -38,7 +38,7 @@ export interface PassResult {
 }
 
 /** A press this long before a wait-mode note arrives still counts for it. */
-const EARLY_MS = 300;
+const EARLY_MS = 1000;
 /** Lead-in when count-in is off, seconds of song time. */
 const SHORT_LEAD = 1;
 
@@ -121,6 +121,8 @@ export class PracticeSession {
   private passStartWall = 0;
   private readonly lastOn = new Float64Array(128);
   private readonly down = new Uint8Array(128);
+  /** per pitch: the press (its wall time) that already counted for an earlier note */
+  private readonly usedOn = new Float64Array(128);
   /** per pitch: the song note the player is currently holding, or -1 */
   private readonly holding = new Int32Array(128).fill(-1);
 
@@ -217,25 +219,31 @@ export class PracticeSession {
         : Number.POSITIVE_INFINITY;
   }
 
+  /**
+   * True when every key of group `g` has a fresh press: one made in this pass that has not already
+   * counted for an earlier note, and that is either still held or no older than `notBefore`.
+   */
   private groupSatisfied(g: number, notBefore: number): boolean {
     const { pitch } = this.song;
     for (let k = this.groupAt[g]!; k < this.groupAt[g + 1]!; k++) {
-      const on = this.lastOn[pitch[this.active[k]!]!]!;
-      if (!(on > this.openWall && on >= notBefore)) return false;
+      const p = pitch[this.active[k]!]!;
+      const on = this.lastOn[p]!;
+      if (!(on > this.openWall && on > this.usedOn[p]! && (this.down[p]! > 0 || on >= notBefore)))
+        return false;
     }
     return true;
   }
 
-  private completeGroup(g: number, wall: number): void {
+  private completeGroup(g: number): void {
     for (let k = this.groupAt[g]!; k < this.groupAt[g + 1]!; k++) {
       const i = this.active[k]!;
       this.state[i] = HIT;
       this.hits++;
       const p = this.song.pitch[i]!;
+      this.usedOn[p] = this.lastOn[p]!;
       if (this.down[p]) this.holding[p] = i;
       else this.checkRelease(i, this.song.start[i]!);
     }
-    this.openWall = wall;
     this.group = g + 1;
     this.updateGate();
   }
@@ -282,7 +290,7 @@ export class PracticeSession {
         return;
       }
       if (this.waiting && this.groupSatisfied(this.group, 0)) {
-        this.completeGroup(this.group, wall);
+        this.completeGroup(this.group);
         this.waiting = false;
         tr.play(wall);
       }
@@ -323,7 +331,7 @@ export class PracticeSession {
       while (!this.waiting && this.group < this.groupCount && t >= this.groupTime(this.group)) {
         const gt = this.groupTime(this.group);
         if (this.groupSatisfied(this.group, tr.wallAt(gt) - EARLY_MS)) {
-          this.completeGroup(this.group, wall);
+          this.completeGroup(this.group);
         } else {
           this.waiting = true;
           tr.pause(wall);

@@ -89,6 +89,10 @@ export class PlayerCanvas {
   private readonly due = new Uint8Array(128);
   /** keys with a note of the practised hand coming up soon */
   private readonly soon = new Uint8Array(128);
+  /** start and end (song seconds) of the practised note most recently sounding on each key */
+  private readonly dueStart = new Float64Array(128);
+  private readonly dueEnd = new Float64Array(128).fill(-1);
+  private now = 0;
   private first = 0;
   private beatPtr = 0;
 
@@ -166,6 +170,7 @@ export class PlayerCanvas {
 
   private draw(t: number): void {
     const { ctx, w, h, tk, song, session } = this;
+    this.now = t;
     const hitY = h - this.keysH;
     const rate = session.transport.rate;
     // zoom is in pixels per real second, so slowing the song down spreads the notes out
@@ -232,6 +237,10 @@ export class PlayerCanvas {
         const active = s <= t;
         if (active && (mine || this.otherHand !== 'hide')) this.due[p] = mine ? hand[i]! + 1 : 0;
         if (mine && inRange && !active && s <= soonUntil) this.soon[p] = 1;
+        if (mine && inRange && active && !this.demo) {
+          this.dueStart[p] = s;
+          this.dueEnd[p] = e;
+        }
         const st = state[i]!;
         const base =
           st === HIT
@@ -395,7 +404,7 @@ export class PlayerCanvas {
       const fill = this.keyFill(p);
       if (fill) {
         ctx.fillStyle = fill;
-        ctx.fillRect(x, top, kw, kh);
+        ctx.fillRect(x, top, kw, kh * this.holdLeft(p));
       }
       ctx.fillStyle = withAlphaCached(tk.bg, 0.3);
       ctx.fillRect(Math.round(x + kw) - 1, top, 1, kh);
@@ -404,10 +413,17 @@ export class PlayerCanvas {
       if (!isBlack(p)) continue;
       const x = keyX[p]! * w;
       const kw = keyW[p]! * w;
-      ctx.fillStyle = this.keyFill(p) ?? tk['key-black'];
+      ctx.fillStyle = tk['key-black'];
       ctx.beginPath();
       ctx.roundRect(x, top, kw, blackH, BLACK_RADII);
       ctx.fill();
+      const fill = this.keyFill(p);
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.roundRect(x, top, kw, Math.max(4, blackH * this.holdLeft(p)), BLACK_RADII);
+        ctx.fill();
+      }
     }
 
     // light above pressed and sounding keys (additive, pre-rendered sprites)
@@ -495,9 +511,28 @@ export class PlayerCanvas {
     }
   }
 
+  /**
+   * Share of the current note still to be held on key `p`, 1..0. The key's colour drains towards
+   * the top as the note runs out, so an empty key means "let go". 1 when no note is sounding.
+   */
+  private holdLeft(p: number): number {
+    if (!this.due[p] || this.demo) return 1;
+    const len = this.dueEnd[p]! - this.dueStart[p]!;
+    if (len <= 0) return 1;
+    return Math.min(1, Math.max(0.04, (this.dueEnd[p]! - this.now) / len));
+  }
+
   private keyFill(p: number): string | null {
     const d = this.due[p]!;
-    if (held[p]! > 0) return d ? this.tk['fb-correct'] : this.tk.accent;
+    if (held[p]! > 0) {
+      if (d) return this.tk['fb-correct'];
+      // still down after its note ended: time to let go
+      const over = this.now - this.dueEnd[p]!;
+      const rate = this.session.transport.rate;
+      return this.dueEnd[p]! >= 0 && over > 0.15 * rate && over < 4 * rate
+        ? this.tk['fb-late']
+        : this.tk.accent;
+    }
     if (d === 0) return null;
     const color = d === 2 ? this.tk['hand-right'] : this.tk['hand-left'];
     return withAlphaCached(color, isBlack(p) ? 0.9 : 0.55);

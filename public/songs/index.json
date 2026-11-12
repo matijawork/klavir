@@ -21,6 +21,27 @@
     "fingering": "claude"
   },
   {
+    "id": "test-c",
+    "title": "Test: three C notes",
+    "composer": "Test pattern (long, short, medium on the top C)",
+    "difficulty": 1,
+    "key": "C major",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": null,
+    "source": {
+      "url": "https://github.com/matijawork/klavir/tree/main/songs/test-c",
+      "license": "Test pattern written for this app at Matija's request; not a piece of music"
+    },
+    "durationSec": 8,
+    "noteCount": 3,
+    "fingering": "claude"
+  },
+  {
     "id": "minuet-in-g",
     "title": "Minuet in G major, BWV Anh. 114",
     "composer": "Christian Petzold (attr. J. S. Bach)",

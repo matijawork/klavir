@@ -35,7 +35,7 @@ interface Meta {
   difficulty: number;
   youtube: string | null;
   source: { url: string; license: string; notes?: string };
-  versions: { id: string; label: string; file: string; splitAt?: number }[];
+  versions: { id: string; label: string; file: string; splitAt?: number; oneHand?: boolean }[];
   /** 'auto' (default) suggests fingering when the source has none; 'none' leaves it empty */
   fingering?: 'auto' | 'none';
   /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
@@ -66,6 +66,7 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
       title: meta.title,
       composer: meta.composer,
       splitAt: v.splitAt,
+      oneHand: v.oneHand,
     });
     for (const w of song.warnings) console.warn(`  warn  ${slug}/${v.id}: ${w}`);
     if (errors.length) {

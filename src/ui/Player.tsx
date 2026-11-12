@@ -5,7 +5,7 @@ import { type PassResult, PracticeSession } from '../engine/session.ts';
 import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
 import { Transport } from '../engine/transport.ts';
 import { held, inputVersion, onNote, outputName, sustainDown } from '../midi/midi.ts';
-import { panic, SongPlayback, setSoundTarget } from '../midi/output.ts';
+import { panic, SongPlayback, setClickLevel, setSoundTarget } from '../midi/output.ts';
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
 import { MidiChip } from './MidiChip.tsx';
@@ -224,6 +224,7 @@ export function Player({ songId, version }: { songId: string; version: string })
     if (wasRunning) session.pause();
     playback.stop();
     setSoundTarget(s.soundOut);
+    setClickLevel(s.clickVolume);
     transport.setRate(s.speed);
     session.configure({
       mode: demo ? 'tempo' : s.mode,
@@ -253,6 +254,7 @@ export function Player({ songId, version }: { songId: string; version: string })
       }
     }
     playback.setClicks(times, accents);
+    playback.freeClicks = !demo && s.mode === 'wait' && s.metronome && s.metronomeClick;
 
     view.demo = demo;
     view.otherHand = s.otherHand;
@@ -525,6 +527,32 @@ export function Player({ songId, version }: { songId: string; version: string })
               label="My keys on computer"
               title="Hear what you play through this device, without headphones in the piano"
             />
+            <label class="row" title="Loudness of everything played through this device">
+              Volume
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={s.volume}
+                aria-label="Volume"
+                onInput={(e) => setSetting('volume', Number((e.target as HTMLInputElement).value))}
+              />
+            </label>
+            <label class="row" title="Metronome and count-in loudness">
+              Click
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={s.clickVolume}
+                aria-label="Click volume"
+                onInput={(e) =>
+                  setSetting('clickVolume', Number((e.target as HTMLInputElement).value))
+                }
+              />
+            </label>
             <Check k="countInClick" label="Count-in sound" />
             <Check k="metronomeClick" label="Metronome sound" />
             <h4>Zoom</h4>

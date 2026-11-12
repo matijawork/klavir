@@ -1,0 +1,11 @@
+{
+  "title": "Test: three C notes",
+  "composer": "Test pattern (long, short, medium on the top C)",
+  "difficulty": 1,
+  "youtube": null,
+  "source": {
+    "url": "https://github.com/matijawork/klavir/tree/main/songs/test-c",
+    "license": "Test pattern written for this app at Matija's request; not a piece of music"
+  },
+  "versions": [{ "id": "original", "label": "Original", "file": "original.musicxml", "splitAt": 21, "oneHand": true }]
+}

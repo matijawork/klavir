@@ -21,6 +21,10 @@ export interface Settings {
   soundOut: SoundOut;
   /** play the player's own keys through the computer */
   monitor: boolean;
+  /** computer sound loudness, 0..2 */
+  volume: number;
+  /** metronome loudness relative to the rest, 0..2 */
+  clickVolume: number;
   noteNames: NoteNames;
   octaveNumbers: boolean;
   fingers: boolean;
@@ -45,6 +49,8 @@ export const DEFAULTS: Settings = {
   metronomeClick: true,
   soundOut: 'computer',
   monitor: true,
+  volume: 1.2,
+  clickVolume: 1,
   noteNames: 'upcoming',
   octaveNumbers: false,
   fingers: true,
