@@ -8,7 +8,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - No explanatory text in the UI; explanations go in `title` tooltips. Exception he asked for: the result card says in plain words what went wrong and what to work on (`src/engine/feedback.ts`).
 - Colors, spacing, motion only from `src/design/tokens.css`. Canvas reads them via `src/design/tokens.ts`.
 - Ask before: anything global/system-level, anything destructive outside the repo, anything needing his accounts.
-- After each milestone: tests green, push (deploys), update PROGRESS.md, Croatian report + Korg checklist.
+- After each milestone: tests green, push (deploys), update PROGRESS.md, Croatian report. Test everything yourself first (scenario tables in `tests/unit/scenarios.test.ts`, control audit in `tests/e2e/controls.spec.ts`, `window.__klavir.level()` for sound); leave him only what needs ears and hands on the real piano.
 
 ## Commands
 - `npm run dev` — dev server at http://localhost:5173/klavir/ (`?mockmidi` = virtual piano, `?debug` or key D = frame stats)

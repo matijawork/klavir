@@ -118,6 +118,12 @@ describe('exercises', () => {
   it('builds every exercise in every key inside the keyboard, in time order', () => {
     for (const e of EXERCISES)
       for (let pc = 0; pc < 12; pc++) {
+        for (const minor of [false, true]) {
+          const m = buildExercise(e.kind, pc, minor);
+          expect(m.notes.every((n) => n.p >= 21 && n.p <= 108)).toBe(true);
+          const isMinor = e.kind === 'scale-minor' || (minor && e.kind !== 'scale-major');
+          expect(m.keys[0]!.mode).toBe(isMinor ? 'minor' : 'major');
+        }
         const f = buildExercise(e.kind, pc);
         expect(f.notes.length).toBeGreaterThan(10);
         for (const n of f.notes) {
@@ -151,17 +157,88 @@ describe('exercises', () => {
     ).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
   });
 
-  it('fingers B flat and F sharp major with thumbs off the black keys', () => {
-    const black = [1, 3, 6, 8, 10];
-    for (const pc of [1, 3, 6, 8, 10])
-      for (const n of buildExercise('scale-major', pc).notes)
-        if (n.f === 1) expect(black).not.toContain(n.p % 12);
+  /** first seven notes ascending as "RH / LH"; the eighth is where the next octave starts */
+  const printed = (kind: 'scale-major' | 'scale-minor', pc: number) => {
+    const f = buildExercise(kind, pc);
+    const hand = (h: string) =>
+      f.notes
+        .filter((n) => n.h === h)
+        .slice(0, 7)
+        .map((n) => n.f)
+        .join('');
+    return `${hand('R')} / ${hand('L')}`;
+  };
+  /** the same seven from a line as printed on the page (eight fingers per hand) */
+  const seven = (line: string) =>
+    line
+      .split(' / ')
+      .map((h) => h.slice(0, 7))
+      .join(' / ');
+
+  it('matches the major scale fingerings printed on pianoscales.org', () => {
+    const page = [
+      '12312345 / 54321321', // C
+      '23123412 / 32143213', // D flat
+      '12312345 / 54321321', // D
+      '31234123 / 32143213', // E flat
+      '12312345 / 54321321', // E
+      '12341234 / 54321321', // F
+      '23412312 / 43213214', // F sharp
+      '12312345 / 54321321', // G
+      '34123123 / 32143213', // A flat
+      '12312345 / 54321321', // A
+      '21231234 / 32143213', // B flat
+      '12312345 / 43214321', // B
+    ];
+    for (let pc = 0; pc < 12; pc++)
+      expect(printed('scale-major', pc), `key ${pc}`).toBe(seven(page[pc]!));
   });
 
-  it('leaves uncertain fingerings out and names keys', () => {
-    expect(buildExercise('scale-minor', 1).notes.every((n) => n.f === undefined)).toBe(true);
-    expect(buildExercise('scale-minor', 9).notes.every((n) => n.f !== undefined)).toBe(true);
+  it('matches the harmonic minor fingerings printed on pianoscales.org', () => {
+    const page = [
+      '12312345 / 54321321', // C
+      '34123123 / 32143213', // C sharp
+      '12312345 / 54321321', // D
+      '31234123 / 21432132', // E flat
+      '12312345 / 54321321', // E
+      '12341234 / 54321321', // F
+      '23123123 / 43213214', // F sharp
+      '12312345 / 54321321', // G
+      '23123123 / 32143213', // G sharp
+      '12312345 / 54321321', // A
+      '21231234 / 21321432', // B flat
+      '12312345 / 43214321', // B
+    ];
+    for (let pc = 0; pc < 12; pc++)
+      expect(printed('scale-minor', pc), `key ${pc}`).toBe(seven(page[pc]!));
+  });
+
+  it('never puts a thumb on a black key in a scale', () => {
+    const black = [1, 3, 6, 8, 10];
+    for (const kind of ['scale-major', 'scale-minor'] as const)
+      for (let pc = 0; pc < 12; pc++)
+        for (const n of buildExercise(kind, pc).notes)
+          if (n.f === 1) expect(black, `${kind} ${pc}`).not.toContain(n.p % 12);
+  });
+
+  it('ends the two octaves on the printed top finger and names keys', () => {
+    const top = (pc: number, h: string) =>
+      buildExercise('scale-major', pc).notes.filter((n) => n.h === h)[14]!.f;
+    expect([top(0, 'R'), top(0, 'L'), top(5, 'R'), top(10, 'R'), top(6, 'L')]).toEqual([
+      5, 1, 4, 4, 4,
+    ]);
     expect(buildExercise('scale-minor', 9).notes.filter((n) => n.h === 'R')[6]!.p % 12).toBe(8);
+    expect(buildExercise('arpeggio', 1).notes.every((n) => n.f === undefined)).toBe(true);
+    // A minor: chord A C E, progression Am – Dm – E – Am with a G sharp in the E chord
+    const pcs = (kind: 'chords' | 'cadence', b: number) =>
+      buildExercise(kind, 9, true)
+        .notes.filter((n) => n.b === b && n.h === 'R')
+        .map((n) => n.p % 12)
+        .sort((x, y) => x - y);
+    expect(pcs('chords', 0)).toEqual([0, 4, 9]);
+    expect(pcs('cadence', 2)).toEqual([2, 5, 9]);
+    expect(pcs('cadence', 4)).toEqual([4, 8, 11]);
+    expect(buildExercise('chords', 9, true).id).toBe('exercise-chords-9m');
     expect(keyName(6)).toBe('F♯');
     expect(tonicOf(1, false)).toBe(7);
     expect(tonicOf(0, true)).toBe(9);

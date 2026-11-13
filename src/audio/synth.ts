@@ -67,6 +67,29 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 /** piano voices: dry to the master plus a little room */
 let piano: GainNode | null = null;
+/** last node before the speakers, for measuring */
+let output: AudioNode | null = null;
+let meter: AnalyserNode | null = null;
+
+/** Peak and RMS of the last ~45 ms of what goes to the speakers (tests and diagnostics). */
+export function outputLevel(): { peak: number; rms: number; loaded: number } {
+  const loaded = buffers.filter(Boolean).length;
+  if (!ctx || !output) return { peak: 0, rms: 0, loaded };
+  if (!meter) {
+    meter = ctx.createAnalyser();
+    meter.fftSize = 2048;
+    output.connect(meter);
+  }
+  const data = new Float32Array(meter.fftSize);
+  meter.getFloatTimeDomainData(data);
+  let peak = 0;
+  let sum = 0;
+  for (const v of data) {
+    peak = Math.max(peak, Math.abs(v));
+    sum += v * v;
+  }
+  return { peak, rms: Math.sqrt(sum / data.length), loaded };
+}
 
 /** Impulse response of a small room: decaying noise that gets duller as it fades. */
 function roomImpulse(c: AudioContext): AudioBuffer {
@@ -94,6 +117,9 @@ function context(): AudioContext | null {
   const Ctor = window.AudioContext;
   if (!Ctor) return null;
   ctx = new Ctor({ latencyHint: 'interactive' });
+  // Measured (controls.spec.ts, volume 1.2): one mf note peaks at 0.57, an 8-key chord at 0.95 with
+  // only 1.2x the RMS, so chords are still held back ~7 dB. A higher threshold clips (peaks > 1);
+  // less drive makes single notes quieter. This is the loudest setting that does not clip.
   // a limiter, not a compressor: single notes pass untouched, only big chords are held back,
   // and it lets go quickly so the ringing notes do not pump
   const limiter = ctx.createDynamicsCompressor();
@@ -105,6 +131,7 @@ function context(): AudioContext | null {
   master = ctx.createGain();
   master.gain.value = volume * DRIVE;
   master.connect(limiter).connect(ctx.destination);
+  output = limiter;
   piano = ctx.createGain();
   piano.connect(master);
   const room = ctx.createConvolver();

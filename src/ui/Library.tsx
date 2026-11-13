@@ -32,6 +32,7 @@ export function Library() {
   const [songs, setSongs] = useState<LibraryEntry[] | null>(null);
   const [error, setError] = useState(false);
   const [pc, setPc] = useState(savedKey);
+  const [minor, setMinor] = useState(false);
   const pickKey = (v: number) => {
     setPc(v);
     try {
@@ -116,8 +117,20 @@ export function Library() {
             </article>
           ))}
         </div>
-
         <h2 class="section">Exercises</h2>
+        <fieldset class="seg keys" aria-label="Mode">
+          <button type="button" aria-pressed={!minor} onClick={() => setMinor(false)}>
+            Major
+          </button>
+          <button
+            type="button"
+            aria-pressed={minor}
+            onClick={() => setMinor(true)}
+            data-testid="mode-minor"
+          >
+            Minor
+          </button>
+        </fieldset>{' '}
         <fieldset class="seg keys" aria-label="Key">
           {Array.from({ length: 12 }, (_, k) => (
             <button
@@ -127,28 +140,32 @@ export function Library() {
               onClick={() => pickKey(k)}
               data-testid={`key-${k}`}
             >
-              {keyName(k)}
+              {keyName(k, minor)}
             </button>
           ))}
         </fieldset>
         <div class="cards">
-          {EXERCISES.map((e) => (
-            <article class="card" key={e.kind}>
-              <a
-                class="card-main"
-                href={`#/exercise/${e.kind}/${pc}`}
-                data-testid={`exercise-${e.kind}`}
-              >
-                <h3>
-                  {keyName(pc, e.kind === 'scale-minor')} · {e.title}
-                </h3>
-                <p class="composer">{e.about}</p>
-              </a>
-              <div class="badges">
-                <Best id={`exercise-${e.kind}-${pc}/original`} />
-              </div>
-            </article>
-          ))}
+          {EXERCISES.filter((e) => e.kind !== (minor ? 'scale-major' : 'scale-minor')).map((e) => {
+            const scale = e.kind === 'scale-major' || e.kind === 'scale-minor';
+            const suffix = minor && !scale ? '/minor' : '';
+            return (
+              <article class="card" key={e.kind}>
+                <a
+                  class="card-main"
+                  href={`#/exercise/${e.kind}/${pc}${suffix}`}
+                  data-testid={`exercise-${e.kind}`}
+                >
+                  <h3>
+                    {keyName(pc, minor)} {minor ? 'minor' : 'major'} · {scale ? 'Scale' : e.title}
+                  </h3>
+                  <p class="composer">{e.about}</p>
+                </a>
+                <div class="badges">
+                  <Best id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`} />
+                </div>
+              </article>
+            );
+          })}
         </div>
       </main>
     </div>

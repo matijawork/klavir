@@ -69,7 +69,7 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 
 ## ADR-013 Scale fingering sources — Decided
 - **Context:** the brief's candidate source (musicmagix) could not be read.
-- **Interim (2026-11-12):** `exercises.ts` uses the standard fingerings written from memory, marked `claude`; uncertain ones are left empty. Checking against the sources below is open.
+- **As built (2026-11-13):** scales follow pianoscales.org only (read through a fetch, compared digit by digit in a unit test); the second octave of minor scales repeats the printed pattern. Chords and arpeggio left hands are textbook fingering marked `claude`. Chang and Morin are not consulted yet.
 - **Decision:** tables from Chang, Morin and pianoscales.org, with the source list stored per scale and disagreements encoded as accepted alternates. Melodic-minor exceptions and block-chord fingerings have one readable source, so they carry a "suggested" badge until checked against a printed scale book.
 
 ## ADR-014 Routing and hosting details — Decided

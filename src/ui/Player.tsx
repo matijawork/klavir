@@ -1,5 +1,6 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { outputLevel } from '../audio/synth.ts';
 import { tonicOf } from '../engine/exercises.ts';
 import { calibrationHint, feedback } from '../engine/feedback.ts';
 import { noteName } from '../engine/keys.ts';
@@ -18,7 +19,14 @@ const base = import.meta.env.BASE_URL;
 
 declare global {
   interface Window {
-    __klavir?: { stats: RenderStats; transport: Transport; session: PracticeSession };
+    __klavir?: {
+      stats: RenderStats;
+      transport: Transport;
+      session: PracticeSession;
+      playback: SongPlayback;
+      view: PlayerCanvas;
+      level: typeof outputLevel;
+    };
   }
 }
 
@@ -226,10 +234,16 @@ function PassCard(props: {
         ))}
         {hint !== null && (
           <li>
-            Almost every note is about {Math.abs(hint)} ms {hint > 0 ? 'late' : 'early'}, very
-            evenly: that is probably delay in the equipment, not you.{' '}
-            <button type="button" class="link" onClick={() => props.onCalibrate(hint)}>
-              Compensate
+            All your notes land about {Math.abs(hint)} ms {hint > 0 ? 'late' : 'early'}, by the same
+            amount every time. That is the delay of the screen and cable, not your playing.{' '}
+            <button
+              type="button"
+              class="link"
+              onClick={() => props.onCalibrate(hint)}
+              title="From now on this delay is subtracted before your timing is judged (⚙ → Delay to change it)"
+              data-testid="compensate"
+            >
+              Stop counting this delay
             </button>
           </li>
         )}
@@ -356,7 +370,7 @@ export function Player({
       session.noteOn(e.pitch, e.time);
       playback.flush();
     });
-    window.__klavir = { stats: view.stats, transport, session };
+    window.__klavir = { stats: view.stats, transport, session, playback, view, level: outputLevel };
     lastConfig.current = '';
     lastClicks.current = '';
     engineSig.value = { transport, session, playback, view };
@@ -523,8 +537,15 @@ export function Player({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'SELECT' || tag === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLInputElement;
+      const tag = el.tagName;
+      const slider = tag === 'INPUT' && el.type === 'range';
+      const box = tag === 'INPUT' && el.type === 'checkbox';
+      // typing into a field keeps its keys; sliders and checkboxes only keep the keys they use
+      if (tag === 'SELECT' || (tag === 'INPUT' && !slider && !box)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (slider && e.code.startsWith('Arrow')) return;
+      if (box && e.code === 'Space') return;
       const s = settings.peek();
       switch (e.code) {
         case 'Space':

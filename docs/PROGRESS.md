@@ -107,7 +107,7 @@ Matija must test on the real piano:
 Next (in order): M3 calibration (apply measured offset; strictness presets), per-measure error view, history; M5 exercises; then M4, M6–M9.
 Known gaps: no latency calibration yet; `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green although a new press is needed; over-holding is shown but not scored.
 
-## 2026-11-12 (late night): second feedback pass + M3 core + M5 first cut — HANDOFF, read this first
+## 2026-11-12 (late night): second feedback pass + M3 core + M5 first cut
 His feedback on the previous pass: better; "Timing" unclear, wants plain words and what to work on; Hold "does not really work" (no details given); wants to choose strictness; auto speed-up and friends do not belong in settings, nicer layout; then get on with the rest. Deployed, 76 unit + 15 e2e green.
 
 - **Strictness** Easy / Normal / Strict in the toolbar (`PRESETS` in `session.ts`): on-time window, accept window, how early a note may be let go, how long it may be over-held. Changes mid-pass without a restart.
@@ -129,3 +129,18 @@ Matija must test on the real piano:
 
 Next: M3 rest (click-along calibration and visual offset per ADR-009, per-note review, IndexedDB history with charts), M5 rest (minor chords, more patterns, check fingerings against sources, metronome-only practice), then M4 recording, M6 MIDI import, M7 Firebase, M8 PWA/tablet, M9 audit.
 Known gaps: `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green; exercises have no sheet/PDF; history is per browser only.
+
+## 2026-11-13: self-testing pass — HANDOFF, read this first
+He asked that I test things myself instead of handing him checklists, and that fingerings come from a real source. Deployed; 174 unit + 24 e2e green.
+
+- **Scenario tables** (`tests/unit/scenarios.test.ts`): 11 press offsets × 3 strictness levels, and 10 release points × 3 levels × both modes, each with the expected verdict (on time / early / late / not accepted; ok / short / long). All pass, so strictness and Hold behave as specified. His "Hold does not really work" is still unexplained: if it comes back, get the exact case (note, mode, level, pedal).
+- **Control audit** (`tests/e2e/controls.spec.ts`): every toolbar button and shortcut, every ⚙ control, persistence, menu closing, sound output switch, click switches, metronome while waiting, speed-up (starts at start speed, rises only after a clean pass, stops at target), Compensate, warm-up link, Again.
+- **Bug found by the audit**: after touching a slider or a checkbox, keyboard shortcuts were dead until a click elsewhere. Fixed (only text fields and selects swallow keys now).
+- **Fingerings**: all 24 scales now follow pianoscales.org (major.html, minor-harmonic.html), provenance `verified`, and a test compares them with the printed digits. B♭ major right hand now starts on 2; the five black-key minor scales got fingerings. Arpeggios: the site only gives the general right hand 1-2-3; left hand and chords stay textbook fingering (`claude`); black-key arpeggios still have none. Chang and Morin not consulted.
+- **Exercises in minor**: Major/Minor switch; warm-up, chord inversions, i–iv–V–i and arpeggio in minor.
+- **Sound measured** (analyser on the output, virtual keys, volume 1.2): one mf note peaks at 0.57; an 8-key chord peaks at 0.95 with 1.2× the RMS; 10 keys at full velocity 0.90. No clipping, but chords are still held back about 7 dB by the limiter. Tried higher thresholds (clip) and less drive (single notes 3–4 dB quieter): left as is because he called the sound OK and had asked for louder. If he wants more natural chords: `DRIVE` 1.0 and tell him to raise the Mac volume.
+- Compensate button reworded ("Stop counting this delay") because he did not understand it.
+
+Only he can check: how it sounds and feels on the real piano; whether the tips match what he feels he did.
+
+Next: click-along calibration + visual offset (ADR-009), per-note review after a pass, IndexedDB history with a progress chart; M4 recording; M6 MIDI import; M7 Firebase; M8 PWA/tablet; M9 audit.
