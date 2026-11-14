@@ -87,6 +87,29 @@ const CLICK_BEAT = 91; // G6
 const CLICK_MS = 40;
 
 /**
+ * Plays evenly spaced clicks on their own (calibration). `times` are performance.now() values;
+ * `onDone` runs once the last click has sounded. Returns a function that stops it early.
+ */
+export function clickTrain(times: number[], onDone: () => void): () => void {
+  let next = 0;
+  const timer = setInterval(() => {
+    const now = performance.now();
+    while (next < times.length && times[next]! <= now + LOOKAHEAD_MS) {
+      const when = Math.max(times[next]!, now);
+      const note = next === 0 ? CLICK_ACCENT : CLICK_BEAT;
+      send([0x90 | CH_CLICK, note, 100], when);
+      send([0x80 | CH_CLICK, note, 64], when + CLICK_MS);
+      next++;
+    }
+    if (next >= times.length && now > times[times.length - 1]! + 300) {
+      clearInterval(timer);
+      onDone();
+    }
+  }, TICK_MS);
+  return () => clearInterval(timer);
+}
+
+/**
  * Sends song notes and metronome clicks for whatever the transport is about to reach.
  * Works from plain arrays so it never allocates while running.
  */

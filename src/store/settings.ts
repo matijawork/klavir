@@ -15,6 +15,8 @@ export interface Settings {
   strictness: Strictness;
   /** ms the player's presses arrive late (equipment delay), taken out of the timing score */
   timingOffset: number;
+  /** ms the falling notes are drawn ahead of the sound (a slow screen); drawing only */
+  pictureOffset: number;
   otherHand: OtherHand;
   /** 0.1 .. 1.5 */
   speed: number;
@@ -42,6 +44,7 @@ export const DEFAULTS: Settings = {
   hands: 'both',
   strictness: 'normal',
   timingOffset: 0,
+  pictureOffset: 0,
   otherHand: 'dim',
   speed: 1,
   countIn: true,

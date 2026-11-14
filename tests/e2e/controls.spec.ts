@@ -201,6 +201,80 @@ test('click switches: count-in sound, metronome sound, metronome while waiting',
   );
 });
 
+test('calibration: tapping along with the clicks measures the delay and sets the offset', async ({
+  page,
+}) => {
+  await open(page, { mode: 'tempo' });
+  const before = await clicks(page);
+  await page.locator('summary[title="Display and sound"]').click();
+  await page.getByTestId('calibrate').click();
+  await expect(page.getByTestId('calibrate-card')).toBeVisible();
+  // a virtual player who is 45 ms late on every click, with a little wobble
+  const tapped = await page.evaluate(
+    (from) =>
+      new Promise<number>((done) => {
+        let seen = from;
+        let taps = 0;
+        const timer = setInterval(() => {
+          const sent = window.__midi!.sent.filter((m) => m.data[0] === 0x93);
+          for (; seen < sent.length; seen++) {
+            taps++;
+            window.__midi!.noteOn(60, 80, sent[seen]!.time + 45 + ((seen % 3) - 1) * 8);
+            window.__midi!.noteOff(60, sent[seen]!.time + 200);
+          }
+          if (document.querySelector('[data-testid=calibrate-result]')) {
+            clearInterval(timer);
+            done(taps);
+          }
+        }, 20);
+      }),
+    before,
+  );
+  expect(tapped, 'all 20 clicks were sent').toBe(20);
+  expect(await page.evaluate(() => window.__klavir!.session.wrong), 'taps are not judged').toBe(0);
+  await expect(page.getByTestId('calibrate-result')).toContainText('about 45 ms after the click');
+  await page.getByTestId('calibrate-use').click();
+  await expect(page.getByTestId('calibrate-card')).toHaveCount(0);
+  await until(page, () => window.__klavir!.session.offsetMs === 45);
+
+  // no taps: says so in words and offers nothing to use
+  await page.locator('summary[title="Display and sound"]').click();
+  await page.getByTestId('calibrate').click();
+  await expect(page.getByTestId('calibrate-result')).toContainText('Only 0 of your taps', {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId('calibrate-use')).toHaveCount(0);
+  await page.getByTestId('calibrate-close').click();
+  await until(page, () => window.__klavir!.session.offsetMs === 45);
+
+  // the picture slider moves only the drawing
+  await page.locator('summary[title="Display and sound"]').click();
+  await page.getByLabel('Picture offset').fill('30');
+  await until(page, () => window.__klavir!.view.pictureMs === 30);
+  expect(await page.evaluate(() => window.__klavir!.session.offsetMs)).toBe(45);
+});
+
+test('calibration clicks are heard through the computer', async ({ page }) => {
+  await open(page, { mode: 'tempo', soundOut: 'computer' });
+  await page.locator('summary[title="Display and sound"]').click();
+  await page.getByTestId('calibrate').click();
+  // count separate bursts of sound over 3 s: clicks are 600 ms apart
+  const bursts = await page.evaluate(async () => {
+    let count = 0;
+    let loud = false;
+    const end = performance.now() + 3000;
+    while (performance.now() < end) {
+      const now = window.__klavir!.level().peak > 0.05;
+      if (now && !loud) count++;
+      loud = now;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    return count;
+  });
+  expect(bursts).toBeGreaterThanOrEqual(3);
+  expect(bursts).toBeLessThanOrEqual(6);
+});
+
 test('steady delay: the card offers to stop counting it, and then it is not counted', async ({
   page,
 }) => {

@@ -12,6 +12,7 @@ import { panic, SongPlayback, setClickLevel, setSoundTarget } from '../midi/outp
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
 import { addPass, bestOf, passesOf } from '../store/history.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
+import { Calibrate } from './Calibrate.tsx';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 import { Timeline } from './Timeline.tsx';
@@ -274,6 +275,7 @@ export function Player({
   const lastPass = useSignal<PassInfo | null>(null);
   /** running result of the pass being played; null before anything is judged */
   const live = useSignal<PassResult | null>(null);
+  const calibrating = useSignal(false);
   const lastConfig = useRef('');
   const lastClicks = useRef('');
   const debug = useSignal(new URLSearchParams(location.search).has('debug'));
@@ -461,6 +463,7 @@ export function Player({
     view.showFingers = s.fingers;
     view.pxPerSec = s.zoom;
     view.beatPulse = s.metronome;
+    view.pictureMs = s.pictureOffset;
     if (reconfigure && wasRunning) {
       session.play();
       playback.start();
@@ -477,6 +480,7 @@ export function Player({
   const setPlaying = (on: boolean) => {
     if (!engine) return;
     if (on) {
+      calibrating.value = false;
       if (!engine.session.config.loop) lastPass.value = null;
       engine.session.play();
       engine.playback.start();
@@ -845,6 +849,42 @@ export function Player({
                 />
                 <output>{s.timingOffset} ms</output>
               </label>
+              <button
+                type="button"
+                class="btn"
+                disabled={s.soundOut === 'piano' && noOut}
+                title={
+                  s.soundOut === 'piano' && noOut
+                    ? 'Needs a MIDI output'
+                    : 'Finds the offset for you: tap one key along with 20 clicks'
+                }
+                onClick={(e) => {
+                  (e.currentTarget.closest('details') as HTMLDetailsElement).open = false;
+                  setPlaying(false);
+                  calibrating.value = true;
+                }}
+                data-testid="calibrate"
+              >
+                Measure
+              </button>
+              <label
+                class="row"
+                title="Moves only the picture. Raise it if the notes reach the keys after you hear the click, lower it if before."
+              >
+                Picture
+                <input
+                  type="range"
+                  min={-100}
+                  max={100}
+                  step={5}
+                  value={s.pictureOffset}
+                  aria-label="Picture offset"
+                  onInput={(e) =>
+                    setSetting('pictureOffset', Number((e.target as HTMLInputElement).value))
+                  }
+                />
+                <output>{s.pictureOffset} ms</output>
+              </label>
             </section>
           </div>
         </details>
@@ -894,7 +934,16 @@ export function Player({
             )}
           </div>
         )}
+        {calibrating.value && (
+          <Calibrate
+            onUse={(ms) => setSetting('timingOffset', ms)}
+            onClose={() => {
+              calibrating.value = false;
+            }}
+          />
+        )}
         {pass &&
+          !calibrating.value &&
           !listen.value &&
           // while a loop keeps running the result stays a small chip, so it never covers the notes
           (now || (loop.value && playing.value) ? (

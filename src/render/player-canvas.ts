@@ -56,6 +56,8 @@ export class PlayerCanvas {
   beatPulse = false;
   /** draw every note as if it were practised (Listen mode) */
   demo = false;
+  /** ms the picture runs ahead of the song clock, to cancel a slow screen; judging is untouched */
+  pictureMs = 0;
   /** live sustain pedal state, set by the UI */
   pedalDown = false;
   readonly stats: RenderStats = {
@@ -158,7 +160,8 @@ export class PlayerCanvas {
       this.latencyCount++;
       clearLastNoteOn();
     }
-    this.draw(this.session.update(now));
+    const t = this.session.update(now);
+    this.draw(t + (this.pictureMs / 1000) * this.session.transport.rate);
     this.drawSum += performance.now() - t0;
     this.stats.frames++;
     if (this.stats.frames % 60 === 0) this.updateStats();
