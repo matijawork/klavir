@@ -421,6 +421,61 @@ test('sound: a big chord is louder than one note and never clips', async ({ page
   expect(hard.peak, 'no clipping even when hammered').toBeLessThan(1);
 });
 
+test('progress: old history moves to the database and the chart shows the best of each day', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const day = (d: number, h: number) => new Date(2026, 10, d, h).getTime();
+    const rec = (at: number, score: number, whole = true) => ({
+      at,
+      score,
+      mode: 'tempo',
+      hands: 'both',
+      speed: 0.6,
+      strict: 'normal',
+      whole,
+    });
+    localStorage.setItem(
+      'klavir.history',
+      JSON.stringify({
+        'ode-to-joy/original': [
+          rec(day(8, 9), 41),
+          rec(day(8, 10), 55),
+          rec(day(10, 9), 63),
+          rec(day(10, 9), 30, false),
+          rec(day(11, 20), 58),
+          rec(day(13, 18), 84),
+          rec(day(13, 19), 79),
+        ],
+      }),
+    );
+  });
+  await page.goto('./?mockmidi#/');
+  const badge = page.getByTestId('best');
+  await expect(badge).toHaveText('84%');
+  expect(await page.evaluate(() => localStorage.getItem('klavir.history')), 'moved out').toBeNull();
+  await page.reload(); // now it can only come from the database
+  await expect(badge).toHaveText('84%');
+  await badge.click();
+  const dots = page.getByTestId('progress-dot');
+  await expect(dots).toHaveCount(4);
+  // dots sit at the best score of each day: higher score = higher on the chart
+  const ys = await dots.evaluateAll((els) => els.map((e) => Number(e.getAttribute('cy'))));
+  expect(ys[0]! > ys[1]! && ys[1]! < ys[2]! && ys[3]! < ys[1]!, '55, 63, 58, 84').toBe(true);
+  const box = (await dots.nth(0).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 30);
+  await expect(page.getByTestId('progress-tip')).toHaveText('55%8 Nov2 passes · speed 60%');
+  await page.screenshot({
+    path: '/private/tmp/claude-501/-Users-matija-Desktop-Klavir/7c7d823a-778b-4be7-8463-6f5e0ec135d7/scratchpad/chart.png',
+  });
+  await page.getByTestId('progress-parts').click();
+  await expect(dots).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('progress')).toHaveCount(0);
+});
+
 test('exercises: minor mode builds minor versions', async ({ page }) => {
   await page.goto('./?mockmidi#/');
   await page.getByTestId('mode-minor').click();

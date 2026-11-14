@@ -52,6 +52,7 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 
 ## ADR-009 Calibration — Decided (deviates from the brief's "tap to a flash")
 - **Decision:** two settings. (1) Input offset: play one key along with 16–20 Korg clicks; median with MAD outlier rejection; first taps discarded; repeat requested if spread is too wide; stored per device, clamped to −80…+40 ms. (2) Visual offset: a slider nudged until the falling note and the click coincide; applied only to drawing.
+- **As built (2026-11-14):** 20 clicks 600 ms apart from the app's click sound (computer or piano, as set), first 4 ignored, nearest tap per click, outliers beyond max(30 ms, 3 MAD) dropped, needs 8 taps and MAD ≤ 40 ms; result rounded to 5 ms, clamped to ±150 ms (the slider's range, not −80…+40), one global value, applied only when he presses Use. Visual offset = `pictureOffset`, ±100 ms.
 - **Interim (2026-11-12):** only a single judging offset exists (`timingOffset`), set by hand or from a pass whose deviations are steady (median ≥ 30 ms, MAD ≤ 60 ms). The click-along procedure and the visual offset are still to do.
 - **Why:** tapping to flashes is much less consistent than tapping to sound, and one tap test cannot separate display lag from input lag. The measured median includes the natural human tendency to play slightly early; centring on it is what makes "on time" feel on time. Raw early/late tendency is still shown in stats.
 

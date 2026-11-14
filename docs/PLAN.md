@@ -38,7 +38,7 @@ Each ends with tests green, deploy, `PROGRESS.md`, a Croatian report and a Korg 
 |---|---|---|
 | 0 | Research, decisions, plan (done). After OK: GitHub repo, Actions deploy skeleton, design tokens, `CLAUDE.md` | — |
 | 1 | MIDI connect, falling notes with durations, glowing keyboard, live input display, import pipeline, one public-domain piece end to end. Frame-rate and input-to-glow measurements. Korg part-independence check | public-domain piece instead of Interstellar; + Listen button (ADR-004) |
-| 2 | Wait/tempo modes, hands, speed, section loop, auto speed-up, count-in, metronome, pedal lane, other hand on Korg, fullscreen, shortcuts, wake lock. MIDI-out timing measurement | — |
+| 2 | Wait/tempo modes, hands, speed, section loop, count-in (auto speed-up built, then removed on request), metronome, pedal lane, other hand on Korg, fullscreen, shortcuts, wake lock. MIDI-out timing measurement | — |
 | 3 | Calibration, scoring, results screen, heatmap, local history | windows per ADR-007, calibration per ADR-009 |
 | 4 | Recording, review timeline, overlays, replay through Korg | — |
 | 5 | Exercises, key/chord analysis, warm-up linking | — |

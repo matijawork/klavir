@@ -735,3 +735,110 @@ a.btn {
 .badge.trust[data-state="open"] {
   color: var(--fb-early);
 }
+
+/* progress chart */
+button.badge.best {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.badge.best:hover {
+  color: var(--text);
+}
+dialog.progress {
+  width: min(640px, calc(100vw - var(--s-6)));
+  padding: var(--s-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+  box-shadow: var(--e-2);
+  color: var(--text);
+}
+dialog.progress::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.progress header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.progress header div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.progress-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+.progress-plot {
+  position: relative;
+}
+.progress svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.progress .grid {
+  stroke: var(--surface-3);
+  stroke-width: 1;
+}
+.progress .cross {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.progress .axis {
+  fill: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.progress .value {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.progress .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.progress-dot {
+  fill: var(--accent);
+  stroke: var(--surface-1);
+  stroke-width: 2;
+}
+.progress .hit {
+  fill: transparent;
+}
+.progress-tip {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  box-shadow: var(--e-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+}
+.progress-tip[data-side="left"] {
+  transform: translate(calc(-100% - 12px), -50%);
+}
+.progress-tip-value {
+  color: var(--text);
+  font-size: 15px;
+}

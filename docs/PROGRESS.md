@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 177 unit + 26 e2e green.
+Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 195 unit + 27 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -8,10 +8,12 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Scoring**: per note right key 40 % + timing 35 % + hold 25 % (`noteScore`); wrong keys add to the total. Strictness Easy / Normal / Strict (`PRESETS` in `session.ts`). Presses count up to about half a beat away, graded early / late; early release = short, over-holding = long.
 - **Feedback**: live HUD (%, missed, wrong, early/late, short); wrong key red; notes green / yellow early / orange late / red let go too soon / grey missed; white end cap = let go; key orange with arrow when held too long.
 - **Result card** (words, `feedback.ts`): verdict, Right notes / On the beat / Held right / Wrong keys, up to three tips, best score, "Practise measures a–b", "Stop counting this delay" (sets `timingOffset` when the offset is steady). While a loop runs the result is only a small chip.
-- **Speed-up**: one toolbar toggle (turns the loop on; loop off turns it off), steps in the ▾ menu next to it, needs `speedUpScore` (default 80 %); card/chip says what it did ("60 % → 65 %", "stays: needs 80 %, you got 71 %").
+- **Calibration**: ⚙ → Delay → Measure plays 20 clicks, he taps one key on each; median gap (first 4 clicks and slips dropped) becomes `timingOffset` (`engine/calibration.ts`, `ui/Calibrate.tsx`). "Picture" slider (`pictureOffset`) shifts only the drawing.
+- **Review**: result card → Review. Steps through the pass note by note (← →, wheel, ruler drag, "Mistakes only"), text says what happened (`engine/review.ts`); canvas shows a white line where he pressed, a white bar for how long he held, red blocks for wrong keys. Works from `session.snapshot()`.
+- **Progress chart**: click the best-score badge in the library: best score per practice day, whole piece / sections (`engine/progress.ts`, `ui/ProgressChart.tsx`).
 - **Sound**: sampled piano (Salamander, CC BY 3.0), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
 - **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
-- **History**: `klavir.history` in localStorage, best whole-piece score as a badge in the library.
+- **History**: IndexedDB `klavir` / `passes` (old `klavir.history` in localStorage is moved over once; localStorage stays the fallback without IndexedDB), no cap.
 - **Import pipeline** for MusicXML (`add-song` skill); five public-domain pieces plus `test-c`.
 
 ## How sure we are (keep this table honest; the app shows the fingering rows as chips)
@@ -24,19 +26,19 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Song fingerings | Computed by `scripts/lib/fingering.ts`, not from the scores; shown as "suggested, not checked". |
 | Strictness, hold, timing rules | Tables in `tests/unit/scenarios.test.ts` (93 cases). |
 | Every button, shortcut, setting | `tests/e2e/controls.spec.ts` with the virtual piano. |
-| Speed-up | Tested: starts at start speed, rises only after a pass that reaches the score, stops at target, off when loop is off, idle while listening. **Matija still thinks it does not work**: not reproduced; ask what he did and saw. |
+| Calibration | Logic: table of 12 cases (late, early, wobble, slips, skipped clicks, too few, too uneven). E2E: a virtual player 45 ms late gets 45 ms and the offset is set; clicks measured as sound through the computer. **Not checked: whether the number it gives him on the Korg makes "on time" feel right.** |
+| Review | Texts checked against a scripted pass (late, early, missed, short, too long, wrong key) in unit tests; stepping, wheel, Done, Again in e2e; marks looked at on a screenshot. Wait mode has no press timing, so the press line sits at the note start there. |
+| Progress chart | E2E with seeded history: move to IndexedDB, survives reload, one dot per day at the day's best, tooltip, sections view. |
 | Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
 | Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
-| Timing on the real piano | No calibration procedure yet; only the manual / one-click offset. |
 | Anything by ear or by hand on the Korg | Only Matija can check. Confirmed by him so far: keys, pedal, right-hand mode, no audible lag, metronome, wait mode, result card "good", layout "looks good". |
 
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
-## Next (he asked what these mean; explained to him 2026-11-14, not started)
-1. **Click-along calibration** (ADR-009): the app plays ~16 metronome clicks, he presses one key on each, the app takes the median as his delay. Replaces guessing the Offset slider. Plus a second slider that shifts only the picture.
-2. **Note-by-note review**: after a pass, scroll back through the song with every note coloured as he played it and a mark where he pressed, so he sees exactly which notes were late / short / missed.
-3. **Progress chart**: score per day for each song from the history; move history to IndexedDB.
-4. Then M4 recording and replay, M6 MIDI import and library, M7 Firebase sync, M8 tablet / PWA, M9 audit.
+## Next
+1. M4 recording and replay, M6 MIDI import and library, M7 Firebase sync, M8 tablet / PWA, M9 audit.
+
+Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
 
 ## Known gaps
 - Click volume does nothing when Sound = Piano (MIDI velocity is fixed).
@@ -44,6 +46,8 @@ Matija marks fingerings he checked himself by clicking the chip ("checked by you
 - `PassResult.seconds` counts from configure, not from Play.
 - A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
 - History is per browser; exercises have no sheet.
+- E2E `count-in and metronome click on their own channel` (clicks within 2 ms) failed once when all tests ran in parallel, passes alone; scheduler jitter under load, not looked into.
+- Calibration measures against the click sound; with Bluetooth speakers the result includes their lag (wanted for judging by ear, but then the picture needs the Picture slider).
 - Gymnopédie source: 6 unmatched ties, 8 trimmed overlaps. Demo scores' "public domain" claim has no license file.
 - Real MIDI-out timing and 120 Hz frame times never measured on his Mac (`?debug`).
 

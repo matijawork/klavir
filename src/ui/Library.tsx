@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import { EXERCISES, fingeringSourceOf, keyName } from '../engine/exercises.ts';
 import type { LibraryEntry } from '../engine/song.ts';
-import { bestOf, historyVersion } from '../store/history.ts';
+import { bestOf, historyVersion, passesOf } from '../store/history.ts';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
+import { ProgressChart } from './ProgressChart.tsx';
 
 const base = import.meta.env.BASE_URL;
 
@@ -16,14 +17,29 @@ const savedKey = (): number => {
   }
 };
 
-function Best({ id }: { id: string }) {
+/** Best score of the piece; click opens the progress chart. Shown as soon as there is any pass. */
+function Best({ id, title }: { id: string; title: string }) {
+  const [open, setOpen] = useState(false);
   historyVersion.value;
+  if (passesOf(id).length === 0) return null;
   const best = bestOf(id);
-  if (best === null) return null;
   return (
-    <span class="badge best" title="Your best score for the whole piece">
-      {best}%
-    </span>
+    <>
+      <button
+        type="button"
+        class="badge best"
+        title={
+          best === null
+            ? 'Only sections practised so far · click for your progress'
+            : 'Your best score for the whole piece · click for your progress'
+        }
+        onClick={() => setOpen(true)}
+        data-testid="best"
+      >
+        {best === null ? '↗' : `${best}%`}
+      </button>
+      {open && <ProgressChart id={id} title={title} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -71,7 +87,7 @@ export function Library() {
                 <p class="composer">{s.composer}</p>
               </a>
               <div class="badges">
-                <Best id={`${s.id}/${s.versions[0]?.id ?? 'original'}`} />
+                <Best id={`${s.id}/${s.versions[0]?.id ?? 'original'}`} title={s.title} />
                 <span class="badge" title="Key from the score's key signature">
                   {s.key}
                 </span>
@@ -161,7 +177,10 @@ export function Library() {
                   <p class="composer">{e.about}</p>
                 </a>
                 <div class="badges">
-                  <Best id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`} />
+                  <Best
+                    id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`}
+                    title={`${keyName(pc, minor)} ${minor ? 'minor' : 'major'} · ${scale ? 'Scale' : e.title}`}
+                  />
                   <FingeringChip
                     id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`}
                     small
