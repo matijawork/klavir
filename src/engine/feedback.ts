@@ -26,6 +26,21 @@ export function calibrationHint(r: PassResult): number | null {
   return Math.round(r.medianDeviation / 5) * 5;
 }
 
+/** A practice pass this good, done the way a performance is, means it is time to perform. */
+export const READY_SCORE = 0.9;
+export function readyToPerform(
+  r: PassResult,
+  ctx: { mode: 'wait' | 'tempo'; speed: number; whole: boolean },
+): boolean {
+  return (
+    ctx.mode === 'tempo' &&
+    ctx.speed >= 1 &&
+    ctx.whole &&
+    r.expected > 0 &&
+    r.accuracy >= READY_SCORE
+  );
+}
+
 export function feedback(r: PassResult, ctx: FeedbackContext): Feedback {
   const a = r.accuracy;
   const verdict =

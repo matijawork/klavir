@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import type { LibraryEntry, SongFile } from '../src/engine/song.ts';
 import { TempoMap } from '../src/engine/song.ts';
 import { autoFinger, measurePedal } from './lib/fingering.ts';
+import { importMidi } from './lib/midi.ts';
 import { importMusicXml, readScoreXml } from './lib/musicxml.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,17 +58,20 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
 
   for (const v of meta.versions) {
     const src = join(dir, v.file);
-    if (!/\.(mxl|musicxml|xml)$/i.test(v.file))
+    const isMidi = /\.(mid|midi)$/i.test(v.file);
+    if (!isMidi && !/\.(mxl|musicxml|xml)$/i.test(v.file))
       throw new Error(`${slug}/${v.file}: unsupported source format`);
-    const xml = readScoreXml(readFileSync(src), v.file);
-    const { song, errors } = importMusicXml(xml, {
+    const options = {
       id: slug,
       version: v.id,
       title: meta.title,
       composer: meta.composer,
       splitAt: v.splitAt,
       oneHand: v.oneHand,
-    });
+    };
+    const { song, errors } = isMidi
+      ? importMidi(readFileSync(src), options)
+      : importMusicXml(readScoreXml(readFileSync(src), v.file), options);
     for (const w of song.warnings) console.warn(`  warn  ${slug}/${v.id}: ${w}`);
     if (errors.length) {
       for (const e of errors.slice(0, 30)) console.error(`  ERROR ${slug}/${v.id}: ${e}`);

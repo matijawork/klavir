@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { type DayScore, dailyScores } from '../engine/progress.ts';
-import { historyVersion, passesOf } from '../store/history.ts';
+import { historyVersion, type PerfHands, passesOf } from '../store/history.ts';
 
 const W = 560;
 const H = 240;
@@ -18,7 +18,9 @@ export function ProgressChart(props: { id: string; title: string; onClose: () =>
   const dialog = useRef<HTMLDialogElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   historyVersion.value;
-  const days: DayScore[] = dailyScores(passesOf(props.id));
+  const kinds = (['both', 'L', 'R'] as const).filter((h) => passesOf(props.id, h).length > 0);
+  const [hands, setHands] = useState<PerfHands>(kinds[0] ?? 'both');
+  const days: DayScore[] = dailyScores(passesOf(props.id, hands));
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -50,6 +52,24 @@ export function ProgressChart(props: { id: string; title: string; onClose: () =>
           <strong class="progress-title">{props.title}</strong>
           <span>Best performance of each day</span>
         </div>
+        {kinds.length > 1 && (
+          <fieldset class="seg" aria-label="Hands">
+            {kinds.map((h) => (
+              <button
+                type="button"
+                key={h}
+                aria-pressed={hands === h}
+                onClick={() => {
+                  setHover(null);
+                  setHands(h);
+                }}
+                data-testid={`progress-${h}`}
+              >
+                {h === 'both' ? 'Both hands' : h === 'L' ? 'Left' : 'Right'}
+              </button>
+            ))}
+          </fieldset>
+        )}
         <button
           type="button"
           class="icon-btn small"

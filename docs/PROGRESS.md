@@ -1,10 +1,16 @@
 # Progress
 
-Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 208 unit + 30 e2e green.
+Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 237 unit + 34 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
 - **Practise vs Perform** (ADR-016, his idea): every library card has both. *Practise* = the player as before (Wait / Tempo, any speed, sections, loop); nothing is kept; Wait mode shows no percent at all (counts and tips only), Tempo shows a percent marked "Practice · not kept". *Perform* (`#/perform/...`, `Player perform`) = whole piece, both hands, Tempo, 100 %, Normal, no loop, no Listen; Play becomes Stop (throws the run away, as does leaving the tab); only these scores go to the history, the library badge and the chart.
+- **Perform with one hand**: Left / Both / Right in Perform (not while it runs); each has its own scores, chart tab and saved last performance. `#/perform/<song>/<version>/L|R`. Library badge shows the both-hands best, or "R 92%" / "L …" until there is one.
+- **Ready to perform**: a practice pass of the whole piece in Tempo at ≥ 100 % scoring ≥ 90 % shows "ready" and a "Perform it" button (`readyToPerform` in `feedback.ts`).
+- **Practice days**: strip on top of the library: days in a row (≥ 1 min of playing; today may still be missing), time in the last 7 days, 16-week calendar. Time = seconds a pass is running, Listen excluded (`engine/days.ts`, `store/days.ts`, `klavir.days`).
+- **Recording and "Hear it"**: every pass records his keys (with velocity) and pedal (`session.rec*`, in the snapshot). In Review, "Hear it" / Space plays it back from where the review stands, at the current speed, through the app's sound (`midi/replay.ts`); the step text follows. Tempo passes only: Wait mode stops the song, so there is no rhythm to replay.
+- **Last performance kept**: result, notes and recording of the latest performance per song and hands are stored (IndexedDB `last`); on a later visit Perform's Review button opens it (no result card).
+- **MIDI import**: `.mid` / `.midi` through the same `import-song` (`scripts/lib/midi.ts`). Hands from two tracks or two channels (track names first, else the higher one = right, with a warning); one track needs `splitAt` or `oneHand`. Nothing is quantized; a played-in recording is flagged.
 - **Speed**: slider, ↑ ↓, or type the percent in the box next to the slider. No automatic speed changes.
 - **Video**: "+ Video" on a song card: paste a YouTube link (stored in `klavir.videos`, overrides `meta.json`), plays inside the app, "Open on YouTube" as fallback.
 - **Player**: falling notes, 88 keys, wait / tempo mode, hands, speed 10–150 %, section loop, count-in, metronome, pedal lane, finger badges, fullscreen, shortcuts (Space, R, L, W, 1/2/3, ↑↓, C, M, F, D).
@@ -16,7 +22,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Progress chart**: click the best-score badge in the library: best performance per day (`engine/progress.ts`, `ui/ProgressChart.tsx`).
 - **Sound**: sampled piano (Salamander, CC BY 3.0), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
 - **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
-- **History**: performances only, IndexedDB `klavir` v2 / `performances` (`{song, at, score}`); fallback `klavir.performances` in localStorage. The older practice history (`passes` store, `klavir.history`) is deleted on load: he asked for that.
+- **History**: performances only, IndexedDB `klavir` v3 / `performances` (`{song, at, score, hands}`, no `hands` = both) and `last`; fallback `klavir.performances` in localStorage. The older practice history (`passes` store, `klavir.history`) is deleted on load: he asked for that.
 - **Import pipeline** for MusicXML (`add-song` skill); five public-domain pieces plus `test-c`.
 
 ## How sure we are (keep this table honest; the app shows the fingering rows as chips)
@@ -34,6 +40,10 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Practise / Perform | E2E: Perform ignores practice settings (wait, left hand, 50 %, easy → tempo, both, 100 %, normal), controls and shortcuts for them are gone, Stop keeps nothing, a finished run is kept and survives reload, practice adds nothing, old history is wiped. |
 | Progress chart | E2E with seeded performances: one dot per day at the day's best, tooltip. |
 | Typed speed, Review button, no percent in Wait | E2E (73 → 0.73, 400 → 150, empty keeps). |
+| One-hand perform, saved review, Hear it | E2E: right-hand run scored and badged "R", recording has one press and release per note plus the pedal, after a reload Review opens it and the replay sends the same pitches and velocities within 3 ms of the recorded moments, stops silent; replay measured as sound through the computer (peak 0.24). **Not checked by ear: how his own replay sounds, and pedal replay.** |
+| Ready to perform | Rule: 8 cases in a unit test. E2E: not at 95 %, yes at 100 %, button opens Perform. |
+| Practice days | Streak, calendar, levels: 11 unit cases. E2E: seeded days, 12 s of playing tips today over a minute, listening adds nothing. |
+| MIDI import | 9 unit cases on generated files (hands by name / by height / by channel, one track, tempo, 3/4, 6/8 change, pedal, bad files, played-in recording). Ran the real `import-song` on a generated two-track file: JSON, index entry and sheet PDF came out; then removed. **No real-world MIDI file tried yet**: files from the web often have one track or are played-in recordings; the importer says so instead of guessing. |
 | Video | Link parsing: 13 cases in a unit test. E2E: add, shown as an embedded frame, remembered, per song, remove. **Not checked: that a real video plays** (tests block YouTube); some videos forbid embedding, then "Open on YouTube". |
 | Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
 | Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
@@ -42,8 +52,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-1. Ideas offered to him 2026-11-14, none started: perform per hand (left / right only) as separate charts; "ready to perform" hint after clean practice at 100 %; a streak / days-practised view; keeping the review of the last performance; MIDI import.
-2. M4 recording and replay, M6 MIDI import and library, M7 Firebase sync, M8 tablet / PWA, M9 audit.
+1. M7 Firebase sync (history, days, videos, last performances are per browser now), M7 Firebase sync, M8 tablet / PWA, M9 audit.
 
 Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
 

@@ -471,7 +471,7 @@ test('perform: locked to the real thing, cannot be paused, and only it is kept a
         }),
     ),
     'old store is gone',
-  ).toEqual(['performances']);
+  ).toEqual(['last', 'performances']);
 
   await page.getByTestId('perform-test-c').click();
   await page.waitForFunction(() => !!window.__klavir);
@@ -489,15 +489,7 @@ test('perform: locked to the real thing, cannot be paused, and only it is kept a
     );
   });
   await expect(page.getByTestId('perform-badge')).toBeVisible();
-  for (const id of [
-    'mode-wait',
-    'hands-L',
-    'strict-easy',
-    'speed',
-    'speed-number',
-    'loop',
-    'listen',
-  ])
+  for (const id of ['mode-wait', 'strict-easy', 'speed', 'speed-number', 'loop', 'listen'])
     await expect(page.getByTestId(id), `${id} is not offered`).toHaveCount(0);
   // shortcuts and the ruler cannot change it either
   await page.keyboard.press('ArrowDown');
@@ -567,6 +559,182 @@ test('perform: locked to the real thing, cannot be paused, and only it is kept a
   await expect(page.getByTestId('progress-tip')).toContainText('2 performances');
 });
 
+test('perform with one hand is scored on its own; the last performance can be reviewed and heard later', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await open(page, { mode: 'tempo' }, 'ode-to-joy');
+  await page.goto('./?mockmidi#/perform/ode-to-joy/original/R');
+  await page.waitForFunction(() => !!window.__klavir);
+  await until(page, () => window.__klavir!.session.config.handMask === 2);
+  await expect(page.getByTestId('hands-R')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('review-button')).toBeDisabled();
+  await page.getByTestId('play').click();
+  // hands cannot be switched while it runs
+  await page.getByTestId('hands-L').click();
+  await page.waitForTimeout(200);
+  expect(await page.evaluate(() => window.__klavir!.session.config.handMask)).toBe(2);
+  // the right hand, every note 30 ms late and with the pedal pressed once
+  const played = await page.evaluate(() => {
+    const { session, transport } = window.__klavir!;
+    const { start, end, pitch, hand, count } = session.song;
+    let n = 0;
+    for (let i = 0; i < count; i++) {
+      if (!hand[i]) continue;
+      n++;
+      const on = transport.wallAt(start[i]!) + 30;
+      const off = transport.wallAt(end[i]!) - 30;
+      setTimeout(() => window.__midi!.noteOn(pitch[i]!, 70 + (i % 5), on), on - performance.now());
+      setTimeout(() => window.__midi!.noteOff(pitch[i]!, off), off - performance.now());
+    }
+    const ped = transport.wallAt(1) - performance.now();
+    setTimeout(() => window.__midi!.pedal(true), ped);
+    setTimeout(() => window.__midi!.pedal(false), ped + 700);
+    return n;
+  });
+  await expect(page.getByTestId('pass-score')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId('pass')).toContainText('First performance');
+  const score = Number(await page.getByTestId('pass').getAttribute('data-score'));
+  expect(score).toBeGreaterThan(90);
+  // everything he did was recorded: a press and a release per note, pedal down and up
+  const rec = await page.evaluate(() => {
+    const s = window.__klavir!.session;
+    const keys = [...s.recKey.slice(0, s.recCount)];
+    const vels = [...s.recVel.slice(0, s.recCount)];
+    return {
+      ons: keys.filter((k, i) => k < 128 && vels[i]! > 0).length,
+      offs: keys.filter((k, i) => k < 128 && vels[i] === 0).length,
+      pedal: keys.filter((k) => k === 128).length,
+      ordered: [...s.recTime.slice(0, s.recCount)].every((t, i, a) => i === 0 || t >= a[i - 1]!),
+    };
+  });
+  expect(rec).toEqual({ ons: played, offs: played, pedal: 2, ordered: true });
+
+  // library: marked as a right-hand score
+  await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('best')).toHaveText(`R ${score}%`);
+
+  // a new visit: no result card, but Review opens that performance and plays it back
+  await page.goto('./?mockmidi#/perform/ode-to-joy/original/R');
+  await page.reload();
+  await page.waitForFunction(() => !!window.__klavir);
+  await page.getByTestId('midi-connect').click();
+  await expect(page.getByTestId('review-button')).toBeEnabled();
+  await expect(page.getByTestId('pass')).toHaveCount(0);
+  await page.getByTestId('review-button').click();
+  await expect(page.getByTestId('review-text')).toContainText('on time');
+  const before = await page.evaluate(() => window.__midi!.sent.length);
+  await page.getByTestId('review-play').click();
+  await expect(page.getByTestId('review-play')).toHaveText('Stop');
+  await page.waitForTimeout(4000);
+  // what comes out is what went in: same pitches and velocities, at the recorded moments
+  const heard = await page.evaluate((from) => {
+    const k = window.__klavir!;
+    const ons = window.__midi!.sent.slice(from).filter((m) => m.data[0] === 0x92);
+    const snapOns: number[][] = [];
+    const s = k.view.review!;
+    for (let i = 0; i < s.recKey.length; i++)
+      if (s.recKey[i]! < 128 && s.recVel[i]! > 0)
+        snapOns.push([s.recKey[i]!, s.recVel[i]!, k.transport.wallAt(s.recTime[i]!)]);
+    return {
+      count: ons.length,
+      same: ons.every(
+        (m, i) =>
+          m.data[1] === snapOns[i]![0] &&
+          m.data[2] === snapOns[i]![1] &&
+          Math.abs(m.time - snapOns[i]![2]!) < 3,
+      ),
+      moving: k.transport.playing,
+    };
+  }, before);
+  expect(heard.count).toBeGreaterThan(4);
+  expect(heard.same, 'pitch, velocity and timing match the recording').toBe(true);
+  expect(heard.moving).toBe(true);
+  await expect(page.getByTestId('review-pos')).not.toHaveText(/^1 \//);
+  await page.getByTestId('review-play').click();
+  await until(page, () => !window.__klavir!.transport.playing);
+  const quiet = await page.evaluate(() => window.__midi!.sent.length);
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(
+    (n) => window.__midi!.sent.slice(n).filter((m) => m.data[0] === 0x92).length,
+    quiet,
+  );
+  expect(after, 'silent once stopped').toBe(0);
+  await page.getByTestId('review-close').click();
+
+  // the other hand has no performance yet
+  await page.getByTestId('hands-L').click();
+  await until(page, () => window.__klavir!.session.config.handMask === 1);
+  await expect(page.getByTestId('review-button')).toBeDisabled();
+});
+
+test('ready to perform: a clean whole pass at full speed offers the performance', async ({
+  page,
+}) => {
+  await open(page, { mode: 'tempo', speed: 0.95 }, 'test-c');
+  await page.getByTestId('play').click();
+  await perform(page);
+  await expect(page.getByTestId('pass-score')).toHaveText('100%', { timeout: 30_000 });
+  await expect(page.getByTestId('ready'), 'not at 95 % speed').toHaveCount(0);
+  await page.getByTestId('speed-number').fill('100');
+  await page.getByTestId('speed-number').blur();
+  await until(page, () => window.__klavir!.transport.rate === 1);
+  await page.getByRole('button', { name: 'Again' }).click();
+  await until(page, () => window.__klavir!.session.running);
+  await perform(page);
+  await expect(page.getByTestId('ready')).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId('ready-perform').click();
+  await expect(page.getByTestId('perform-badge')).toBeVisible();
+  await page.waitForFunction(() => window.__klavir?.session.config.handMask === 3);
+  expect(page.url()).toContain('#/perform/test-c/original');
+});
+
+test('practice days: playing time is counted per day and shown as a streak and a calendar', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('klavir.days')) return;
+    const key = (back: number) => {
+      const d = new Date();
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() - back, 12);
+      const two = (v: number) => String(v).padStart(2, '0');
+      return `${x.getFullYear()}-${two(x.getMonth() + 1)}-${two(x.getDate())}`;
+    };
+    localStorage.setItem(
+      'klavir.days',
+      JSON.stringify({ [key(1)]: 1500, [key(2)]: 300, [key(4)]: 2400, [key(0)]: 55 }),
+    );
+  });
+  await page.goto('./?mockmidi#/');
+  // today has 55 s so far: not a practice day yet, the two days before still count
+  await expect(page.getByTestId('streak')).toHaveText('2 days in a row');
+  await expect(page.getByTestId('week')).toHaveText('1 h 11 min this week');
+  await expect(page.locator('.days-cell[data-level="3"]')).toHaveCount(1);
+  await expect(page.locator('.days-cell[data-level="2"]')).toHaveCount(1);
+  await expect(page.locator('.days-cell[data-level="1"]')).toHaveCount(1);
+  if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+  // 12 seconds of playing today takes it over the minute
+  await page.getByTestId('midi-connect').click();
+  await page.getByTestId('practise-ode-to-joy').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  await page.getByTestId('mode-tempo').click();
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(12_500);
+  await page.getByTestId('play').click();
+  await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('streak')).toHaveText('3 days in a row');
+  // listening is not playing
+  const before = await page.evaluate(() => localStorage.getItem('klavir.days'));
+  await page.getByTestId('practise-test-c').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  await page.getByTestId('listen').click();
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(3000);
+  await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('streak')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('klavir.days'))).toBe(before);
+});
+
 test("progress chart: one dot per day at that day's best performance", async ({ page }) => {
   await page.goto('./?mockmidi#/');
   await expect(page.getByTestId('perform-ode-to-joy')).toBeVisible();
@@ -587,6 +755,13 @@ test("progress chart: one dot per day at that day's best performance", async ({ 
           const tx = req.result.transaction('performances', 'readwrite');
           for (const [at, score] of rows)
             tx.objectStore('performances').add({ song: 'ode-to-joy/original', at, score });
+          // records without hands count as both; one left-hand run goes on its own tab
+          tx.objectStore('performances').add({
+            song: 'ode-to-joy/original',
+            at: day(13, 20),
+            score: 97,
+            hands: 'L',
+          });
           tx.oncomplete = () => {
             req.result.close();
             done();
@@ -606,6 +781,10 @@ test("progress chart: one dot per day at that day's best performance", async ({ 
   const box = (await dots.nth(0).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + 30);
   await expect(page.getByTestId('progress-tip')).toHaveText('55%8 Nov2 performances');
+  await page.getByTestId('progress-L').click();
+  await expect(dots).toHaveCount(1);
+  await page.getByTestId('progress-both').click();
+  await expect(dots).toHaveCount(4);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('progress')).toHaveCount(0);
 });

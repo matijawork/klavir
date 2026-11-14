@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
+import { calendar, lastWeek, playTime, streak } from '../engine/days.ts';
 import { EXERCISES, fingeringSourceOf, keyName } from '../engine/exercises.ts';
 import type { LibraryEntry } from '../engine/song.ts';
+import { days } from '../store/days.ts';
 import { bestOf, historyVersion, passesOf } from '../store/history.ts';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
@@ -23,16 +25,19 @@ function Best({ id, title }: { id: string; title: string }) {
   const [open, setOpen] = useState(false);
   historyVersion.value;
   if (passesOf(id).length === 0) return null;
-  const best = bestOf(id);
+  // both hands is the score that counts; a one-hand best is shown, marked, until there is one
+  const hand = (['both', 'R', 'L'] as const).find((h) => bestOf(id, h) !== null) ?? 'both';
+  const best = bestOf(id, hand);
   return (
     <>
       <button
         type="button"
         class="badge best"
-        title="Your best performance · click for your progress"
+        title={`Your best performance${hand === 'both' ? '' : hand === 'L' ? ' (left hand only)' : ' (right hand only)'} · click for your progress`}
         onClick={() => setOpen(true)}
         data-testid="best"
       >
+        {hand === 'both' ? '' : `${hand} `}
         {best}%
       </button>
       {open && <ProgressChart id={id} title={title} onClose={() => setOpen(false)} />}
@@ -93,6 +98,52 @@ function VideoButton({
   );
 }
 
+const dayWords = (ms: number): string =>
+  new Date(ms).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+/** The days he played, last 16 weeks: one square per day, brighter = longer; plus the streak. */
+function PracticeDays() {
+  const now = Date.now();
+  const seconds = days.value;
+  const run = streak(seconds, now);
+  const week = lastWeek(seconds, now);
+  return (
+    <section class="days" data-testid="days">
+      <div class="days-words">
+        <strong
+          class="days-streak"
+          data-testid="streak"
+          title="Days in a row with at least a minute of playing"
+        >
+          {run} {run === 1 ? 'day' : 'days'} in a row
+        </strong>
+        <span data-testid="week" title="Time spent playing in the last seven days">
+          {playTime(week)} this week
+        </span>
+      </div>
+      <div class="days-grid" role="img" aria-label="Days you played in the last 16 weeks">
+        {calendar(seconds, now, 16).map((col) => (
+          <div class="days-col" key={col[0]!.key}>
+            {col.map((d) => (
+              <i
+                class="days-cell"
+                key={d.key}
+                data-level={d.future ? 'future' : d.level}
+                data-day={d.key}
+                title={
+                  d.future
+                    ? undefined
+                    : `${dayWords(d.at)} · ${d.level ? playTime(d.seconds) : 'not played'}`
+                }
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const fmtTime = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
 export function Library() {
@@ -122,6 +173,7 @@ export function Library() {
         <MidiChip />
       </header>
       <main class="library">
+        <PracticeDays />
         <h2>Library</h2>
         {error && <p class="empty">Could not load the song list.</p>}
         {songs?.length === 0 && <p class="empty">No songs yet.</p>}

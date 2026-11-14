@@ -891,3 +891,57 @@ dialog.video {
 .video-form input[aria-invalid="true"] {
   border-color: var(--fb-wrong);
 }
+
+/* practice days */
+.days {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.days-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.days-streak {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 650;
+}
+.days-grid {
+  display: flex;
+  gap: 3px;
+}
+.days-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.days-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+.days-cell[data-level="1"] {
+  background: var(--accent);
+  opacity: 0.35;
+}
+.days-cell[data-level="2"] {
+  background: var(--accent);
+  opacity: 0.65;
+}
+.days-cell[data-level="3"] {
+  background: var(--accent-strong);
+}
+.days-cell[data-level="future"] {
+  background: none;
+}

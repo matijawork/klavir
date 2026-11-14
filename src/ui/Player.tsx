@@ -2,7 +2,7 @@ import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { outputLevel } from '../audio/synth.ts';
 import { tonicOf } from '../engine/exercises.ts';
-import { calibrationHint, feedback } from '../engine/feedback.ts';
+import { calibrationHint, feedback, readyToPerform } from '../engine/feedback.ts';
 import { noteName } from '../engine/keys.ts';
 import { type ReviewStep, reviewSteps } from '../engine/review.ts';
 import { type PassResult, type PassSnapshot, PracticeSession } from '../engine/session.ts';
@@ -10,8 +10,10 @@ import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
 import { Transport } from '../engine/transport.ts';
 import { held, inputVersion, onNote, outputName, sustainDown } from '../midi/midi.ts';
 import { panic, SongPlayback, setClickLevel, setSoundTarget } from '../midi/output.ts';
+import { Replay } from '../midi/replay.ts';
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
-import { addPass, bestOf, passesOf } from '../store/history.ts';
+import { addPlayTime } from '../store/days.ts';
+import { addPass, bestOf, loadLast, type PerfHands, passesOf, saveLast } from '../store/history.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
 import { Calibrate } from './Calibrate.tsx';
 import { FingeringChip } from './FingeringChip.tsx';
@@ -141,6 +143,19 @@ interface PassInfo {
   recent: number[];
   /** the pass itself, for the note-by-note review */
   snap: PassSnapshot;
+  /** whole piece (not a section) */
+  whole: boolean;
+  /** when it was played, if it is a performance loaded from an earlier visit; else null */
+  old: number | null;
+}
+
+/** What is kept of the latest performance so it can be reviewed and heard on a later day. */
+interface SavedPerformance {
+  at: number;
+  count: number;
+  r: PassResult;
+  s: Settings;
+  snap: PassSnapshot;
 }
 
 /** Result of a finished pass in plain words: score, what it is made of, what to work on. */
@@ -151,8 +166,11 @@ function PassCard(props: {
   onPractise: (w: { a: number; b: number }) => void;
   onCalibrate: (ms: number) => void;
   onReview: () => void;
+  /** link to the performance of this piece */
+  performHref: string;
 }) {
-  const { r, prevBest, recent, s, kept } = props.info;
+  const { r, prevBest, recent, s, kept, whole } = props.info;
+  const ready = !kept && readyToPerform(r, { mode: s.mode, speed: s.speed, whole });
   const timed = s.mode === 'tempo';
   const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome, perform: kept });
   const score = Math.round(r.accuracy * 100);
@@ -235,9 +253,13 @@ function PassCard(props: {
         <output>{r.wrong}</output>
       </div>
       <ul class="tips" data-testid="tips">
-        {fb.tips.map((t) => (
-          <li key={t}>{t}</li>
-        ))}
+        {ready ? (
+          <li data-testid="ready">
+            Clean at full speed, the whole piece. You are ready to perform it for a score.
+          </li>
+        ) : (
+          fb.tips.map((t) => <li key={t}>{t}</li>)
+        )}
         {hint !== null && (
           <li>
             All your notes land about {Math.abs(hint)} ms {hint > 0 ? 'late' : 'early'}, by the same
@@ -275,9 +297,24 @@ function PassCard(props: {
         >
           Review
         </button>
-        <button type="button" class="btn primary" onClick={props.onAgain} title="R">
+        <button
+          type="button"
+          class={ready ? 'btn' : 'btn primary'}
+          onClick={props.onAgain}
+          title="R"
+        >
           Again
         </button>
+        {ready && (
+          <a
+            class="btn primary"
+            href={props.performHref}
+            title="Whole piece, full speed, no stopping. The score is kept."
+            data-testid="ready-perform"
+          >
+            Perform it
+          </a>
+        )}
       </div>
     </div>
   );
@@ -288,6 +325,7 @@ export function Player({
   version,
   file,
   perform = false,
+  hands: startHands = 'both',
 }: {
   songId: string;
   version: string;
@@ -295,9 +333,15 @@ export function Player({
   file?: SongFile;
   /** the real thing: whole piece, Tempo mode, full speed, no stopping; the only score that is kept */
   perform?: boolean;
+  /** hands a performance starts with */
+  hands?: PerfHands;
 }) {
+  /** a performance is with both hands or with one; each has its own scores */
+  const performHands = useSignal<PerfHands>(startHands);
   const eff = (s: Settings): Settings =>
-    perform ? { ...s, mode: 'tempo', hands: 'both', speed: 1, strictness: 'normal' } : s;
+    perform
+      ? { ...s, mode: 'tempo', hands: performHands.value, speed: 1, strictness: 'normal' }
+      : s;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [song, setSong] = useState<LoadedSong | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -315,6 +359,10 @@ export function Player({
   const review = useSignal<number | null>(null);
   const onlyBad = useSignal(false);
   const steps = useRef<ReviewStep[]>([]);
+  /** playing the reviewed pass back (what the player recorded) */
+  const replaying = useSignal(false);
+  const replay = useRef<Replay | null>(null);
+  const replayTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastConfig = useRef('');
   const lastClicks = useRef('');
   const debug = useSignal(new URLSearchParams(location.search).has('debug'));
@@ -360,14 +408,27 @@ export function Player({
       if (listen.peek() || r.expected === 0) return;
       let prevBest: number | null = null;
       let recent: number[] = [];
+      const snap = session.snapshot();
       if (perform) {
-        prevBest = bestOf(historyKey);
-        addPass(historyKey, { at: Date.now(), score: Math.round(r.accuracy * 100) });
-        recent = passesOf(historyKey)
+        const at = Date.now();
+        prevBest = bestOf(historyKey, s.hands);
+        addPass(historyKey, { at, score: Math.round(r.accuracy * 100), hands: s.hands });
+        recent = passesOf(historyKey, s.hands)
           .slice(-6)
           .map((p) => p.score);
+        const saved: SavedPerformance = { at, count: song.count, r, s, snap };
+        saveLast(historyKey, s.hands, saved);
       }
-      lastPass.value = { r, s, kept: perform, prevBest, recent, snap: session.snapshot() };
+      lastPass.value = {
+        r,
+        s,
+        kept: perform,
+        prevBest,
+        recent,
+        snap,
+        whole: session.config.range === null,
+        old: null,
+      };
     };
     session.onEnd = () => {
       playback.stop();
@@ -380,7 +441,7 @@ export function Player({
         session.noteOff(e.pitch, e.time);
         return;
       }
-      session.noteOn(e.pitch, e.time);
+      session.noteOn(e.pitch, e.time, e.velocity);
       playback.flush();
     });
     window.__klavir = { stats: view.stats, transport, session, playback, view, level: outputLevel };
@@ -397,6 +458,15 @@ export function Player({
         if (perform) session.rewind();
       }
     };
+    // playing time of the day, for the practice calendar (listening does not count)
+    let played = 0;
+    const dayTimer = setInterval(() => {
+      if (session.running && !listen.peek()) played++;
+      if (played >= 10) {
+        addPlayTime(played);
+        played = 0;
+      }
+    }, 1000);
     let seen = -1;
     const liveTimer = setInterval(() => {
       if (session.revision === seen) return;
@@ -420,6 +490,10 @@ export function Player({
     return () => {
       clearInterval(timer);
       clearInterval(liveTimer);
+      clearInterval(dayTimer);
+      addPlayTime(played);
+      replay.current?.stop();
+      replay.current = null;
       offNote();
       document.removeEventListener('pointerdown', closeMenus);
       document.removeEventListener('visibilitychange', onHide);
@@ -466,6 +540,26 @@ export function Player({
       live.value = null;
       review.value = null;
       view.review = null;
+      replay.current?.stop();
+      replaying.value = false;
+      if (perform && !demo) {
+        // the latest performance with these hands, kept from an earlier visit, can still be reviewed
+        const key = `${session.song.file.id}/${session.song.file.version}`;
+        void loadLast<SavedPerformance>(key, s.hands).then((saved) => {
+          if (!saved || saved.count !== session.song.count) return;
+          if (lastConfig.current !== configKey || lastPass.peek() !== null) return;
+          lastPass.value = {
+            r: saved.r,
+            s: saved.s,
+            kept: true,
+            prevBest: null,
+            recent: [],
+            snap: saved.snap,
+            whole: true,
+            old: saved.at,
+          };
+        });
+      }
     } else if (session.config.loop !== loopOn) session.config = { ...session.config, loop: loopOn };
 
     playback.handMask = demo ? 3 : s.otherHand === 'play' ? 3 & ~handMask : 0;
@@ -511,14 +605,46 @@ export function Player({
     const engine = engineSig.value;
     if (!engine) return;
     engine.view.pedalDown = sustainDown.value;
-    engine.session.pedalDown = sustainDown.value;
+    engine.session.pedal(sustainDown.value);
   });
 
   /** song seconds between the hit line and the note being looked at, so its press mark shows too */
   const reviewLead = () => (90 * (engine?.transport.rate ?? 1)) / settings.peek().zoom;
+  const stopReplay = () => {
+    if (replayTimer.current) clearInterval(replayTimer.current);
+    replayTimer.current = null;
+    if (!replay.current) return;
+    replay.current.stop();
+    replay.current = null;
+    engine?.transport.pause();
+    replaying.value = false;
+  };
+  /** Plays the recording from where the review stands; the step text follows along. */
+  const startReplay = () => {
+    const info = lastPass.peek();
+    const all = steps.current;
+    if (!engine || !info || review.value === null || info.snap.mode !== 'tempo') return;
+    const { transport, session, view } = engine;
+    const rec = info.snap.recTime;
+    const end = Math.max(session.rangeEnd, rec.length ? rec[rec.length - 1]! : 0);
+    if (transport.time() >= end - 0.05) transport.seek((all[0]?.time ?? 0) - reviewLead());
+    transport.play();
+    const player = new Replay(transport, info.snap);
+    replay.current = player;
+    replaying.value = true;
+    player.start(end, stopReplay);
+    replayTimer.current = setInterval(() => {
+      const t = transport.time();
+      let at = 0;
+      for (let i = 0; i < all.length && all[i]!.time <= t + 0.02; i++) at = i;
+      review.value = at;
+      view.reviewAt = all[at]?.time ?? Number.NaN;
+    }, 80);
+  };
   const showStep = (i: number) => {
     const st = steps.current[i];
     if (!engine || !st) return;
+    stopReplay();
     review.value = i;
     engine.view.reviewAt = st.time;
     engine.transport.seek(st.time - reviewLead());
@@ -526,6 +652,7 @@ export function Player({
   /** moves freely through the reviewed pass; the step text follows the note nearest the keys */
   const scrub = (t: number) => {
     if (!engine || review.value === null) return;
+    stopReplay();
     const all = steps.current;
     const lead = reviewLead();
     const first = all[0]?.time ?? 0;
@@ -558,6 +685,7 @@ export function Player({
   };
   const closeReview = () => {
     if (!engine || review.value === null) return;
+    stopReplay();
     engine.view.review = null;
     engine.session.rewind();
     review.value = null;
@@ -595,6 +723,7 @@ export function Player({
   };
   const restart = () => {
     if (!engine) return;
+    stopReplay();
     engine.view.review = null;
     review.value = null;
     engine.session.rewind();
@@ -631,7 +760,10 @@ export function Player({
       switch (e.code) {
         case 'Space':
           e.preventDefault();
-          toggle();
+          if (review.value !== null && lastPass.peek()?.snap.mode === 'tempo') {
+            if (replaying.value) stopReplay();
+            else startReplay();
+          } else toggle();
           break;
         case 'KeyR':
           restart();
@@ -768,9 +900,32 @@ export function Player({
 
       <div class="toolbar">
         {perform && (
+          <Seg
+            label="hands"
+            value={performHands.value}
+            onChange={(v) => {
+              // not while it runs: a performance is one thing from start to end
+              if (!playing.value) performHands.value = v;
+            }}
+            options={[
+              {
+                value: 'L',
+                label: 'Left',
+                title: 'Perform the left hand alone; scored on its own',
+              },
+              { value: 'both', label: 'Both', title: 'Perform with both hands' },
+              {
+                value: 'R',
+                label: 'Right',
+                title: 'Perform the right hand alone; scored on its own',
+              },
+            ]}
+          />
+        )}
+        {perform && (
           <span
             class="badge best"
-            title="Whole piece, both hands, Tempo mode, 100 % speed, Normal strictness, no pausing. The score is kept and shown in the library chart."
+            title="Whole piece, Tempo mode, 100 % speed, Normal strictness, no pausing. The score is kept and shown in the library chart."
             data-testid="perform-badge"
           >
             Performance
@@ -889,9 +1044,11 @@ export function Player({
           disabled={!pass || step !== null || (perform && playing.value)}
           onClick={openReview}
           title={
-            pass
-              ? 'Go through your last pass note by note: where you pressed, how long you held, wrong keys'
-              : 'Play a pass to the end first; then this shows it note by note'
+            pass?.old
+              ? `Your last performance (${new Date(pass.old).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}) note by note, and to hear it again`
+              : pass
+                ? 'Go through your last pass note by note and hear it again: where you pressed, how long you held, wrong keys'
+                : 'Play a pass to the end first; then this shows it note by note'
           }
           data-testid="review-button"
         >
@@ -1162,6 +1319,21 @@ export function Player({
             >
               ›
             </button>
+            <button
+              type="button"
+              class="btn toggle"
+              aria-pressed={replaying.value}
+              disabled={pass?.snap.mode !== 'tempo'}
+              onClick={() => (replaying.value ? stopReplay() : startReplay())}
+              title={
+                pass?.snap.mode === 'tempo'
+                  ? 'Hear what you played, from here · Space'
+                  : 'Only Tempo mode is recorded: in Wait mode the song stops for you, so there is no rhythm to play back'
+              }
+              data-testid="review-play"
+            >
+              {replaying.value ? 'Stop' : 'Hear it'}
+            </button>
             <Toggle
               on={onlyBad.value}
               label="Mistakes only"
@@ -1183,6 +1355,7 @@ export function Player({
           </div>
         )}
         {pass &&
+          !pass.old &&
           !step &&
           !calibrating.value &&
           !listen.value &&
@@ -1203,6 +1376,9 @@ export function Player({
               measureLabel={(i) => song?.file.measures[i]?.n ?? String(i + 1)}
               onAgain={again}
               onReview={openReview}
+              performHref={`#/perform/${location.hash.replace(/^#\/(play\/)?/, '')}${
+                pass.s.hands === 'both' ? '' : `/${pass.s.hands}`
+              }`}
               onPractise={(w) => {
                 range.value = w;
                 loop.value = true;

@@ -1,24 +1,29 @@
 /**
  * Scores of performances per song: whole piece, full speed, Tempo mode, no stopping (the Perform
- * button). Practice is never kept. Stored in IndexedDB (database `klavir`, store `performances`)
- * with an in-memory copy so reads stay synchronous; localStorage is the fallback without IndexedDB.
- * Records of the older practice history (store `passes`, key `klavir.history`) are deleted: Matija
- * asked for that on 2026-11-14.
+ * button), with both hands or one. Practice is never kept. Stored in IndexedDB (database `klavir`:
+ * `performances` = every score, `last` = the latest performance in full for its review) with an
+ * in-memory copy of the scores so reads stay synchronous; localStorage is the fallback for the
+ * scores without IndexedDB. Records of the older practice history (store `passes`, key
+ * `klavir.history`) are deleted: Matija asked for that on 2026-11-14.
  */
 import { signal } from '@preact/signals';
 import { type IDBPDatabase, openDB } from 'idb';
+
+export type PerfHands = 'both' | 'L' | 'R';
 
 export interface PerfRecord {
   /** Date.now() */
   at: number;
   /** 0..100 */
   score: number;
+  hands: PerfHands;
 }
 
 const OLD_KEY = 'klavir.history';
 const FALLBACK_KEY = 'klavir.performances';
 const DB = 'klavir';
 const STORE = 'performances';
+const LAST = 'last';
 /** bumps on every change so views can subscribe */
 export const historyVersion = signal(0);
 
@@ -43,7 +48,9 @@ function readFallback(): Store {
 /** Puts records in front of whatever was added while loading. */
 function merge(loaded: Store): void {
   for (const [song, list] of Object.entries(loaded))
-    cache[song] = [...list, ...(cache[song] ?? [])].sort((a, b) => a.at - b.at);
+    cache[song] = [...list, ...(cache[song] ?? [])]
+      .map((r) => ({ at: r.at, score: r.score, hands: r.hands ?? 'both' }))
+      .sort((a, b) => a.at - b.at);
   historyVersion.value++;
 }
 
@@ -58,16 +65,17 @@ async function load(): Promise<void> {
     return;
   }
   try {
-    db = await openDB(DB, 2, {
+    db = await openDB(DB, 3, {
       upgrade(d) {
         if (d.objectStoreNames.contains('passes')) d.deleteObjectStore('passes');
         if (!d.objectStoreNames.contains(STORE))
           d.createObjectStore(STORE, { autoIncrement: true }).createIndex('song', 'song');
+        if (!d.objectStoreNames.contains(LAST)) d.createObjectStore(LAST);
       },
     });
     const loaded: Store = {};
     for (const row of (await db.getAll(STORE)) as (PerfRecord & { song: string })[])
-      push(loaded, row.song, { at: row.at, score: row.score });
+      push(loaded, row.song, row);
     merge(loaded);
   } catch {
     db = null;
@@ -78,12 +86,15 @@ async function load(): Promise<void> {
 /** Resolves once the stored history is in memory. */
 export const historyReady: Promise<void> = load();
 
-export const passesOf = (song: string): PerfRecord[] => cache[song] ?? [];
+export const passesOf = (song: string, hands?: PerfHands): PerfRecord[] => {
+  const all = cache[song] ?? [];
+  return hands ? all.filter((r) => r.hands === hands) : all;
+};
 
-/** Best performance score, or null. */
-export function bestOf(song: string): number | null {
+/** Best performance score with those hands, or null. */
+export function bestOf(song: string, hands: PerfHands = 'both'): number | null {
   let best: number | null = null;
-  for (const r of passesOf(song)) if (best === null || r.score > best) best = r.score;
+  for (const r of passesOf(song, hands)) if (best === null || r.score > best) best = r.score;
   return best;
 }
 
@@ -103,4 +114,19 @@ export function addPass(song: string, rec: PerfRecord): void {
       /* storage full or unavailable: history just is not kept */
     }
   });
+}
+
+/** Keeps the latest performance in full (result, settings, notes, recording), replacing the one before. */
+export function saveLast(song: string, hands: PerfHands, value: unknown): void {
+  void historyReady.then(() => db?.put(LAST, value, `${song}|${hands}`).catch(() => {}));
+}
+
+/** The latest performance kept by saveLast, or null. */
+export async function loadLast<T>(song: string, hands: PerfHands): Promise<T | null> {
+  await historyReady;
+  try {
+    return ((await db?.get(LAST, `${song}|${hands}`)) as T | undefined) ?? null;
+  } catch {
+    return null;
+  }
 }

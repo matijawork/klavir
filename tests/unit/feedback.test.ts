@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildExercise, EXERCISES, keyName, tonicOf } from '../../src/engine/exercises.ts';
-import { calibrationHint, feedback } from '../../src/engine/feedback.ts';
+import { calibrationHint, feedback, readyToPerform } from '../../src/engine/feedback.ts';
 import { hitWindowMs, type PassResult, PracticeSession, SHORT } from '../../src/engine/session.ts';
 import { loadSong } from '../../src/engine/song.ts';
 import { Transport } from '../../src/engine/transport.ts';
@@ -27,6 +27,34 @@ const result = (over: Partial<PassResult>): PassResult => ({
   ...over,
 });
 const ctx = { mode: 'tempo', speed: 1, metronome: false } as const;
+
+describe('ready to perform', () => {
+  const whole = { mode: 'tempo', speed: 1, whole: true } as const;
+  it.each([
+    ['clean, whole piece, tempo, full speed', result({ accuracy: 0.93 }), whole, true],
+    ['exactly 90 %', result({ accuracy: 0.9 }), whole, true],
+    ['faster than full speed', result({ accuracy: 0.95 }), { ...whole, speed: 1.2 }, true],
+    ['not clean enough', result({ accuracy: 0.89 }), whole, false],
+    ['slower than full speed', result({ accuracy: 1 }), { ...whole, speed: 0.95 }, false],
+    ['only a section', result({ accuracy: 1 }), { ...whole, whole: false }, false],
+    ['wait mode', result({ accuracy: 1 }), { ...whole, mode: 'wait' as const }, false],
+    ['nothing to play', result({ accuracy: 1, expected: 0 }), whole, false],
+  ])('%s', (_n, r, c, want) => {
+    expect(readyToPerform(r, c)).toBe(want);
+  });
+
+  it('performance tips never suggest changing what a performance fixes', () => {
+    const clean = feedback(result({}), { ...ctx, perform: true });
+    expect(clean.tips).toEqual(['Clean performance.']);
+    const missed = feedback(result({ missed: 8, hits: 12, accuracy: 0.5 }), {
+      ...ctx,
+      perform: true,
+    });
+    expect(missed.tips[0]).toBe(
+      'You skipped 8 notes. Practise that spot slowly, then perform again.',
+    );
+  });
+});
 
 describe('feedback', () => {
   it('praises a clean pass and suggests the next step', () => {

@@ -1,6 +1,6 @@
 ---
 name: add-song
-description: Add a song to the Klavir library from a file Matija supplies (MusicXML .musicxml/.xml/.mxl, MuseScore .mscz, or MIDI). Use when he sends a song file or asks to add a song.
+description: Add a song to the Klavir library from a file Matija supplies (MusicXML .musicxml/.xml/.mxl, MuseScore .mscz, or MIDI .mid/.midi). Use when he sends a song file or asks to add a song.
 ---
 
 # Add a song
@@ -12,7 +12,10 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
 1. **Slug**: lowercase, hyphens, e.g. `clocks`. Create `songs/<slug>/`.
 2. **Copy the file** to `songs/<slug>/original.<ext>` (keep the extension).
    - `.mscz` → convert first: `mscore -o songs/<slug>/original.mxl <file>`.
-   - `.mid` → not supported yet (planned for milestone 6). Ask for MusicXML, or convert with `mscore -o original.mxl file.mid` and check the hands carefully.
+   - `.mid` / `.midi` → imported directly (`"file": "original.mid"`). Prefer MusicXML when he has both: MIDI has no fingering, no repeats and no staves.
+     - Hands come from two note tracks (or two channels). One track only → the import stops; ask him for a two-track file, or, only if he agrees, add `"splitAt": 60` (or `"oneHand": true` for a one-hand piece) to the version.
+     - Warning "looks like a recorded performance": the file was played in, not written; measures and metronome will not line up. Tell him and ask for a score-based file.
+     - Warning "the higher track was taken as the right hand": check in the app that the hands are the right way round.
 3. **Write `songs/<slug>/meta.json`**:
    ```json
    {
@@ -42,8 +45,8 @@ The import is the whole job. The new song gets its library card with Practise an
 ## What the importer handles
 Two staves or two single-staff parts as hands; chords; voices; ties; grace notes; tempo changes; time and key signature changes; fingering; pedal marks; repeats, voltas, D.C./D.S./Fine/Coda.
 
-## Not yet (milestone 6)
-MIDI import, Easy (C major / A minor) transposed versions, adding suggested fingering or pedal.
+## Not yet
+Easy (C major / A minor) transposed versions, adding suggested fingering or pedal.
 
 ## Optional meta.json fields
 - `"fingering": "none"`: do not compute finger suggestions (default: computed when the source has none, marked `claude`).

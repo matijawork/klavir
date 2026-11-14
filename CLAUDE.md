@@ -17,13 +17,13 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `npm run import-song [slug] [-- --pdf]` — sources in `songs/` → `public/songs/`
 
 ## Map
-- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry), `feedback.ts` (result → plain-word tips), `exercises.ts` (scales, chords, arpeggios as SongFiles), `calibration.ts` (click-along delay), `review.ts` (pass → note-by-note steps in words), `progress.ts` (best score per day), `youtube.ts` (link → video id)
-- `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `mock.ts` (virtual device, `window.__midi`)
+- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry), `feedback.ts` (result → plain-word tips), `exercises.ts` (scales, chords, arpeggios as SongFiles), `calibration.ts` (click-along delay), `review.ts` (pass → note-by-note steps in words), `progress.ts` (best score per day), `days.ts` (practice days, streak), `youtube.ts` (link → video id)
+- `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `replay.ts` (plays a recorded pass back), `mock.ts` (virtual device, `window.__midi`)
 - `src/audio/` `synth.ts` (computer sound: sampled piano from `public/samples/piano`, clicks), `monitor.ts` (player's own keys through the computer)
-- `src/store/settings.ts` practice settings signal, persisted · `history.ts` performance scores per song (IndexedDB, in-memory copy for sync reads) · `videos.ts` his YouTube link per song
+- `src/store/settings.ts` practice settings signal, persisted · `history.ts` performance scores per song and hands + the last performance in full (IndexedDB, in-memory copy for sync reads) · `days.ts` seconds played per day · `videos.ts` his YouTube link per song
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
 - `src/ui/` Preact screens (`FingeringChip.tsx` = where finger numbers come from, click = checked by him); hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`, and both again under `#/perform/…` (ADR-016: Practise keeps nothing, Perform is locked and is the only thing scored into history)
-- `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)
+- `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/midi.ts` (MIDI files), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)
 - `songs/<slug>/` sources + `meta.json` → `public/songs/<slug>/<version>.json` + `public/songs/index.json` (generated, committed)
 
 ## Gotchas

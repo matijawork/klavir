@@ -79,7 +79,19 @@ export interface PassSnapshot {
   /** wrong keys: pitch and song time of each */
   wrongPitch: Uint8Array;
   wrongTime: Float64Array;
+  /**
+   * Recording of everything the player did, in order: song time, key (MIDI pitch, or REC_PEDAL)
+   * and velocity (0 = key up / pedal up).
+   */
+  recTime: Float64Array;
+  recKey: Uint8Array;
+  recVel: Uint8Array;
 }
+
+/** `recKey` value of a sustain pedal event */
+export const REC_PEDAL = 128;
+/** most events recorded per pass (a long piece has a few thousand) */
+const REC_MAX = 16384;
 
 /** most wrong keys remembered per pass for the review */
 const WRONG_LOG = 512;
@@ -220,6 +232,11 @@ export class PracticeSession {
   readonly wrongPitch = new Uint8Array(WRONG_LOG);
   readonly wrongTime = new Float64Array(WRONG_LOG);
   wrongLogged = 0;
+  /** recording of this pass, see PassSnapshot */
+  readonly recTime = new Float64Array(REC_MAX);
+  readonly recKey = new Uint8Array(REC_MAX);
+  readonly recVel = new Uint8Array(REC_MAX);
+  recCount = 0;
   /** per pitch: 1 while a key judged wrong is down */
   readonly wrongDown = new Uint8Array(128);
   /** bumps whenever a note is judged or a wrong key is counted, so the UI can poll cheaply */
@@ -346,6 +363,7 @@ export class PracticeSession {
       this.releasedAt[i] = Number.NaN;
     }
     this.wrongLogged = 0;
+    this.recCount = 0;
     this.wrongDown.fill(0);
     this.wrongIn.fill(0);
     this.long = 0;
@@ -485,8 +503,25 @@ export class PracticeSession {
     }
   }
 
+  private record(key: number, velocity: number, wall: number): void {
+    if (!this.running || this.recCount >= REC_MAX) return;
+    const t = this.transport.time(wall);
+    if (t < this.leadStart) return;
+    this.recTime[this.recCount] = t;
+    this.recKey[this.recCount] = key;
+    this.recVel[this.recCount] = velocity;
+    this.recCount++;
+  }
+
+  /** Feed every sustain pedal change from the player. */
+  pedal(down: boolean, wall: number = performance.now()): void {
+    this.pedalDown = down;
+    this.record(REC_PEDAL, down ? 127 : 0, wall);
+  }
+
   /** Feed every note-off from the player. */
   noteOff(p: number, wall: number): void {
+    this.record(p, 0, wall);
     this.down[p] = 0;
     this.wrongDown[p] = 0;
     const i = this.holding[p]!;
@@ -496,7 +531,8 @@ export class PracticeSession {
   }
 
   /** Feed every note-on from the player. `wall` is the MIDI event timestamp. */
-  noteOn(p: number, wall: number): void {
+  noteOn(p: number, wall: number, velocity = 80): void {
+    this.record(p, Math.max(1, velocity), wall);
     this.lastOn[p] = wall;
     this.down[p] = 1;
     this.wrongDown[p] = 0;
@@ -647,6 +683,9 @@ export class PracticeSession {
       releasedAt: this.releasedAt.slice(),
       wrongPitch: this.wrongPitch.slice(0, this.wrongLogged),
       wrongTime: this.wrongTime.slice(0, this.wrongLogged),
+      recTime: this.recTime.slice(0, this.recCount),
+      recKey: this.recKey.slice(0, this.recCount),
+      recVel: this.recVel.slice(0, this.recCount),
     };
   }
 

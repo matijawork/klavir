@@ -42,6 +42,13 @@ function send(bytes: number[], time?: number): void {
 }
 const TICK_MS = 25;
 
+/** One note on or off on the playback sound, wherever sound is set to come from. */
+export function playNote(on: boolean, pitch: number, velocity: number, time?: number): void {
+  send([(on ? 0x90 : 0x80) | CH_PLAYBACK, pitch, on ? velocity : 64], time);
+}
+/** How far ahead of the clock sound may be scheduled, ms. */
+export const SCHEDULE_AHEAD_MS = LOOKAHEAD_MS;
+
 /** Korg D1 sounds: bank MSB 121, then LSB + program. Harmless on other instruments. */
 export function setupSounds(): void {
   const send = sendMidi;

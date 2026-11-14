@@ -12,6 +12,10 @@ window.addEventListener('hashchange', () => {
 export function App() {
   const all = route.value.split('/').filter(Boolean);
   const perform = all[0] === 'perform';
+  // a performance may name one hand at the end: ".../L" or ".../R"
+  const last = all[all.length - 1];
+  const hands = perform && (last === 'L' || last === 'R') ? last : 'both';
+  if (hands !== 'both') all.pop();
   // "#/perform/<song>/<version>" and "#/perform/exercise/<kind>/<key>[/minor]"
   const parts = perform ? (all[1] === 'exercise' ? all.slice(1) : ['play', ...all.slice(1)]) : all;
   if (parts[0] === 'play' && parts[1])
@@ -21,6 +25,7 @@ export function App() {
         songId={parts[1]}
         version={parts[2] ?? 'original'}
         perform={perform}
+        hands={hands}
       />
     );
   if (parts[0] === 'exercise' && EXERCISES.some((e) => e.kind === parts[1])) {
@@ -36,6 +41,7 @@ export function App() {
         version={file.version}
         file={file}
         perform={perform}
+        hands={hands}
       />
     );
   }
