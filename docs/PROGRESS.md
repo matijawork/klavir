@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 237 unit + 34 e2e green.
+Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 249 unit + 36 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -11,6 +11,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Recording and "Hear it"**: every pass records his keys (with velocity) and pedal (`session.rec*`, in the snapshot). In Review, "Hear it" / Space plays it back from where the review stands, at the current speed, through the app's sound (`midi/replay.ts`); the step text follows. Tempo passes only: Wait mode stops the song, so there is no rhythm to replay.
 - **Last performance kept**: result, notes and recording of the latest performance per song and hands are stored (IndexedDB `last`); on a later visit Perform's Review button opens it (no result card).
 - **MIDI import**: `.mid` / `.midi` through the same `import-song` (`scripts/lib/midi.ts`). Hands from two tracks or two channels (track names first, else the higher one = right, with a warning); one track needs `splitAt` or `oneHand`. Nothing is quantized; a played-in recording is flagged.
+- **Sync** (ADR-017): built, **not switched on**: `src/sync/config.ts` is `null` until Matija creates the Firebase project (steps in "Waiting for Matija"). With a config: "Sign in to sync" in the library header (Google popup), then scores, practice days, videos, "checked by me" marks and the latest performances are the same on every device; the device stays the source of truth and works offline. Practice settings (speed, offsets, sound) are per device on purpose: the delay depends on the equipment.
 - **Speed**: slider, ↑ ↓, or type the percent in the box next to the slider. No automatic speed changes.
 - **Video**: "+ Video" on a song card: paste a YouTube link (stored in `klavir.videos`, overrides `meta.json`), plays inside the app, "Open on YouTube" as fallback.
 - **Player**: falling notes, 88 keys, wait / tempo mode, hands, speed 10–150 %, section loop, count-in, metronome, pedal lane, finger badges, fullscreen, shortcuts (Space, R, L, W, 1/2/3, ↑↓, C, M, F, D).
@@ -44,6 +45,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Ready to perform | Rule: 8 cases in a unit test. E2E: not at 95 %, yes at 100 %, button opens Perform. |
 | Practice days | Streak, calendar, levels: 11 unit cases. E2E: seeded days, 12 s of playing tips today over a minute, listening adds nothing. |
 | MIDI import | 9 unit cases on generated files (hands by name / by height / by channel, one track, tempo, 3/4, 6/8 change, pedal, bad files, played-in recording). Ran the real `import-song` on a generated two-track file: JSON, index entry and sheet PDF came out; then removed. **No real-world MIDI file tried yet**: files from the web often have one track or are played-in recordings; the importer says so instead of guessing. |
+| Sync | Rules: 12 unit cases (copy what is missing, later change wins, days add up, saved performance survives packing bit for bit). E2E with two separate browsers and a stand-in cloud: data made before sign-in goes up, a fresh device gets it all and can review and hear the other device's performance, offline changes are kept and sent later, a later removal wins, practice time is not counted twice, a sync with nothing new writes nothing, sign-out keeps the device's data. **Not checked: the real Firebase** (`src/sync/firebase.ts` type-checks against the SDK but has never run: no project exists yet). |
 | Video | Link parsing: 13 cases in a unit test. E2E: add, shown as an embedded frame, remembered, per song, remove. **Not checked: that a real video plays** (tests block YouTube); some videos forbid embedding, then "Open on YouTube". |
 | Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
 | Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
@@ -52,7 +54,8 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-1. M7 Firebase sync (history, days, videos, last performances are per browser now), M7 Firebase sync, M8 tablet / PWA, M9 audit.
+1. **Waiting for Matija** (needs his Google account): create the Firebase project, then Claude fills `src/sync/config.ts`, deploys `firestore.rules` and tests the real thing with him. Steps: console.firebase.google.com → Add project (no Analytics) → Build → Authentication → Sign-in method → Google → Enable; Authentication → Settings → Authorized domains → add `matijawork.github.io`; Build → Firestore Database → Create (production mode, europe-west); Project settings → Your apps → Web (</>) → register → copy the `firebaseConfig` block to Claude. Rules: paste `firestore.rules` into Firestore → Rules → Publish (or `npx firebase-tools login` once and Claude deploys them).
+2. After that: M7 Firebase sync, M8 tablet / PWA, M9 audit.
 
 Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
 

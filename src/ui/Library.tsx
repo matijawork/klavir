@@ -7,6 +7,7 @@ import { bestOf, historyVersion, passesOf } from '../store/history.ts';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 import { ProgressChart } from './ProgressChart.tsx';
+import { SyncChip } from './SyncChip.tsx';
 import { Video, videoOf } from './Video.tsx';
 
 const base = import.meta.env.BASE_URL;
@@ -170,6 +171,7 @@ export function Library() {
     <div class="page">
       <header class="topbar">
         <h1 class="brand">Klavir</h1>
+        <SyncChip />
         <MidiChip />
       </header>
       <main class="library">

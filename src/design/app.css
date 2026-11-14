@@ -945,3 +945,12 @@ dialog.video {
 .days-cell[data-level="future"] {
   background: none;
 }
+
+/* account and sync status */
+.menu.sync summary {
+  display: inline-flex;
+  cursor: pointer;
+}
+.menu.sync .panel {
+  width: 220px;
+}

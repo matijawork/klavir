@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.11.4",
+    "firebase": "13.3.0",
     "idb": "^8.0.4",
     "preact": "^11.2.0",
     "tonal": "^6.5.1"

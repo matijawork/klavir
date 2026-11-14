@@ -11,7 +11,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - After each milestone: tests green, push (deploys), update PROGRESS.md, Croatian report. Test everything yourself first (scenario tables in `tests/unit/scenarios.test.ts`, control audit in `tests/e2e/controls.spec.ts`, `window.__klavir.level()` for sound); leave him only what needs ears and hands on the real piano.
 
 ## Commands
-- `npm run dev` — dev server at http://localhost:5173/klavir/ (`?mockmidi` = virtual piano, `?debug` or key D = frame stats)
+- `npm run dev` — dev server at http://localhost:5173/klavir/ (`?mockmidi` = virtual piano, `?debug` or key D = frame stats, `?mocksync` = stand-in cloud at `__cloud/`, answered by the tests)
 - `npm test` — Vitest unit tests · `npm run e2e` — Playwright (builds, serves on :4173)
 - `npm run lint` / `npm run format` — Biome · `npm run build` — type-check + build
 - `npm run import-song [slug] [-- --pdf]` — sources in `songs/` → `public/songs/`
@@ -21,6 +21,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `replay.ts` (plays a recorded pass back), `mock.ts` (virtual device, `window.__midi`)
 - `src/audio/` `synth.ts` (computer sound: sampled piano from `public/samples/piano`, clicks), `monitor.ts` (player's own keys through the computer)
 - `src/store/settings.ts` practice settings signal, persisted · `history.ts` performance scores per song and hands + the last performance in full (IndexedDB, in-memory copy for sync reads) · `days.ts` seconds played per day · `videos.ts` his YouTube link per song
+- `src/sync/` `merge.ts` (pure rules), `sync.ts` (orchestrator, `syncState`), `firebase.ts` / `mock.ts` (backends), `config.ts` (Firebase project or `null` = sync off), `notify.ts` (stores call `changed()`) · ADR-017
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
 - `src/ui/` Preact screens (`FingeringChip.tsx` = where finger numbers come from, click = checked by him); hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`, and both again under `#/perform/…` (ADR-016: Practise keeps nothing, Perform is locked and is the only thing scored into history)
 - `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/midi.ts` (MIDI files), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)

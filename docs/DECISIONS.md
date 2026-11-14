@@ -83,3 +83,10 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 - **Context:** scores from Wait mode, slow speeds and sections were mixed into one history; he said only playing the whole piece in Tempo at full speed is "the real thing", and a percent in Wait mode means nothing.
 - **Decision:** two entries per song. Practise keeps nothing; Wait mode shows no percent. Perform locks mode (Tempo), hands (both), speed (100 %), strictness (Normal), range (whole), no loop, no pause; only its scores are stored and charted. Old mixed history deleted. Automatic speed-up removed for good: he changes the speed by hand.
 - **Why Normal is fixed:** a chart over time only means something if every point was judged the same way.
+
+## ADR-017 Sync as built — Decided (2026-11-14), refines ADR-011
+- **What syncs:** performance scores, practice days, video links, "checked by me" marks, the latest performance per song and hands in full. Not practice settings (offsets and sound are per device).
+- **How:** no sync queue. A sync reads the cloud, copies what either side is missing, and writes only differences, so it can be repeated or interrupted at any point. Scores are append-only (union by id `song|hands|time`); maps are last-change-wins per key (`{v, at}`); practice time is one document per device, added up when shown, so two devices never overwrite each other; full performances travel as text (typed arrays base64) and only when newer, decided from a small index document.
+- **Reads:** a full sync (start, sign-in, back online, tab back after a minute, "Sync now") lists the collections; in between, changes are pushed 4 s after they happen against what the last full sync saw.
+- **Backend:** Firestore Lite + Google popup sign-in, loaded only when `config.ts` has a project; `users/<uid>/…`, rules in `firestore.rules`. A stand-in backend (`?mocksync`) speaks plain HTTP so tests can run two devices against one cloud.
+- **Limits accepted:** last-change-wins uses device clocks; a device with a badly wrong clock can lose a video-link edit. Scores and practice time cannot be lost that way.

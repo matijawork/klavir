@@ -8,6 +8,7 @@
  */
 import { signal } from '@preact/signals';
 import { type IDBPDatabase, openDB } from 'idb';
+import { changed } from '../sync/notify.ts';
 
 export type PerfHands = 'both' | 'L' | 'R';
 
@@ -98,9 +99,16 @@ export function bestOf(song: string, hands: PerfHands = 'both'): number | null {
   return best;
 }
 
-export function addPass(song: string, rec: PerfRecord): void {
+/** Every kept score with its song, for sync. */
+export function allPasses(): (PerfRecord & { song: string })[] {
+  return Object.entries(cache).flatMap(([song, list]) => list.map((r) => ({ song, ...r })));
+}
+
+export function addPass(song: string, rec: PerfRecord, fromSync = false): void {
   push(cache, song, rec);
+  cache[song]!.sort((a, b) => a.at - b.at);
   historyVersion.value++;
+  if (!fromSync) changed();
   // written only once the stored history is in, so nothing is saved twice
   void historyReady.then(() => {
     if (db)
@@ -117,16 +125,40 @@ export function addPass(song: string, rec: PerfRecord): void {
 }
 
 /** Keeps the latest performance in full (result, settings, notes, recording), replacing the one before. */
-export function saveLast(song: string, hands: PerfHands, value: unknown): void {
-  void historyReady.then(() => db?.put(LAST, value, `${song}|${hands}`).catch(() => {}));
+export function saveLast(song: string, hands: PerfHands, value: { at: number }): void {
+  void putLast(`${song}|${hands}`, value).then(changed);
 }
 
 /** The latest performance kept by saveLast, or null. */
-export async function loadLast<T>(song: string, hands: PerfHands): Promise<T | null> {
+export const loadLast = <T>(song: string, hands: PerfHands): Promise<T | null> =>
+  getLast<T>(`${song}|${hands}`);
+
+/** Saved performances by their key ("song|hands"), for sync. */
+export async function putLast(key: string, value: { at: number }): Promise<void> {
+  await historyReady;
+  await db?.put(LAST, value, key).catch(() => {});
+}
+export async function getLast<T>(key: string): Promise<T | null> {
   await historyReady;
   try {
-    return ((await db?.get(LAST, `${song}|${hands}`)) as T | undefined) ?? null;
+    return ((await db?.get(LAST, key)) as T | undefined) ?? null;
   } catch {
     return null;
   }
+}
+/** key → when it was played */
+export async function lastIndex(): Promise<Record<string, number>> {
+  await historyReady;
+  const out: Record<string, number> = {};
+  if (!db) return out;
+  try {
+    const keys = await db.getAllKeys(LAST);
+    const values = (await db.getAll(LAST)) as { at?: number }[];
+    keys.forEach((k, i) => {
+      out[String(k)] = values[i]?.at ?? 0;
+    });
+  } catch {
+    /* unreadable: nothing to sync */
+  }
+  return out;
 }

@@ -1,25 +1,4 @@
-import { signal } from '@preact/signals';
-
-/** Songs and exercises whose finger numbers Matija has checked himself (kept in this browser). */
-const KEY = 'klavir.fingeringChecked';
-const read = (): string[] => {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]') as string[];
-  } catch {
-    return [];
-  }
-};
-const mine = signal<string[]>(read());
-
-function toggle(id: string): void {
-  const next = mine.value.includes(id) ? mine.value.filter((x) => x !== id) : [...mine.value, id];
-  mine.value = next;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    /* not remembered */
-  }
-}
+import { isChecked, toggleChecked } from '../store/checked.ts';
 
 /**
  * Says how far the finger numbers can be trusted: taken from a named source, only suggested, or
@@ -30,7 +9,7 @@ export function FingeringChip(props: {
   source: { checked: boolean; text: string };
   small?: boolean;
 }) {
-  const byMe = mine.value.includes(props.id);
+  const byMe = isChecked(props.id);
   const state = byMe ? 'mine' : props.source.checked ? 'source' : 'open';
   const label = byMe
     ? 'Fingering: checked by you'
@@ -43,7 +22,7 @@ export function FingeringChip(props: {
       class="badge trust"
       data-state={state}
       data-testid="fingering-chip"
-      onClick={() => toggle(props.id)}
+      onClick={() => toggleChecked(props.id)}
       title={`${
         props.source.checked
           ? `Copied from ${props.source.text} and compared by a test.`
