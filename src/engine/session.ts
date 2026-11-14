@@ -62,6 +62,28 @@ export interface PassResult {
   seconds: number;
 }
 
+/** Everything needed to look at a finished pass again, note by note. */
+export interface PassSnapshot {
+  mode: Mode;
+  /** speed the pass was played at */
+  rate: number;
+  /** indices of the practised notes, in onset order */
+  notes: Int32Array;
+  /** per song note, as in PracticeSession; notes never played are MISSED */
+  state: Uint8Array;
+  grade: Uint8Array;
+  deviation: Float32Array;
+  timing: Float32Array;
+  hold: Float32Array;
+  releasedAt: Float64Array;
+  /** wrong keys: pitch and song time of each */
+  wrongPitch: Uint8Array;
+  wrongTime: Float64Array;
+}
+
+/** most wrong keys remembered per pass for the review */
+const WRONG_LOG = 512;
+
 /** A press this long before a wait-mode note arrives still counts for it. */
 const EARLY_MS = 1000;
 /** Lead-in when count-in is off, seconds of song time. */
@@ -192,6 +214,12 @@ export class PracticeSession {
   readonly timing: Float32Array;
   /** per note: hold score 0..1 (1 until the key is let go too early) */
   readonly hold: Float32Array;
+  /** per note: song time at which the key was let go; NaN while held or never played */
+  readonly releasedAt: Float64Array;
+  /** wrong keys of this pass, oldest first: pitch and song time */
+  readonly wrongPitch = new Uint8Array(WRONG_LOG);
+  readonly wrongTime = new Float64Array(WRONG_LOG);
+  wrongLogged = 0;
   /** per pitch: 1 while a key judged wrong is down */
   readonly wrongDown = new Uint8Array(128);
   /** bumps whenever a note is judged or a wrong key is counted, so the UI can poll cheaply */
@@ -257,6 +285,7 @@ export class PracticeSession {
     this.grade = new Uint8Array(song.count);
     this.timing = new Float32Array(song.count).fill(Number.NaN);
     this.hold = new Float32Array(song.count).fill(1);
+    this.releasedAt = new Float64Array(song.count).fill(Number.NaN);
     this.noteMeasure = new Uint16Array(song.count);
     const ms = song.measureStart;
     for (let i = 0, m = 0; i < song.count; i++) {
@@ -314,7 +343,9 @@ export class PracticeSession {
       this.grade[i] = ON_TIME;
       this.timing[i] = Number.NaN;
       this.hold[i] = 1;
+      this.releasedAt[i] = Number.NaN;
     }
+    this.wrongLogged = 0;
     this.wrongDown.fill(0);
     this.wrongIn.fill(0);
     this.long = 0;
@@ -415,6 +446,11 @@ export class PracticeSession {
     let m = 0;
     while (m + 1 < ms.length && ms[m + 1]! <= t) m++;
     this.wrongIn[m]!++;
+    if (this.wrongLogged < WRONG_LOG) {
+      this.wrongPitch[this.wrongLogged] = p;
+      this.wrongTime[this.wrongLogged] = t - this.shift();
+      this.wrongLogged++;
+    }
     this.wrong++;
     this.wrongDown[p] = 1;
     this.revision++;
@@ -428,7 +464,9 @@ export class PracticeSession {
 
   /** Marks note `i` as SHORT when it was let go at song time `t` with too much of it left. */
   private checkRelease(i: number, t: number): void {
-    if (this.pedalDown || this.state[i] !== HIT) return;
+    if (this.state[i] !== HIT) return;
+    this.releasedAt[i] = t;
+    if (this.pedalDown) return;
     const { start, end } = this.song;
     const len = end[i]! - start[i]!;
     const left = end[i]! - t;
@@ -588,6 +626,46 @@ export class PracticeSession {
       accuracy: total > 0 ? sum / total : 1,
       seconds: (wall - this.passStartWall) / 1000,
     };
+  }
+
+  /** Copy of the pass as it stands, for the note-by-note review. Allocates. */
+  snapshot(): PassSnapshot {
+    const state = this.state.slice();
+    for (let k = 0; k < this.active.length; k++) {
+      const i = this.active[k]!;
+      if (state[i] === PENDING) state[i] = MISSED;
+    }
+    return {
+      mode: this.config.mode,
+      rate: this.transport.rate,
+      notes: this.active.slice(),
+      state,
+      grade: this.grade.slice(),
+      deviation: this.deviation.slice(),
+      timing: this.timing.slice(),
+      hold: this.hold.slice(),
+      releasedAt: this.releasedAt.slice(),
+      wrongPitch: this.wrongPitch.slice(0, this.wrongLogged),
+      wrongTime: this.wrongTime.slice(0, this.wrongLogged),
+    };
+  }
+
+  /**
+   * Puts a snapshot back into the per-note arrays so the renderer shows that pass. Only for
+   * looking: counters are not restored; call rewind() before playing again.
+   */
+  restore(snap: PassSnapshot): void {
+    this.state.set(snap.state);
+    this.grade.set(snap.grade);
+    this.deviation.set(snap.deviation);
+    this.timing.set(snap.timing);
+    this.hold.set(snap.hold);
+    this.releasedAt.set(snap.releasedAt);
+    this.wrongPitch.set(snap.wrongPitch);
+    this.wrongTime.set(snap.wrongTime);
+    this.wrongLogged = snap.wrongPitch.length;
+    this.wrongDown.fill(0);
+    this.holding.fill(-1);
   }
 
   /** The few measures of the practised range with the most mistakes, when they stand out. */

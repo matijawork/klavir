@@ -4,7 +4,15 @@
  */
 import { type Tokens, tokens, withAlpha } from '../design/tokens.ts';
 import { HIGH, isBlack, keyW, keyX, LOW, noteName, WHITE_COUNT } from '../engine/keys.ts';
-import { EARLY, HIT, LATE, MISSED, type PracticeSession, SHORT } from '../engine/session.ts';
+import {
+  EARLY,
+  HIT,
+  LATE,
+  MISSED,
+  type PassSnapshot,
+  type PracticeSession,
+  SHORT,
+} from '../engine/session.ts';
 import type { LoadedSong } from '../engine/song.ts';
 import { clearLastNoteOn, held, lastNoteOnAt } from '../midi/midi.ts';
 
@@ -58,6 +66,13 @@ export class PlayerCanvas {
   demo = false;
   /** ms the picture runs ahead of the song clock, to cancel a slow screen; judging is untouched */
   pictureMs = 0;
+  /**
+   * Review of a finished pass (already restored into the session): on every played note a white
+   * line marks the press and a white bar the time the key stayed down; wrong keys are red blocks.
+   */
+  review: PassSnapshot | null = null;
+  /** song time of the step being looked at in the review: a line is drawn there */
+  reviewAt = Number.NaN;
   /** live sustain pedal state, set by the UI */
   pedalDown = false;
   readonly stats: RenderStats = {
@@ -315,6 +330,20 @@ export class PlayerCanvas {
           ctx.fillStyle = cap;
           ctx.fillRect(x + 2, yBottom - bh + 2, bw - 4, 3);
         }
+        if (this.review && (st === HIT || st === SHORT)) {
+          // what was played: press line across the note, then a bar for as long as the key was down
+          const dev = session.deviation[i]!;
+          const rel = session.releasedAt[i]!;
+          const pressed = s + (Number.isNaN(dev) ? 0 : (dev / 1000) * this.review.rate);
+          const yPress = hitY - (pressed - t) * pps;
+          const yRel = hitY - ((Number.isNaN(rel) ? e : Math.max(rel, pressed)) - t) * pps;
+          ctx.fillStyle = badge;
+          ctx.fillRect(x + bw - 8, yRel - 1, 7, yPress - yRel + 2);
+          ctx.fillRect(x - 3, yPress - 3, bw + 6, 5);
+          ctx.fillStyle = tk.text;
+          ctx.fillRect(x + bw - 7, yRel, 5, yPress - yRel);
+          ctx.fillRect(x - 2, yPress - 2, bw + 4, 3);
+        }
         const f = finger[i]!;
         if (this.showFingers && f > 0 && f < 6 && bw > 9) {
           const r = Math.min(9, bw / 2 - 1);
@@ -331,13 +360,30 @@ export class PlayerCanvas {
       }
     }
 
+    if (this.review) {
+      if (!Number.isNaN(this.reviewAt)) {
+        ctx.fillStyle = withAlphaCached(tk['accent-strong'], 0.8);
+        ctx.fillRect(0, Math.round(hitY - (this.reviewAt - t) * pps), w, 1);
+      }
+      const wp = session.wrongPitch;
+      const wt = session.wrongTime;
+      ctx.fillStyle = tk['fb-wrong'];
+      for (let k = 0; k < session.wrongLogged; k++) {
+        const y = hitY - (wt[k]! - t) * pps;
+        if (y < 0 || y > hitY) continue;
+        ctx.beginPath();
+        ctx.roundRect(keyX[wp[k]!]! * w + 1, y - 10, keyW[wp[k]!]! * w - 2, 10, 3);
+        ctx.fill();
+      }
+    }
+
     this.drawPedalLane(t, pps, hitY);
 
     // hit line, pulsing on count-in and metronome beats
     let pulse = 0;
     let countNumber = 0;
     const ci = session.countInTimes;
-    if (t < rangeStart) {
+    if (t < rangeStart && !this.review) {
       for (let k = ci.length - 1; k >= 0; k--) {
         if (ci[k]! <= t) {
           pulse = Math.max(0, 1 - (t - ci[k]!) / (0.22 * rate));

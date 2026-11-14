@@ -4,7 +4,8 @@ import { outputLevel } from '../audio/synth.ts';
 import { tonicOf } from '../engine/exercises.ts';
 import { calibrationHint, feedback } from '../engine/feedback.ts';
 import { noteName } from '../engine/keys.ts';
-import { type PassResult, PracticeSession } from '../engine/session.ts';
+import { type ReviewStep, reviewSteps } from '../engine/review.ts';
+import { type PassResult, type PassSnapshot, PracticeSession } from '../engine/session.ts';
 import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
 import { Transport } from '../engine/transport.ts';
 import { held, inputVersion, onNote, outputName, sustainDown } from '../midi/midi.ts';
@@ -134,6 +135,8 @@ interface PassInfo {
   prevBest: number | null;
   /** scores of the latest passes, oldest first, this one included */
   recent: number[];
+  /** the pass itself, for the note-by-note review */
+  snap: PassSnapshot;
 }
 
 /** Result of a finished pass in plain words: score, what it is made of, what to work on. */
@@ -143,6 +146,7 @@ function PassCard(props: {
   onAgain: () => void;
   onPractise: (w: { a: number; b: number }) => void;
   onCalibrate: (ms: number) => void;
+  onReview: () => void;
 }) {
   const { r, prevBest, recent } = props.info;
   const s = settings.value;
@@ -245,6 +249,15 @@ function PassCard(props: {
             Practise {spot}
           </button>
         )}
+        <button
+          type="button"
+          class="btn"
+          onClick={props.onReview}
+          title="Go through this pass note by note: see where you pressed and how long you held"
+          data-testid="review-open"
+        >
+          Review
+        </button>
         <button type="button" class="btn primary" onClick={props.onAgain} title="R">
           Again
         </button>
@@ -276,6 +289,10 @@ export function Player({
   /** running result of the pass being played; null before anything is judged */
   const live = useSignal<PassResult | null>(null);
   const calibrating = useSignal(false);
+  /** index of the step shown in the note-by-note review; null = not reviewing */
+  const review = useSignal<number | null>(null);
+  const onlyBad = useSignal(false);
+  const steps = useRef<ReviewStep[]>([]);
   const lastConfig = useRef('');
   const lastClicks = useRef('');
   const debug = useSignal(new URLSearchParams(location.search).has('debug'));
@@ -334,7 +351,7 @@ export function Player({
         .filter((p) => p.whole === whole)
         .slice(-6)
         .map((p) => p.score);
-      lastPass.value = { r, prevBest, recent };
+      lastPass.value = { r, prevBest, recent, snap: session.snapshot() };
     };
     session.onEnd = () => {
       playback.stop();
@@ -429,6 +446,8 @@ export function Player({
       });
       lastPass.value = null;
       live.value = null;
+      review.value = null;
+      view.review = null;
     } else if (session.config.loop !== loopOn) session.config = { ...session.config, loop: loopOn };
 
     playback.handMask = demo ? 3 : s.otherHand === 'play' ? 3 & ~handMask : 0;
@@ -477,9 +496,58 @@ export function Player({
     engine.session.pedalDown = sustainDown.value;
   });
 
+  /** song seconds between the hit line and the note being looked at, so its press mark shows too */
+  const reviewLead = () => (90 * (engine?.transport.rate ?? 1)) / settings.peek().zoom;
+  const showStep = (i: number) => {
+    const st = steps.current[i];
+    if (!engine || !st) return;
+    review.value = i;
+    engine.view.reviewAt = st.time;
+    engine.transport.seek(st.time - reviewLead());
+  };
+  /** moves freely through the reviewed pass; the step text follows the note nearest the keys */
+  const scrub = (t: number) => {
+    if (!engine || review.value === null) return;
+    const all = steps.current;
+    const lead = reviewLead();
+    const first = all[0]?.time ?? 0;
+    const last = all[all.length - 1]?.time ?? 0;
+    const to = Math.min(last, Math.max(first, t)) - lead;
+    engine.transport.seek(to);
+    let near = 0;
+    for (let i = 1; i < all.length; i++)
+      if (Math.abs(all[i]!.time - lead - to) < Math.abs(all[near]!.time - lead - to)) near = i;
+    review.value = near;
+    engine.view.reviewAt = all[near]!.time;
+  };
+  const stepBy = (d: 1 | -1) => {
+    const all = steps.current;
+    for (let i = (review.value ?? 0) + d; i >= 0 && i < all.length; i += d)
+      if (!onlyBad.value || all[i]!.bad) {
+        showStep(i);
+        return;
+      }
+  };
+  const openReview = () => {
+    const info = lastPass.peek();
+    if (!engine || !info) return;
+    setPlaying(false);
+    engine.session.restore(info.snap);
+    engine.view.review = info.snap;
+    steps.current = reviewSteps(engine.session.song, info.snap);
+    const firstBad = steps.current.findIndex((st) => st.bad);
+    showStep(Math.max(0, firstBad));
+  };
+  const closeReview = () => {
+    if (!engine || review.value === null) return;
+    engine.view.review = null;
+    engine.session.rewind();
+    review.value = null;
+  };
   const setPlaying = (on: boolean) => {
     if (!engine) return;
     if (on) {
+      closeReview();
       calibrating.value = false;
       if (!engine.session.config.loop) lastPass.value = null;
       engine.session.play();
@@ -503,6 +571,8 @@ export function Player({
   const toggle = () => setPlaying(!engine?.session.running);
   const restart = () => {
     if (!engine) return;
+    engine.view.review = null;
+    review.value = null;
     engine.session.rewind();
     lastPass.value = null;
     live.value = null;
@@ -571,6 +641,15 @@ export function Player({
           e.preventDefault();
           bumpSpeed(-0.05);
           break;
+        case 'ArrowLeft':
+          if (review.value !== null) stepBy(-1);
+          break;
+        case 'ArrowRight':
+          if (review.value !== null) stepBy(1);
+          break;
+        case 'Escape':
+          closeReview();
+          break;
         case 'KeyF':
           fullscreen();
           break;
@@ -588,6 +667,7 @@ export function Player({
   const pass = lastPass.value;
   const now = live.value;
   const noOut = outputName.value === null;
+  const step = review.value !== null ? (steps.current[review.value] ?? null) : null;
 
   return (
     <div class="page player">
@@ -899,10 +979,18 @@ export function Player({
             range.value = r;
             if (r) loop.value = true;
           }}
+          onSeek={review.value !== null ? scrub : null}
         />
       )}
 
-      <div class="stage">
+      <div
+        class="stage"
+        onWheel={(e) => {
+          if (review.value === null || !engine) return;
+          const pps = settings.peek().zoom / engine.transport.rate;
+          scrub(engine.transport.time() + reviewLead() - e.deltaY / pps);
+        }}
+      >
         {error ? <p class="empty">{error}</p> : <canvas ref={canvasRef} data-testid="stage" />}
         <div class="live" data-testid="live-input">
           <span class="live-notes">{heldNames()}</span>
@@ -942,7 +1030,61 @@ export function Player({
             }}
           />
         )}
+        {step && (
+          <div class="review" data-testid="review">
+            <button
+              type="button"
+              class="icon-btn small"
+              onClick={() => stepBy(-1)}
+              title="Previous · ←"
+              aria-label="Previous"
+              data-testid="review-prev"
+            >
+              ‹
+            </button>
+            <span class="review-pos" data-testid="review-pos">
+              {(review.value ?? 0) + 1} / {steps.current.length} · Measure{' '}
+              {song?.file.measures[step.measure]?.n ?? step.measure + 1}
+            </span>
+            <b
+              data-bad={step.bad}
+              data-testid="review-text"
+              title="White line: where you pressed. White bar: how long you held. Red block: a wrong key."
+            >
+              {step.text}
+            </b>
+            <button
+              type="button"
+              class="icon-btn small"
+              onClick={() => stepBy(1)}
+              title="Next · →"
+              aria-label="Next"
+              data-testid="review-next"
+            >
+              ›
+            </button>
+            <Toggle
+              on={onlyBad.value}
+              label="Mistakes only"
+              title="Step only through the notes that went wrong"
+              onChange={(v) => {
+                onlyBad.value = v;
+              }}
+              testid="review-bad"
+            />
+            <button
+              type="button"
+              class="btn"
+              onClick={closeReview}
+              title="Back to the result · Esc"
+              data-testid="review-close"
+            >
+              Done
+            </button>
+          </div>
+        )}
         {pass &&
+          !step &&
           !calibrating.value &&
           !listen.value &&
           // while a loop keeps running the result stays a small chip, so it never covers the notes
@@ -955,6 +1097,7 @@ export function Player({
               info={pass}
               measureLabel={(i) => song?.file.measures[i]?.n ?? String(i + 1)}
               onAgain={again}
+              onReview={openReview}
               onPractise={(w) => {
                 range.value = w;
                 loop.value = true;

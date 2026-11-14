@@ -550,6 +550,38 @@ input[type="range"] {
   color: var(--fb-wrong);
 }
 
+/* note-by-note review of a finished pass */
+.review {
+  position: absolute;
+  top: var(--s-3);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: calc(100% - var(--s-6));
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: rgba(12, 12, 13, 0.92);
+  box-shadow: var(--e-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+.review-pos {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.review b {
+  min-width: 220px;
+  color: var(--fb-correct);
+  font-size: 15px;
+  font-weight: 600;
+}
+.review b[data-bad="true"] {
+  color: var(--fb-late);
+}
+
 /* finished pass */
 .pass.chip {
   position: absolute;

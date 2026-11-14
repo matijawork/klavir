@@ -7,10 +7,12 @@ interface Props {
   transport: Transport;
   range: { a: number; b: number } | null;
   onRange: (r: { a: number; b: number } | null) => void;
+  /** when set, dragging moves through the song (review) instead of choosing a section */
+  onSeek?: ((t: number) => void) | null;
 }
 
 /** Measure ruler: drag to choose the section to practise. The playhead moves without re-rendering. */
-export function Timeline({ song, transport, range, onRange }: Props) {
+export function Timeline({ song, transport, range, onRange, onSeek }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);
   const drag = useRef<number | null>(null);
@@ -37,6 +39,10 @@ export function Timeline({ song, transport, range, onRange }: Props) {
     while (i + 1 < count && ms[i + 1]! <= t) i++;
     return i;
   };
+  const timeAt = (clientX: number): number => {
+    const rect = root.current!.getBoundingClientRect();
+    return (Math.min(Math.max(clientX - rect.left, 0), rect.width) / rect.width) * dur;
+  };
   const pct = (i: number) => `${((i < count ? ms[i]! : dur) / dur) * 100}%`;
   const step = Math.max(1, Math.ceil(count / 24));
   const labels: number[] = [];
@@ -47,16 +53,21 @@ export function Timeline({ song, transport, range, onRange }: Props) {
       <div
         ref={root}
         class="timeline"
-        title="Drag to choose a section"
+        title={onSeek ? 'Drag to move through the pass' : 'Drag to choose a section'}
         data-testid="timeline"
         onPointerDown={(e) => {
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           const m = measureAt(e.clientX);
           drag.current = m;
-          onRange({ a: m, b: m });
+          if (onSeek) onSeek(timeAt(e.clientX));
+          else onRange({ a: m, b: m });
         }}
         onPointerMove={(e) => {
           if (drag.current === null) return;
+          if (onSeek) {
+            onSeek(timeAt(e.clientX));
+            return;
+          }
           const m = measureAt(e.clientX);
           onRange({ a: Math.min(drag.current, m), b: Math.max(drag.current, m) });
         }}
@@ -77,7 +88,7 @@ export function Timeline({ song, transport, range, onRange }: Props) {
         )}
         <div ref={head} class="playhead" />
       </div>
-      {range && (
+      {range && !onSeek && (
         <button
           type="button"
           class="icon-btn small"

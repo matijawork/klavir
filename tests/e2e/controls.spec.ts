@@ -275,6 +275,75 @@ test('calibration clicks are heard through the computer', async ({ page }) => {
   expect(bursts).toBeLessThanOrEqual(6);
 });
 
+test('review: after a pass every note can be stepped through with what went wrong', async ({
+  page,
+}) => {
+  await open(page, { mode: 'tempo', hands: 'R', speed: 1.5 });
+  await selectStart(page, 0.12);
+  await page.getByTestId('loop').click(); // one pass, then the card
+  await until(page, () => !window.__klavir!.session.config.loop);
+  await page.getByTestId('play').click();
+  // second note 200 ms late, third never played, one key that is not in the song; rest on time
+  const plan = await page.evaluate(() => {
+    const { session, transport } = window.__klavir!;
+    const { start, end, pitch, hand, count } = session.song;
+    const mine: number[] = [];
+    for (let i = 0; i < count; i++)
+      if (start[i]! >= session.rangeStart - 1e-6 && start[i]! < session.rangeEnd - 1e-6 && hand[i])
+        mine.push(i);
+    mine.forEach((i, k) => {
+      if (k === 2) return;
+      const on = transport.wallAt(start[i]!) + (k === 1 ? 200 : 0);
+      const off = Math.max(on + 30, transport.wallAt(end[i]!) - 30);
+      setTimeout(() => window.__midi!.noteOn(pitch[i]!, 80, on), on - performance.now());
+      setTimeout(() => window.__midi!.noteOff(pitch[i]!, off), off - performance.now());
+    });
+    const wrongAt = transport.wallAt((start[mine[3]!]! + start[mine[4]!]!) / 2);
+    setTimeout(() => window.__midi!.noteOn(22, 80, wrongAt), wrongAt - performance.now());
+    setTimeout(() => window.__midi!.noteOff(22, wrongAt + 50), wrongAt + 50 - performance.now());
+    return { notes: mine.length, second: start[mine[1]!]!, third: start[mine[2]!]! };
+  });
+  await expect(page.getByTestId('pass-score')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('review-open').click();
+  // opens on the first mistake
+  await expect(page.getByTestId('review-text')).toContainText('200 ms late');
+  await expect(page.getByTestId('review-pos')).toContainText(`2 / ${plan.notes + 1}`);
+  await expect(page.getByTestId('pass')).toHaveCount(0);
+  const lead = (t: number) =>
+    page.waitForFunction((t) => {
+      const k = window.__klavir!;
+      const gap = t - k.transport.time();
+      return !k.session.running && gap > 0.05 && gap < 1 && k.view.review !== null;
+    }, t);
+  await lead(plan.second);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('review-text')).toContainText('not played');
+  await lead(plan.third);
+  await page.getByTestId('review-next').click();
+  await expect(page.getByTestId('review-text')).toContainText('on time');
+  await page.getByTestId('review-bad').click();
+  await page.getByTestId('review-next').click();
+  await expect(page.getByTestId('review-text')).toContainText('A♯0 is not in the song here');
+  await page.getByTestId('review-next').click(); // no more mistakes: stays
+  await expect(page.getByTestId('review-text')).toContainText('A♯0 is not in the song here');
+  await page.getByTestId('review-prev').click();
+  await expect(page.getByTestId('review-text')).toContainText('not played');
+  // the mouse wheel moves freely; the text follows
+  await page.getByTestId('stage').hover();
+  await page.mouse.wheel(0, 3000);
+  await expect(page.getByTestId('review-pos')).toHaveText(/^1 \/ /);
+  // Done goes back to the result; Again plays a fresh pass
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('review')).toHaveCount(0);
+  await expect(page.getByTestId('pass-score')).toBeVisible();
+  await until(page, () => window.__klavir!.view.review === null);
+  await page.getByRole('button', { name: 'Again' }).click();
+  await until(
+    page,
+    () => window.__klavir!.session.running && window.__klavir!.session.state.every((v) => v === 0),
+  );
+});
+
 test('steady delay: the card offers to stop counting it, and then it is not counted', async ({
   page,
 }) => {
