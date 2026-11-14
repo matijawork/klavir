@@ -1,146 +1,53 @@
 # Progress
 
-Updated 2026-11-12.
+Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 177 unit + 26 e2e green.
+Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
-## Done
-- **M0** Research, decisions, plan; repo, CI/deploy workflow, design tokens.
-- **M1 (code complete, awaiting Korg test)**
-  - Web MIDI: connect, device picker, remembered device, hot-plug, status chip, empty states.
-  - Falling notes with duration-length bars, glowing 88-key keyboard, live input readout, pedal indicator.
-  - Listen: plays the song on the piano over MIDI OUT (channel 3), look-ahead scheduler, panic on stop/hide/leave.
-  - Import pipeline: MusicXML/.mxl → normalized JSON + sheet PDF; validators; repeats/voltas/jumps.
-  - Library with four public-domain pieces (Ode to Joy, Minuet in G, Prelude in C, Gymnopédie No. 1).
-  - Virtual MIDI device (`?mockmidi`), 30 unit tests, 4 e2e tests.
-  - `add-song` skill.
+## What exists
+- **Player**: falling notes, 88 keys, wait / tempo mode, hands, speed 10–150 %, section loop, count-in, metronome, pedal lane, finger badges, fullscreen, shortcuts (Space, R, L, W, 1/2/3, ↑↓, C, M, F, D).
+- **Scoring**: per note right key 40 % + timing 35 % + hold 25 % (`noteScore`); wrong keys add to the total. Strictness Easy / Normal / Strict (`PRESETS` in `session.ts`). Presses count up to about half a beat away, graded early / late; early release = short, over-holding = long.
+- **Feedback**: live HUD (%, missed, wrong, early/late, short); wrong key red; notes green / yellow early / orange late / red let go too soon / grey missed; white end cap = let go; key orange with arrow when held too long.
+- **Result card** (words, `feedback.ts`): verdict, Right notes / On the beat / Held right / Wrong keys, up to three tips, best score, "Practise measures a–b", "Stop counting this delay" (sets `timingOffset` when the offset is steady). While a loop runs the result is only a small chip.
+- **Speed-up**: one toolbar toggle (turns the loop on; loop off turns it off), steps in the ▾ menu next to it, needs `speedUpScore` (default 80 %); card/chip says what it did ("60 % → 65 %", "stays: needs 80 %, you got 71 %").
+- **Sound**: sampled piano (Salamander, CC BY 3.0), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
+- **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
+- **History**: `klavir.history` in localStorage, best whole-piece score as a badge in the library.
+- **Import pipeline** for MusicXML (`add-song` skill); five public-domain pieces plus `test-c`.
 
-- **M2 (code complete, awaiting Korg test)**
-  - Wait mode (chords need all notes, early presses within 300 ms count) and tempo mode (per-pitch windowed matching, hit/miss/wrong).
-  - Hands L/R/both; other hand dimmed, hidden or played by the piano.
-  - Speed 10–150 %, zoom, section selection on the measure ruler, loop, auto speed-up after clean passes.
-  - Count-in and metronome: visual pulse plus clicks on the piano (channel 4, Marimba).
-  - Pedal lane, note names (off/upcoming/all), octave numbers, finger numbers.
-  - Fullscreen, shortcuts, screen wake lock, settings persisted in localStorage.
-  - 48 unit tests, 11 e2e tests.
+## How sure we are (keep this table honest; the app shows the fingering rows as chips)
+| Thing | Status |
+|---|---|
+| Scale fingerings, 24 keys | Copied from pianoscales.org, compared digit by digit by a test. Second octave of minor scales = same pattern repeated (page prints one octave). |
+| Arpeggio fingerings, 24 keys | From Robert Kelley's chart (robertkelleyphd.com/home/arpfing.htm), all 48 hand/key patterns compared by a test. The chart gives 4-digit patterns; reading them as root-third-fifth-root is mine, supported by its own "thumb on white keys" rule holding in every key. 5 on first/last note as the page allows. |
+| Chord inversion fingerings | pianoguidelessons.com (?p=4136), matches. |
+| I–IV–V–I and five-finger fingering | No source found. Common practice; shown as "suggested, not checked". |
+| Song fingerings | Computed by `scripts/lib/fingering.ts`, not from the scores; shown as "suggested, not checked". |
+| Strictness, hold, timing rules | Tables in `tests/unit/scenarios.test.ts` (93 cases). |
+| Every button, shortcut, setting | `tests/e2e/controls.spec.ts` with the virtual piano. |
+| Speed-up | Tested: starts at start speed, rises only after a pass that reaches the score, stops at target, off when loop is off, idle while listening. **Matija still thinks it does not work**: not reproduced; ask what he did and saw. |
+| Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
+| Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
+| Timing on the real piano | No calibration procedure yet; only the manual / one-click offset. |
+| Anything by ear or by hand on the Korg | Only Matija can check. Confirmed by him so far: keys, pedal, right-hand mode, no audible lag, metronome, wait mode, result card "good", layout "looks good". |
 
-## Shortcuts
-Space play/pause · R restart · L loop · W wait/tempo · 1/2/3 left/both/right · ↑↓ speed ±5 % · C count-in · M metronome · F fullscreen · D frame stats
+Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
-## Measurements
-- Scheduled click timestamps are evenly spaced to within 2 ms in the virtual device (e2e). **Real MIDI-out timing on the Korg is not measured.**
-- Headless Chromium, 60 Hz, 1512×982: draw 0.3 ms per frame on Prelude in C. **Not yet measured on the real 120 Hz display or with real key presses** — needs Matija's Mac with the Korg (`?debug` overlay).
+## Next (he asked what these mean; explained to him 2026-11-14, not started)
+1. **Click-along calibration** (ADR-009): the app plays ~16 metronome clicks, he presses one key on each, the app takes the median as his delay. Replaces guessing the Offset slider. Plus a second slider that shifts only the picture.
+2. **Note-by-note review**: after a pass, scroll back through the song with every note coloured as he played it and a mark where he pressed, so he sees exactly which notes were late / short / missed.
+3. **Progress chart**: score per day for each song from the history; move history to IndexedDB.
+4. Then M4 recording and replay, M6 MIDI import and library, M7 Firebase sync, M8 tablet / PWA, M9 audit.
 
-## Next
-- M1/M2 follow-up from Matija's Korg checklists (channel independence, sounds, stuck notes, click sound, timing feel).
-- **M3** calibration, full scoring (strictness presets, duration, extras), results screen, heatmap, local history (IndexedDB).
+## Known gaps
+- Click volume does nothing when Sound = Piano (MIDI velocity is fixed).
+- MIDI chip "Test" sends three notes to the piano only; silent on the D1 without headphones.
+- `PassResult.seconds` counts from configure, not from Play.
+- A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
+- History is per browser; exercises have no sheet.
+- Gymnopédie source: 6 unmatched ties, 8 trimmed overlaps. Demo scores' "public domain" claim has no license file.
+- Real MIDI-out timing and 120 Hz frame times never measured on his Mac (`?debug`).
 
-## Known issues / not done
-- No Firebase, scoring, review, exercises yet (M3–M7).
-- MIDI file import not implemented.
-- Gymnopédie source has 6 unmatched ties and 8 trimmed overlaps (warnings from the source file).
-- Tempo-mode windows use the Normal preset only; no calibration offset yet, so timing is not yet trustworthy (M3).
-- No seeking by clicking the ruler; a click selects one measure.
-- None of the demo pieces has pedal marks, so the pedal lane is untested with real data.
-- PWA manifest and service worker: M8.
-- The demo scores come from a collection that states "public domain" but has no license file.
-
-## 2026-11-12: feedback pass after M2 (Matija: "keys do not work", visuals)
-- Diagnosis on his Mac: Chrome sees the interface (CME C2MIDI Pro, permission granted) but **zero MIDI messages arrived** from the piano in several minutes (not even active sensing). App code path untested with real input; suspect cabling (IN/OUT plugs swapped) or piano off. Not confirmed.
-- MIDI chip: yellow "no signal" until the first key arrives; **Test** button plays C-E-G on the playback channel to check the cable towards the piano.
-- Theme: neutral black surfaces (no purple tint); purple stays as accent only.
-- Renderer: note halo + sheen + leading edge, light beam and larger glow on keys, sparks on correct held notes (off with reduced motion), pressed key is green when it is the right one.
-- Finger numbers: badge on every note. Sources had no fingering, so `scripts/lib/fingering.ts` computes suggestions (provenance `claude`, Viterbi over ergonomic costs). `meta.json`: `"fingering": "none"` disables.
-- Pedal: `meta.json` `"pedal": "measure"` generates one change per measure (provenance `claude`; used for Gymnopédie). Lane segment turns green while the pedal is held where the song wants it; strip on the hit line shows the live pedal.
-- Still open: real-piano test of everything; exercises (M5) and scoring/calibration (M3) not started.
-
-## 2026-11-12 (later): real piano works
-- Cause of "no signal" was the piano being switched off. Matija confirmed: keys, pedal, right-hand mode work on the Korg.
-- Built-in synth (`src/audio/synth.ts`, Web Audio, synthesized not sampled): clicks and song playback default to **Computer** (`soundOut`), **My keys on computer** (`monitor`, default on) because the D1 has no speakers. ⚙ → Sound switches back to Piano (MIDI).
-- Key release is tracked: a hit note let go with more than max(0.18 s, 30 %) of it left becomes `SHORT` (orange), unless the sustain pedal is down.
-- Pass score is stricter: `(hits − 0.5·short) / (expected + wrong)`, so wrong keys count in wait mode too.
-- Glow toned down (smaller, dimmer, fewer sparks) on his request.
-- Not verified: how the synth sounds and its latency on his Mac (no way to listen from here); timing windows still uncalibrated.
-
-## 2026-11-12 (evening): sound, release cue, wait-mode fix
-State: everything below is deployed (https://matijawork.github.io/klavir/), 57 unit + 11 e2e green. Matija plays through the Mac (wired), Korg D1 over CME C2MIDI Pro. He confirmed earlier today: keys, pedal, right-hand mode, computer sound without noticeable lag.
-
-Done in this pass:
-- **Sampled piano** (Salamander Grand, CC BY 3.0, 30 MP3s, 2 MB, `public/samples/piano/`) replaces the synthesized tone; loads after the first click; leading MP3 silence is skipped. Sustain pedal holds the player's notes in the computer sound.
-- **Volume**: default 1.2, sliders ⚙ → Sound → Volume / Click.
-- **When to let go**: the coloured fill on the key drains towards the top while the note runs; empty = release. A key still held >0.15 s after its note ended turns orange. Early release still marks the note orange (`SHORT`).
-- **Wait mode sticking** (his report: "pressed the key, song does not continue"): a press made more than 300 ms before the note arrived was thrown away. Now any unused press from this pass counts if the key is still down or was pressed ≤1 s before; one press never counts for two notes. Not yet confirmed by him as the cause.
-- **Metronome in wait mode**: clicks used to stop whenever the song waited (his "metronome does not work"). Now a free-running click at the song tempo × speed continues while waiting. Metronome is off by default and always follows the song tempo.
-- **Test pattern** `songs/test-c` ("Test: three C notes"): top C (C8) ×3 at 60 BPM: 4 beats, 1 beat, rest, 2 beats. Importer option `oneHand` added for it. If he meant another C, change the octave in `original.musicxml` and re-import.
-- Verified here with the virtual piano in Chrome: 4 count-in + 8 metronome clicks fired, sampled notes played, holding 2 notes fully and dropping the 3rd early gave "83% 3/3 1 short".
-
-Matija must test on the real piano (cannot be checked from here):
-1. Piano sound: does it sound like a real piano now, loud enough, any lag?
-2. Pedal: hold pedal, play and release keys → notes keep ringing through the Mac; pedal up → they stop.
-3. Test: three C notes, **Tempo** mode: hold the long one fully, the short one, release the last one early → expect about 83 %, "1 short", last note orange. Then all three held properly → 100 %.
-4. Same in **Wait** mode: does the song always continue after the right key? If it sticks, note what he did just before.
-5. Key fill draining: is "when to let go" clear enough?
-6. Metronome (M) in both modes: audible, right tempo, loudness OK?
-7. A wrong key on purpose: % goes down and shows "1 wrong".
-
-Next (in order): M3 calibration (latency offset) + results screen with per-measure errors and history; then M5 exercises (scales, chords, warm-up); M4 recording; M6 MIDI import and library; M7 Firebase; M8 polish/PWA; M9 audit.
-Known gaps: timing windows uncalibrated (Normal preset only); no seeking by clicking the ruler; `PassResult.seconds` counts from configure, not from Play; LH scale fingering suggestion is 4-3-2-1-4-3-2-1 instead of 5-4-3-2-1-3-2-1.
-
-## 2026-11-12 (night): scoring rework after his Korg test
-His test of the 7 points: pedal OK, metronome OK, wait mode OK, no lag. Complaints: scoring "terrible" and too simple, tempo mode ignores a late key, release cue unclear, sound odd on chords and too quiet.
-
-Root causes and fixes (deployed, 64 unit + 12 e2e green):
-- **Tempo mode ignored late keys**: the only window was ±80–120 ms; anything outside was a miss *and* a wrong key (0 % for playing everything slightly late). Now: on-time window unchanged, but a press counts up to half a beat away (250–400 ms; long notes up to half their length, max 1 s) and is graded early/late. The earliest open note of a pitch wins unless a later one is right on time.
-- **Score from several criteria** (`noteScore`): right key 40 %, timing 35 %, hold 25 % per note; every wrong key adds 1 to the total. Wait mode has no timing part. `session.result(final)` gives notes/timing/hold/mean deviation.
-- **Live feedback**: HUD chip with running %, hits, missed, wrong, early/late, short (polls `session.revision`). Wrong key is red on the keyboard while down. Notes: green on time, yellow early, orange late, red let go too soon, grey missed.
-- **Result card** after a pass: overall % plus Notes / Timing (mean ms early/late) / Hold / Wrong keys, Again button. While looping the previous pass is a small chip.
-- **Release cue**: white end cap on every note bar; orange flash on the hit line when a note ends; a key still down after its note turns orange with an up arrow.
-- **Sound**: the old compressor (−14 dB, 6:1, slow release) squashed chords. Now per-voice gain → drive ×1.5 → fast limiter (−6 dB, 12:1, 120 ms release), plus a light synthetic room reverb. About 4 dB louder at the same slider value; slider now goes to 3. Not heard by anyone yet.
-- Changing volume, zoom, speed or note names no longer restarts the pass (only mode, hands, section, count-in, Listen do).
-- Wait mode: a key of the next note pressed a little ahead is no longer counted wrong.
-
-Matija must test on the real piano:
-1. Sound: chords (5+ keys) still piano-like? Loud enough? (⚙ → Volume now up to 3.)
-2. Tempo mode, test song: play every note on purpose a bit late → notes turn orange, HUD shows "late", score well above 0 %.
-3. Wrong key → key red at once, HUD "1 wrong", % drops.
-4. Hold: white line at the top of the bar reaches the keys → let go. Holding longer → orange key with arrow. Letting go early → rest of the bar red, "short".
-5. Result card: do Notes / Timing / Hold / Wrong keys match what he played? Is the timing number (ms early/late) steady across passes? (That number is the calibration offset to apply in M3.)
-
-Next (in order): M3 calibration (apply measured offset; strictness presets), per-measure error view, history; M5 exercises; then M4, M6–M9.
-Known gaps: no latency calibration yet; `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green although a new press is needed; over-holding is shown but not scored.
-
-## 2026-11-12 (late night): second feedback pass + M3 core + M5 first cut
-His feedback on the previous pass: better; "Timing" unclear, wants plain words and what to work on; Hold "does not really work" (no details given); wants to choose strictness; auto speed-up and friends do not belong in settings, nicer layout; then get on with the rest. Deployed, 76 unit + 15 e2e green.
-
-- **Strictness** Easy / Normal / Strict in the toolbar (`PRESETS` in `session.ts`): on-time window, accept window, how early a note may be let go, how long it may be over-held. Changes mid-pass without a restart.
-- **Hold**: tolerance now follows strictness; **over-holding** is scored too (`long`, hold 0.5). Not confirmed that this is what he meant: ask what exactly looked wrong if he still complains.
-- **Result card in words**: verdict, "Right notes / On the beat / Held right / Wrong keys" as counts, up to three tips ordered by cost (`feedback.ts`), best score and latest passes, **Practise measures a–b** (loops the weakest spot), **Compensate** (when the offset is steady: median ≥ 30 ms, spread ≤ 60 ms, ≥ 8 hits).
-- **Calibration, simple form** (deviates from ADR-009): `settings.timingOffset` (−150…150 ms, ⚙ → Delay) is taken out of tempo-mode judging; set by hand or by Compensate. No click-along procedure and no visual offset yet.
-- **History**: `klavir.history` in localStorage (not IndexedDB yet), 100 passes per song; best whole-piece score as a badge in the library.
-- **Layout**: toolbar = mode, hands, strictness | speed, Speed-up (own drop-down) | loop, count-in, metronome | ⚙. ⚙ is two columns: note names, other hand, zoom / sound, delay. Menus close on outside click. Octave numbers disabled when names are off. "On piano" renamed "Played".
-- **Exercises (M5 first cut)**: library section with a key picker; five-finger warm-up, major scale, harmonic minor scale, chord inversions, I–IV–V–I, arpeggio; generated at runtime, played in the normal player. **Warm-up** button in a song opens the scale of its key. Fingerings are standard ones from memory, provenance `claude`, **not yet checked against the ADR-013 sources**; black-key minor scales and black-key arpeggios have none.
-
-Matija must test on the real piano:
-1. Easy / Normal / Strict: same playing, does the score change the way he expects?
-2. Hold: let go early, on time, and far too late (key orange with arrow). Does "Held right" on the card match? If not: which note, which mode, pedal up or down.
-3. Result card: are the sentences clear and true for what he played? Does "Practise measures …" pick the place that really was hardest?
-4. If the card offers Compensate: press it, play again. Does "On the beat" go up?
-5. Toolbar and ⚙: anything still in the wrong place or not working?
-6. Exercises: a scale and the chord progression in two keys. Fingerings comfortable? Tempo OK (72 bpm, speed slider)?
-7. Still open from before: does the sound hold up on big chords, loud enough?
-
-Next: M3 rest (click-along calibration and visual offset per ADR-009, per-note review, IndexedDB history with charts), M5 rest (minor chords, more patterns, check fingerings against sources, metronome-only practice), then M4 recording, M6 MIDI import, M7 Firebase, M8 PWA/tablet, M9 audit.
-Known gaps: `PassResult.seconds` counts from configure; a key held from one note into a repeated note of the same pitch shows green; exercises have no sheet/PDF; history is per browser only.
-
-## 2026-11-13: self-testing pass — HANDOFF, read this first
-He asked that I test things myself instead of handing him checklists, and that fingerings come from a real source. Deployed; 174 unit + 24 e2e green.
-
-- **Scenario tables** (`tests/unit/scenarios.test.ts`): 11 press offsets × 3 strictness levels, and 10 release points × 3 levels × both modes, each with the expected verdict (on time / early / late / not accepted; ok / short / long). All pass, so strictness and Hold behave as specified. His "Hold does not really work" is still unexplained: if it comes back, get the exact case (note, mode, level, pedal).
-- **Control audit** (`tests/e2e/controls.spec.ts`): every toolbar button and shortcut, every ⚙ control, persistence, menu closing, sound output switch, click switches, metronome while waiting, speed-up (starts at start speed, rises only after a clean pass, stops at target), Compensate, warm-up link, Again.
-- **Bug found by the audit**: after touching a slider or a checkbox, keyboard shortcuts were dead until a click elsewhere. Fixed (only text fields and selects swallow keys now).
-- **Fingerings**: all 24 scales now follow pianoscales.org (major.html, minor-harmonic.html), provenance `verified`, and a test compares them with the printed digits. B♭ major right hand now starts on 2; the five black-key minor scales got fingerings. Arpeggios: the site only gives the general right hand 1-2-3; left hand and chords stay textbook fingering (`claude`); black-key arpeggios still have none. Chang and Morin not consulted.
-- **Exercises in minor**: Major/Minor switch; warm-up, chord inversions, i–iv–V–i and arpeggio in minor.
-- **Sound measured** (analyser on the output, virtual keys, volume 1.2): one mf note peaks at 0.57; an 8-key chord peaks at 0.95 with 1.2× the RMS; 10 keys at full velocity 0.90. No clipping, but chords are still held back about 7 dB by the limiter. Tried higher thresholds (clip) and less drive (single notes 3–4 dB quieter): left as is because he called the sound OK and had asked for louder. If he wants more natural chords: `DRIVE` 1.0 and tell him to raise the Mac volume.
-- Compensate button reworded ("Stop counting this delay") because he did not understand it.
-
-Only he can check: how it sounds and feels on the real piano; whether the tips match what he feels he did.
-
-Next: click-along calibration + visual offset (ADR-009), per-note review after a pass, IndexedDB history with a progress chart; M4 recording; M6 MIDI import; M7 Firebase; M8 PWA/tablet; M9 audit.
+## Working agreement (from his feedback)
+- Test it yourself first; hand him only what needs ears or hands. Say plainly what was checked and how, and what was not.
+- Never say "works" for something only reasoned about. If he says something does not work and it cannot be reproduced, ask for the exact steps instead of repeating that it works.
+- Show trust level in the app where it matters (fingering chips).

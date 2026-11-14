@@ -39,8 +39,8 @@ export interface Settings {
   autoSpeedStart: number;
   autoSpeedStep: number;
   autoSpeedTarget: number;
-  /** accuracy (0..1) a pass needs to count as clean */
-  autoSpeedThreshold: number;
+  /** score (0..1) a pass needs before speed-up raises the speed */
+  speedUpScore: number;
 }
 
 export const DEFAULTS: Settings = {
@@ -66,7 +66,7 @@ export const DEFAULTS: Settings = {
   autoSpeedStart: 0.6,
   autoSpeedStep: 0.05,
   autoSpeedTarget: 1,
-  autoSpeedThreshold: 0.9,
+  speedUpScore: 0.8,
 };
 
 const KEY = 'klavir.settings';

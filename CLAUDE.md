@@ -22,7 +22,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `src/audio/` `synth.ts` (computer sound: sampled piano from `public/samples/piano`, clicks), `monitor.ts` (player's own keys through the computer)
 - `src/store/settings.ts` practice settings signal, persisted · `history.ts` finished passes per song (localStorage)
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
-- `src/ui/` Preact screens; hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`
+- `src/ui/` Preact screens (`FingeringChip.tsx` = where finger numbers come from, click = checked by him); hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`
 - `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)
 - `songs/<slug>/` sources + `meta.json` → `public/songs/<slug>/<version>.json` + `public/songs/index.json` (generated, committed)
 
@@ -37,5 +37,6 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - GitHub Pages caches `index.html` ~10 min: after a deploy tell Matija to hard-reload (Cmd+Shift+R); check the bundle name in `document.scripts`.
 - Sound has two targets (`settings.soundOut`): `computer` (Web Audio, default; the Korg D1 has no speakers) and `piano` (MIDI). E2E tests force `piano` to inspect sent MIDI.
 - `songs/test-c` is a 3-note test pattern Matija asked for (not a song); keep it.
+- Fingering: copy from a named web source and add a test that compares the digits; otherwise mark it unchecked (`fingeringSource.checked = false`). Keep the "How sure we are" table in PROGRESS.md honest.
 - TypeScript 7 + Biome (typescript-eslint does not support TS 7).
 - `useSignalEffect` runs on the next frame, not synchronously: after setting a signal, do not read engine state in the same tick (tests must poll).

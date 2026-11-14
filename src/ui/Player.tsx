@@ -12,6 +12,7 @@ import { panic, SongPlayback, setClickLevel, setSoundTarget } from '../midi/outp
 import { PlayerCanvas, type RenderStats } from '../render/player-canvas.ts';
 import { addPass, bestOf, passesOf } from '../store/history.ts';
 import { clampSpeed, type Settings, setSetting, settings } from '../store/settings.ts';
+import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 import { Timeline } from './Timeline.tsx';
 
@@ -103,7 +104,7 @@ function Check(props: { k: keyof Settings; label: string; title?: string; disabl
 }
 
 function Pct(props: {
-  k: 'autoSpeedStart' | 'autoSpeedStep' | 'autoSpeedTarget' | 'autoSpeedThreshold';
+  k: 'autoSpeedStart' | 'autoSpeedStep' | 'autoSpeedTarget' | 'speedUpScore';
   label: string;
   min: number;
   max: number;
@@ -129,6 +130,16 @@ function Pct(props: {
   );
 }
 
+/** Where a song's finger numbers come from, or null when it has none. */
+function fingerSource(file: SongFile): { checked: boolean; text: string } | null {
+  if (file.fingeringSource) return file.fingeringSource;
+  const first = file.notes.find((n) => n.f);
+  if (!first) return null;
+  return first.fs === 'claude'
+    ? { checked: false, text: 'computed by the app, not in the score' }
+    : { checked: true, text: 'the score' };
+}
+
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
 
 function Meter(props: { label: string; value: number; text: string; title: string; kind: string }) {
@@ -149,6 +160,8 @@ interface PassInfo {
   prevBest: number | null;
   /** scores of the latest passes, oldest first, this one included */
   recent: number[];
+  /** what speed-up did after this pass, in words; null when it is off */
+  speedNote: string | null;
 }
 
 /** Result of a finished pass in plain words: score, what it is made of, what to work on. */
@@ -159,7 +172,7 @@ function PassCard(props: {
   onPractise: (w: { a: number; b: number }) => void;
   onCalibrate: (ms: number) => void;
 }) {
-  const { r, prevBest, recent } = props.info;
+  const { r, prevBest, recent, speedNote } = props.info;
   const s = settings.value;
   const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome });
   const score = Math.round(r.accuracy * 100);
@@ -228,6 +241,11 @@ function PassCard(props: {
         <i />
         <output>{r.wrong}</output>
       </div>
+      {speedNote && (
+        <p class="speed-note" data-testid="speed-note">
+          {speedNote}
+        </p>
+      )}
       <ul class="tips" data-testid="tips">
         {fb.tips.map((t) => (
           <li key={t}>{t}</li>
@@ -331,36 +349,43 @@ export function Player({
     const historyKey = `${song.file.id}/${song.file.version}`;
     session.onPass = (r) => {
       const s = settings.peek();
-      if (!listen.peek()) {
-        const whole = session.config.range === null;
-        const prevBest = bestOf(historyKey, whole);
-        addPass(historyKey, {
-          at: Date.now(),
-          score: Math.round(r.accuracy * 100),
-          mode: s.mode,
-          hands: s.hands,
-          speed: s.speed,
-          strict: s.strictness,
-          whole,
-        });
-        const recent = passesOf(historyKey)
-          .filter((p) => p.whole === whole)
-          .slice(-6)
-          .map((p) => p.score);
-        lastPass.value = { r, prevBest, recent };
-      }
       live.value = null;
-      if (
-        s.autoSpeed &&
-        session.config.loop &&
-        r.accuracy >= s.autoSpeedThreshold &&
-        s.speed < s.autoSpeedTarget
-      )
-        setSetting('speed', clampSpeed(Math.min(s.autoSpeedTarget, s.speed + s.autoSpeedStep)));
+      if (listen.peek() || r.expected === 0) return;
+      // speed-up: one step after a pass that reaches the score, never past the target
+      let speedNote: string | null = null;
+      if (s.autoSpeed && session.config.loop) {
+        const now = Math.round(s.speed * 100);
+        const need = Math.round(s.speedUpScore * 100);
+        const got = Math.round(r.accuracy * 100);
+        if (s.speed >= s.autoSpeedTarget) speedNote = `Speed-up: target ${now} % reached`;
+        else if (r.accuracy >= s.speedUpScore) {
+          const next = clampSpeed(Math.min(s.autoSpeedTarget, s.speed + s.autoSpeedStep));
+          setSetting('speed', next);
+          speedNote = `Speed-up: ${now} % → ${Math.round(next * 100)} %`;
+        } else speedNote = `Speed stays at ${now} %: needs ${need} %, you got ${got} %`;
+      }
+      const whole = session.config.range === null;
+      const prevBest = bestOf(historyKey, whole);
+      addPass(historyKey, {
+        at: Date.now(),
+        score: Math.round(r.accuracy * 100),
+        mode: s.mode,
+        hands: s.hands,
+        speed: s.speed,
+        strict: s.strictness,
+        whole,
+      });
+      const recent = passesOf(historyKey)
+        .filter((p) => p.whole === whole)
+        .slice(-6)
+        .map((p) => p.score);
+      lastPass.value = { r, prevBest, recent, speedNote };
     };
     session.onEnd = () => {
       playback.stop();
       playing.value = false;
+      void wakeLock.current?.release();
+      wakeLock.current = null;
     };
     const offNote = onNote((e) => {
       if (!e.on) {
@@ -533,6 +558,11 @@ export function Player({
     if (document.fullscreenElement) void document.exitFullscreen();
     else void document.documentElement.requestFullscreen().catch(() => {});
   };
+  /** speed-up only makes sense while looping, so switching the loop off switches it off too */
+  const setLoop = (on: boolean) => {
+    loop.value = on;
+    if (!on && settings.peek().autoSpeed) setSetting('autoSpeed', false);
+  };
   const bumpSpeed = (d: number) => setSetting('speed', clampSpeed(settings.peek().speed + d));
 
   useEffect(() => {
@@ -556,7 +586,7 @@ export function Player({
           restart();
           break;
         case 'KeyL':
-          loop.value = !loop.value;
+          setLoop(!loop.value);
           break;
         case 'KeyM':
           setSetting('metronome', !s.metronome);
@@ -613,6 +643,12 @@ export function Player({
         <div class="song-title">
           <strong>{song?.file.title ?? '…'}</strong>
           <span>{song?.file.composer}</span>
+          {song && fingerSource(song.file) && (
+            <FingeringChip
+              id={`${song.file.id}/${song.file.version}`}
+              source={fingerSource(song.file)!}
+            />
+          )}
         </div>
         {song && !file && (
           <a
@@ -711,38 +747,30 @@ export function Player({
           />
           <output>{Math.round(s.speed * 100)}%</output>
         </label>
+        <Toggle
+          on={s.autoSpeed}
+          label="Speed-up"
+          title={`Loops the section and raises the speed by ${Math.round(s.autoSpeedStep * 100)} % after every pass that scores ${Math.round(s.speedUpScore * 100)} % or more, from ${Math.round(s.autoSpeedStart * 100)} % up to ${Math.round(s.autoSpeedTarget * 100)} %`}
+          onChange={(on) => {
+            settings.value = {
+              ...settings.value,
+              autoSpeed: on,
+              speed: on ? s.autoSpeedStart : s.speed,
+            };
+            if (on) loop.value = true;
+          }}
+          testid="speedup"
+        />
         <details class="menu">
-          <summary
-            class="btn toggle"
-            data-on={s.autoSpeed}
-            title="Raise the speed by itself after every clean pass of a loop"
-            data-testid="speedup"
-          >
-            Speed-up
+          <summary class="btn caret" title="Speed-up steps" data-testid="speedup-options">
+            ▾
           </summary>
           <div class="panel">
-            <label class="row">
-              <input
-                type="checkbox"
-                checked={s.autoSpeed}
-                onChange={(e) => {
-                  const on = (e.target as HTMLInputElement).checked;
-                  settings.value = {
-                    ...settings.value,
-                    autoSpeed: on,
-                    speed: on ? s.autoSpeedStart : s.speed,
-                  };
-                  if (on) loop.value = true;
-                }}
-                data-testid="autospeed"
-              />
-              On (loops the section)
-            </label>
             <Pct k="autoSpeedStart" label="Start at" min={10} max={150} />
             <Pct k="autoSpeedStep" label="Go up by" min={1} max={50} />
             <Pct k="autoSpeedTarget" label="Until" min={10} max={150} />
             <Pct
-              k="autoSpeedThreshold"
+              k="speedUpScore"
               label="Needs a score of"
               min={50}
               max={100}
@@ -755,9 +783,7 @@ export function Player({
           on={loop.value}
           label="Loop"
           title="Repeat the section · L (drag on the ruler to choose one)"
-          onChange={(v) => {
-            loop.value = v;
-          }}
+          onChange={setLoop}
           testid="loop"
         />
         <Toggle
@@ -950,9 +976,11 @@ export function Player({
         )}
         {pass &&
           !listen.value &&
-          (now ? (
+          // while a loop keeps running the result stays a small chip, so it never covers the notes
+          (now || (loop.value && playing.value) ? (
             <div class="pass chip" data-testid="pass" title="Previous pass">
-              {pct(pass.r.accuracy)}
+              <span data-testid="pass-score">{pct(pass.r.accuracy)}</span>
+              {pass.speedNote && <span data-testid="speed-note"> · {pass.speedNote}</span>}
             </div>
           ) : (
             <PassCard

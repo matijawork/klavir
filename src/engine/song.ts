@@ -40,6 +40,8 @@ export interface SongFile {
   pedalSource: Provenance | null;
   keys: { b: number; fifths: number; mode: 'major' | 'minor' | null }[];
   sections: { b: number; name: string }[];
+  /** where the finger numbers come from, for display; absent = see the notes' `fs` */
+  fingeringSource?: { checked: boolean; text: string };
   /** true when hands came from a pitch split instead of staves/tracks */
   handsFromPitchSplit: boolean;
   warnings: string[];

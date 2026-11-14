@@ -210,19 +210,17 @@ test('speed-up: starts at the start speed, rises after clean passes only, stops 
     autoSpeedStart: 1.3,
     autoSpeedStep: 0.1,
     autoSpeedTarget: 1.5,
-    autoSpeedThreshold: 0.9,
+    speedUpScore: 0.9,
   });
   await selectStart(page, 0.05);
   await page.getByTestId('loop').click(); // off again: switching speed-up on must turn it on itself
   await until(page, () => !window.__klavir!.session.config.loop);
-  await page.getByTestId('speedup').click();
-  await page.getByTestId('autospeed').check();
+  await page.getByTestId('speedup').click(); // one click switches it on
   await until(
     page,
     () => window.__klavir!.transport.rate === 1.3 && window.__klavir!.session.config.loop,
   );
-  await expect(page.getByTestId('speedup')).toHaveAttribute('data-on', 'true');
-  await page.getByTestId('stage').click({ position: { x: 40, y: 200 } });
+  await expect(page.getByTestId('speedup')).toHaveAttribute('aria-pressed', 'true');
 
   const speed = page.locator('.speed output');
   /** waits for a fresh pass at the given rate, then plays it (or not) */
@@ -250,7 +248,11 @@ test('speed-up: starts at the start speed, rises after clean passes only, stops 
     timeout: 20_000,
   });
   await expect(speed).toHaveText('130%');
+  await expect(page.getByTestId('speed-note')).toContainText(
+    'Speed stays at 130 %: needs 90 %, you got 0 %',
+  );
   await pass(1.3, true);
+  await expect(page.getByTestId('speed-note')).toContainText('130 % → 140 %', { timeout: 20_000 });
   await expect(speed).toHaveText('140%', { timeout: 20_000 });
   await pass(1.4, true);
   await expect(speed).toHaveText('150%', { timeout: 20_000 });
@@ -258,6 +260,17 @@ test('speed-up: starts at the start speed, rises after clean passes only, stops 
   await expect(page.getByTestId('pass')).toContainText('100%', { timeout: 20_000 });
   await page.waitForTimeout(500);
   await expect(speed, 'never above the target').toHaveText('150%');
+  await expect(page.getByTestId('speed-note')).toContainText('target 150 % reached');
+  // switching the loop off switches speed-up off, so it never sits there doing nothing
+  await page.getByTestId('loop').click();
+  await expect(page.getByTestId('speedup')).toHaveAttribute('aria-pressed', 'false');
+  // the steps are editable from the little menu next to it
+  await page.getByTestId('speedup-options').click();
+  await page.getByLabel('Go up by').fill('20');
+  await page.getByLabel('Go up by').blur();
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('klavir.settings')!).autoSpeedStep),
+  ).toBe(0.2);
 });
 
 test('steady delay: the card offers to stop counting it, and then it is not counted', async ({
@@ -345,4 +358,37 @@ test('exercises: minor mode builds minor versions', async ({ page }) => {
   await expect(page.getByTestId('exercise-scale-major')).toHaveCount(0);
   await page.getByTestId('exercise-chords').click();
   await page.waitForFunction(() => window.__klavir?.session.song.file.id === 'exercise-chords-9m');
+});
+
+test('speed-up does not creep while only listening', async ({ page }) => {
+  await open(page, {
+    mode: 'tempo',
+    speed: 1.3,
+    autoSpeed: true,
+    autoSpeedTarget: 1.5,
+    autoSpeedStart: 1.3,
+  });
+  await selectStart(page, 0.05);
+  await page.getByTestId('listen').click();
+  await page.getByTestId('play').click();
+  // two whole loops of the section
+  await page.waitForFunction(() => window.__klavir!.transport.time() > 1);
+  await page.waitForFunction(() => window.__klavir!.transport.time() < 0);
+  await page.waitForFunction(() => window.__klavir!.transport.time() > 1);
+  await expect(page.locator('.speed output')).toHaveText('130%');
+});
+
+test('fingering trust is shown and can be marked as checked by the player', async ({ page }) => {
+  await page.goto('./?mockmidi#/exercise/arpeggio/10');
+  await page.waitForFunction(() => !!window.__klavir);
+  const chip = page.getByTestId('fingering-chip');
+  await expect(chip).toHaveText('✓ Fingering: robertkelleyphd.com');
+  await page.goto('./?mockmidi#/exercise/cadence/0');
+  await expect(chip).toHaveText('? Fingering: suggested, not checked');
+  await chip.click();
+  await expect(chip).toHaveText('✓ Fingering: checked by you');
+  await page.goto('./?mockmidi#/play/ode-to-joy/original');
+  await expect(chip).toHaveText('? Fingering: suggested, not checked');
+  await page.goto('./?mockmidi#/');
+  await expect(page.locator('.badge.trust[data-state="mine"]')).toHaveCount(1);
 });

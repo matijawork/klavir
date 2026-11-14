@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import { EXERCISES, keyName } from '../engine/exercises.ts';
+import { EXERCISES, fingeringSourceOf, keyName } from '../engine/exercises.ts';
 import type { LibraryEntry } from '../engine/song.ts';
 import { bestOf, historyVersion } from '../store/history.ts';
+import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 
 const base = import.meta.env.BASE_URL;
@@ -85,16 +86,15 @@ export function Library() {
                 </span>
                 <span class="badge">{fmtTime(s.durationSec)}</span>
                 {s.fingering && (
-                  <span
-                    class="badge"
-                    title={
+                  <FingeringChip
+                    id={`${s.id}/${s.versions[0]?.id ?? 'original'}`}
+                    small
+                    source={
                       s.fingering === 'claude'
-                        ? 'Finger numbers are computed suggestions, not from the score'
-                        : 'Finger numbers come from the source score'
+                        ? { checked: false, text: 'computed by the app, not in the score' }
+                        : { checked: true, text: 'the score' }
                     }
-                  >
-                    Fingering
-                  </span>
+                  />
                 )}
               </div>
               <div class="links">
@@ -162,6 +162,11 @@ export function Library() {
                 </a>
                 <div class="badges">
                   <Best id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`} />
+                  <FingeringChip
+                    id={`exercise-${e.kind}-${pc}${suffix ? 'm' : ''}/original`}
+                    small
+                    source={fingeringSourceOf(e.kind)}
+                  />
                 </div>
               </article>
             );

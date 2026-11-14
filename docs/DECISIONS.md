@@ -69,7 +69,7 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 
 ## ADR-013 Scale fingering sources — Decided
 - **Context:** the brief's candidate source (musicmagix) could not be read.
-- **As built (2026-11-13):** scales follow pianoscales.org only (read through a fetch, compared digit by digit in a unit test); the second octave of minor scales repeats the printed pattern. Chords and arpeggio left hands are textbook fingering marked `claude`. Chang and Morin are not consulted yet.
+- **As built (2026-11-14):** scales from pianoscales.org, arpeggios from Robert Kelley's chart (robertkelleyphd.com/home/arpfing.htm), chord inversions from pianoguidelessons.com; each compared in a unit test and shown in the app as a chip with the source. I–IV–V–I and the five-finger warm-up have no source and are shown as unchecked. Chang and Morin are not consulted.
 - **Decision:** tables from Chang, Morin and pianoscales.org, with the source list stored per scale and disagreements encoded as accepted alternates. Melodic-minor exceptions and block-chord fingerings have one readable source, so they carry a "suggested" badge until checked against a printed scale book.
 
 ## ADR-014 Routing and hosting details — Decided

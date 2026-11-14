@@ -221,6 +221,62 @@ describe('exercises', () => {
           if (n.f === 1) expect(black, `${kind} ${pc}`).not.toContain(n.p % 12);
   });
 
+  it("fingers arpeggios by the patterns in Robert Kelley's chart, in every key", () => {
+    // pattern = fingers on root, third, fifth, next root; listed per pattern as on the page
+    const chart = {
+      major: {
+        R: { '1231': [0, 2, 4, 5, 7, 9, 11, 6], '2124': [1, 3, 8, 10] },
+        L: { '1421': [0, 5, 7], '1321': [2, 4, 9, 11, 6], '2142': [1, 3, 8], '3213': [10] },
+      },
+      minor: {
+        R: { '1231': [9, 11, 0, 2, 4, 5, 7, 3], '2124': [1, 6, 8], '2312': [10] },
+        L: { '1421': [9, 11, 0, 2, 4, 5, 7, 3], '2142': [1, 6, 8], '3213': [10] },
+      },
+    } as const;
+    let checked = 0;
+    for (const mode of ['major', 'minor'] as const)
+      for (const h of ['R', 'L'] as const)
+        for (const [pattern, keys] of Object.entries(chart[mode][h]))
+          for (const pc of keys) {
+            const notes = buildExercise('arpeggio', pc, mode === 'minor').notes.filter(
+              (n) => n.h === h,
+            );
+            // the left hand may start on 5, so read its pattern from the second octave
+            const from = h === 'L' && pattern.startsWith('1') ? 3 : 0;
+            const got = notes
+              .slice(from, from + 4)
+              .map((n) => n.f)
+              .join('');
+            expect(got, `${mode} ${h} ${pc}`).toBe(pattern);
+            expect(notes.every((n) => n.fs === 'verified')).toBe(true);
+            checked++;
+          }
+    expect(checked).toBe(48);
+  });
+
+  it('keeps arpeggio thumbs on white keys except where there are none', () => {
+    const black = [1, 3, 6, 8, 10];
+    for (const minor of [false, true])
+      for (let pc = 0; pc < 12; pc++) {
+        const allBlack = (!minor && pc === 6) || (minor && pc === 3);
+        if (allBlack) continue;
+        for (const n of buildExercise('arpeggio', pc, minor).notes)
+          if (n.f === 1)
+            expect(black, `${minor ? 'minor' : 'major'} ${pc}`).not.toContain(n.p % 12);
+      }
+  });
+
+  it('says where each exercise fingering comes from', () => {
+    expect(buildExercise('scale-major', 0).fingeringSource).toEqual({
+      checked: true,
+      text: 'pianoscales.org',
+    });
+    expect(buildExercise('arpeggio', 0).fingeringSource!.checked).toBe(true);
+    expect(buildExercise('chords', 0).fingeringSource!.checked).toBe(true);
+    expect(buildExercise('cadence', 0).fingeringSource!.checked).toBe(false);
+    expect(buildExercise('five-finger', 0).fingeringSource!.checked).toBe(false);
+  });
+
   it('ends the two octaves on the printed top finger and names keys', () => {
     const top = (pc: number, h: string) =>
       buildExercise('scale-major', pc).notes.filter((n) => n.h === h)[14]!.f;
@@ -228,7 +284,6 @@ describe('exercises', () => {
       5, 1, 4, 4, 4,
     ]);
     expect(buildExercise('scale-minor', 9).notes.filter((n) => n.h === 'R')[6]!.p % 12).toBe(8);
-    expect(buildExercise('arpeggio', 1).notes.every((n) => n.f === undefined)).toBe(true);
     // A minor: chord A C E, progression Am – Dm – E – Am with a G sharp in the E chord
     const pcs = (kind: 'chords' | 'cadence', b: number) =>
       buildExercise(kind, 9, true)

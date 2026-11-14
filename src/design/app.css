@@ -688,3 +688,27 @@ a.btn {
   place-items: center;
   text-decoration: none;
 }
+
+/* how far finger numbers can be trusted */
+.badge.trust {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.badge.trust[data-state="source"],
+.badge.trust[data-state="mine"] {
+  color: var(--fb-correct);
+}
+.badge.trust[data-state="open"] {
+  color: var(--fb-early);
+}
+.toolbar .btn.caret {
+  padding: 0 var(--s-2);
+  margin-left: calc(var(--s-2) * -1);
+}
+.speed-note {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 13px;
+}

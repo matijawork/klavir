@@ -1,10 +1,13 @@
 /**
  * Exercise generator: scales, chords, arpeggios and a five-finger warm-up in any key, built as a
  * normal SongFile so the player treats them like songs.
- * Scale fingerings are the ones printed on pianoscales.org (major.html, minor-harmonic.html, read
- * 2026-11-12), provenance "verified"; the page gives one octave for minors, the second octave
- * repeats the pattern. Chords, arpeggios and the warm-up use the common textbook fingering
- * (provenance "claude"); arpeggios on black-key roots carry none.
+ * Fingering sources (read 2026-11-12/14, compared in tests/unit/feedback.test.ts):
+ * - scales: pianoscales.org (major.html, minor-harmonic.html), digit by digit; the page prints one
+ *   octave for minors, the second octave repeats the pattern;
+ * - arpeggios: Robert Kelley's chart (robertkelleyphd.com/home/arpfing.htm), which gives a
+ *   four-digit pattern root-third-fifth-root per key; 5 on the first or last note as it allows;
+ * - chord inversions: pianoguidelessons.com (?p=4136);
+ * - I-IV-V-I and the five-finger warm-up: no source found, common practice, marked unchecked.
  */
 import type { SongFile, SongNote } from './song.ts';
 
@@ -184,8 +187,8 @@ function chord(
   lf: number[],
 ) {
   pitches.forEach((p, i) => {
-    out.push(finger({ p: p - 12, b, d, h: 'L' }, lf[i]));
-    out.push(finger({ p, b, d, h: 'R' }, rf[i]));
+    out.push(finger({ p: p - 12, b, d, h: 'L' }, lf[i], 'verified'));
+    out.push(finger({ p, b, d, h: 'R' }, rf[i], 'verified'));
   });
 }
 
@@ -248,32 +251,111 @@ function cadence(pc: number, minor: boolean): SongNote[] {
   return out;
 }
 
+/** Kelley's chart: fingers on root, third, fifth of every octave; `start` and `top` as for scales. */
+const ARP_RH: Record<string, Fingering> = {
+  '1231': F([], [1, 2, 3], 5),
+  '2124': F([2], [4, 1, 2], 4),
+  '2312': F([], [2, 3, 1], 2),
+};
+const ARP_LH: Record<string, Fingering> = {
+  '1421': F([5], [1, 4, 2], 1),
+  '1321': F([5], [1, 3, 2], 1),
+  '2142': F([], [2, 1, 4], 2),
+  '3213': F([], [3, 2, 1], 3),
+};
+// index = pitch class of the root, C .. B; the chart's pattern name for each key
+const ARP_MAJOR_RH = [
+  '1231',
+  '2124',
+  '1231',
+  '2124',
+  '1231',
+  '1231',
+  '1231',
+  '1231',
+  '2124',
+  '1231',
+  '2124',
+  '1231',
+];
+const ARP_MAJOR_LH = [
+  '1421',
+  '2142',
+  '1321',
+  '2142',
+  '1321',
+  '1421',
+  '1321',
+  '1421',
+  '2142',
+  '1321',
+  '3213',
+  '1321',
+];
+const ARP_MINOR_RH = [
+  '1231',
+  '2124',
+  '1231',
+  '1231',
+  '1231',
+  '1231',
+  '2124',
+  '1231',
+  '2124',
+  '1231',
+  '2312',
+  '1231',
+];
+const ARP_MINOR_LH = [
+  '1421',
+  '2142',
+  '1421',
+  '1421',
+  '1421',
+  '1421',
+  '2142',
+  '1421',
+  '2142',
+  '1421',
+  '3213',
+  '1421',
+];
+
 function arpeggio(pc: number, minor: boolean): SongNote[] {
   const r = rootFor(pc);
   const t = minor ? 3 : 4;
-  // Right hand 1 2 3 is the general fingering on pianoscales.org; kept to white-key roots.
-  // Left hand: 3 on the third for D, A and E major (black third), otherwise 4.
-  const known = [0, 2, 4, 5, 7, 9].includes(pc);
-  const lhMid = !minor && [2, 4, 9].includes(pc) ? 3 : 4;
-  const seq: { semis: number; rf?: number; lf?: number }[] = [];
+  const rh = ARP_RH[(minor ? ARP_MINOR_RH : ARP_MAJOR_RH)[pc]!]!;
+  const lh = ARP_LH[(minor ? ARP_MINOR_LH : ARP_MAJOR_LH)[pc]!]!;
+  const seq: { semis: number; rf: number; lf: number }[] = [];
   for (let o = 0; o < 2; o++)
     [0, t, 7].forEach((x, d) => {
       seq.push({
         semis: o * 12 + x,
-        rf: known ? d + 1 : undefined,
-        lf: known ? (d === 0 ? (o === 0 ? 5 : 1) : d === 1 ? lhMid : 2) : undefined,
+        rf: (o === 0 ? rh.start[d] : undefined) ?? rh.octave[d]!,
+        lf: (o === 0 ? lh.start[d] : undefined) ?? lh.octave[d]!,
       });
     });
-  seq.push({ semis: 24, rf: known ? 5 : undefined, lf: known ? 1 : undefined });
+  seq.push({ semis: 24, rf: rh.top, lf: lh.top });
   const out: SongNote[] = [];
   const all = upDown(seq);
   all.forEach((s, k) => {
     const d = k === all.length - 1 ? 2 : 0.5;
-    out.push(finger({ p: r - 12 + s.semis, b: k * 0.5, d, h: 'L' }, s.lf));
-    out.push(finger({ p: r + s.semis, b: k * 0.5, d, h: 'R' }, s.rf));
+    out.push(finger({ p: r - 12 + s.semis, b: k * 0.5, d, h: 'L' }, s.lf, 'verified'));
+    out.push(finger({ p: r + s.semis, b: k * 0.5, d, h: 'R' }, s.rf, 'verified'));
   });
   return out;
 }
+
+/** Where each exercise's finger numbers come from, shown in the app. */
+const SOURCES: Record<ExerciseKind, { checked: boolean; text: string }> = {
+  'scale-major': { checked: true, text: 'pianoscales.org' },
+  'scale-minor': { checked: true, text: 'pianoscales.org' },
+  arpeggio: { checked: true, text: 'robertkelleyphd.com' },
+  chords: { checked: true, text: 'pianoguidelessons.com' },
+  cadence: { checked: false, text: 'common practice, no source found' },
+  'five-finger': { checked: false, text: 'one finger per key, no source needed' },
+};
+export const fingeringSourceOf = (kind: ExerciseKind) => SOURCES[kind];
 
 export function buildExercise(kind: ExerciseKind, pcRaw: number, minorMode = false): SongFile {
   const pc = ((Math.round(pcRaw) % 12) + 12) % 12;
@@ -315,6 +397,7 @@ export function buildExercise(kind: ExerciseKind, pcRaw: number, minorMode = fal
       { b: 0, fifths: MAJOR_FIFTHS[minor ? (pc + 3) % 12 : pc]!, mode: minor ? 'minor' : 'major' },
     ],
     sections: [],
+    fingeringSource: SOURCES[kind],
     handsFromPitchSplit: false,
     warnings: [],
   };
