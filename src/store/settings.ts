@@ -35,12 +35,6 @@ export interface Settings {
   fingers: boolean;
   /** vertical zoom, pixels per second */
   zoom: number;
-  autoSpeed: boolean;
-  autoSpeedStart: number;
-  autoSpeedStep: number;
-  autoSpeedTarget: number;
-  /** score (0..1) a pass needs before speed-up raises the speed */
-  speedUpScore: number;
 }
 
 export const DEFAULTS: Settings = {
@@ -62,11 +56,6 @@ export const DEFAULTS: Settings = {
   octaveNumbers: false,
   fingers: true,
   zoom: 220,
-  autoSpeed: false,
-  autoSpeedStart: 0.6,
-  autoSpeedStep: 0.05,
-  autoSpeedTarget: 1,
-  speedUpScore: 0.8,
 };
 
 const KEY = 'klavir.settings';
@@ -74,7 +63,13 @@ const KEY = 'klavir.settings';
 function load(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) {
+      // only known keys: settings of removed features are dropped
+      const saved = JSON.parse(raw) as Record<string, unknown>;
+      const out = { ...DEFAULTS } as Record<string, unknown>;
+      for (const k of Object.keys(DEFAULTS)) if (k in saved) out[k] = saved[k];
+      return out as unknown as Settings;
+    }
   } catch {
     /* unreadable storage: fall back to defaults */
   }

@@ -103,33 +103,6 @@ function Check(props: { k: keyof Settings; label: string; title?: string; disabl
   );
 }
 
-function Pct(props: {
-  k: 'autoSpeedStart' | 'autoSpeedStep' | 'autoSpeedTarget' | 'speedUpScore';
-  label: string;
-  min: number;
-  max: number;
-  title?: string;
-}) {
-  return (
-    <label class="row" title={props.title}>
-      {props.label}
-      <input
-        type="number"
-        min={props.min}
-        max={props.max}
-        step={5}
-        value={Math.round(settings.value[props.k] * 100)}
-        onChange={(e) => {
-          const v = Number((e.target as HTMLInputElement).value);
-          if (Number.isFinite(v))
-            setSetting(props.k, Math.min(props.max, Math.max(props.min, v)) / 100);
-        }}
-      />
-      %
-    </label>
-  );
-}
-
 /** Where a song's finger numbers come from, or null when it has none. */
 function fingerSource(file: SongFile): { checked: boolean; text: string } | null {
   if (file.fingeringSource) return file.fingeringSource;
@@ -160,8 +133,6 @@ interface PassInfo {
   prevBest: number | null;
   /** scores of the latest passes, oldest first, this one included */
   recent: number[];
-  /** what speed-up did after this pass, in words; null when it is off */
-  speedNote: string | null;
 }
 
 /** Result of a finished pass in plain words: score, what it is made of, what to work on. */
@@ -172,7 +143,7 @@ function PassCard(props: {
   onPractise: (w: { a: number; b: number }) => void;
   onCalibrate: (ms: number) => void;
 }) {
-  const { r, prevBest, recent, speedNote } = props.info;
+  const { r, prevBest, recent } = props.info;
   const s = settings.value;
   const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome });
   const score = Math.round(r.accuracy * 100);
@@ -241,11 +212,6 @@ function PassCard(props: {
         <i />
         <output>{r.wrong}</output>
       </div>
-      {speedNote && (
-        <p class="speed-note" data-testid="speed-note">
-          {speedNote}
-        </p>
-      )}
       <ul class="tips" data-testid="tips">
         {fb.tips.map((t) => (
           <li key={t}>{t}</li>
@@ -351,19 +317,6 @@ export function Player({
       const s = settings.peek();
       live.value = null;
       if (listen.peek() || r.expected === 0) return;
-      // speed-up: one step after a pass that reaches the score, never past the target
-      let speedNote: string | null = null;
-      if (s.autoSpeed && session.config.loop) {
-        const now = Math.round(s.speed * 100);
-        const need = Math.round(s.speedUpScore * 100);
-        const got = Math.round(r.accuracy * 100);
-        if (s.speed >= s.autoSpeedTarget) speedNote = `Speed-up: target ${now} % reached`;
-        else if (r.accuracy >= s.speedUpScore) {
-          const next = clampSpeed(Math.min(s.autoSpeedTarget, s.speed + s.autoSpeedStep));
-          setSetting('speed', next);
-          speedNote = `Speed-up: ${now} % → ${Math.round(next * 100)} %`;
-        } else speedNote = `Speed stays at ${now} %: needs ${need} %, you got ${got} %`;
-      }
       const whole = session.config.range === null;
       const prevBest = bestOf(historyKey, whole);
       addPass(historyKey, {
@@ -379,7 +332,7 @@ export function Player({
         .filter((p) => p.whole === whole)
         .slice(-6)
         .map((p) => p.score);
-      lastPass.value = { r, prevBest, recent, speedNote };
+      lastPass.value = { r, prevBest, recent };
     };
     session.onEnd = () => {
       playback.stop();
@@ -558,10 +511,8 @@ export function Player({
     if (document.fullscreenElement) void document.exitFullscreen();
     else void document.documentElement.requestFullscreen().catch(() => {});
   };
-  /** speed-up only makes sense while looping, so switching the loop off switches it off too */
   const setLoop = (on: boolean) => {
     loop.value = on;
-    if (!on && settings.peek().autoSpeed) setSetting('autoSpeed', false);
   };
   const bumpSpeed = (d: number) => setSetting('speed', clampSpeed(settings.peek().speed + d));
 
@@ -747,37 +698,6 @@ export function Player({
           />
           <output>{Math.round(s.speed * 100)}%</output>
         </label>
-        <Toggle
-          on={s.autoSpeed}
-          label="Speed-up"
-          title={`Loops the section and raises the speed by ${Math.round(s.autoSpeedStep * 100)} % after every pass that scores ${Math.round(s.speedUpScore * 100)} % or more, from ${Math.round(s.autoSpeedStart * 100)} % up to ${Math.round(s.autoSpeedTarget * 100)} %`}
-          onChange={(on) => {
-            settings.value = {
-              ...settings.value,
-              autoSpeed: on,
-              speed: on ? s.autoSpeedStart : s.speed,
-            };
-            if (on) loop.value = true;
-          }}
-          testid="speedup"
-        />
-        <details class="menu">
-          <summary class="btn caret" title="Speed-up steps" data-testid="speedup-options">
-            ▾
-          </summary>
-          <div class="panel">
-            <Pct k="autoSpeedStart" label="Start at" min={10} max={150} />
-            <Pct k="autoSpeedStep" label="Go up by" min={1} max={50} />
-            <Pct k="autoSpeedTarget" label="Until" min={10} max={150} />
-            <Pct
-              k="speedUpScore"
-              label="Needs a score of"
-              min={50}
-              max={100}
-              title="Score a pass needs before the speed goes up"
-            />
-          </div>
-        </details>
         <span class="sep" />
         <Toggle
           on={loop.value}
@@ -980,7 +900,6 @@ export function Player({
           (now || (loop.value && playing.value) ? (
             <div class="pass chip" data-testid="pass" title="Previous pass">
               <span data-testid="pass-score">{pct(pass.r.accuracy)}</span>
-              {pass.speedNote && <span data-testid="speed-note"> · {pass.speedNote}</span>}
             </div>
           ) : (
             <PassCard

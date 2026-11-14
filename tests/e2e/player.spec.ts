@@ -158,21 +158,6 @@ test('a wrong key shows up at once and lowers the score', async ({ page }) => {
   expect(await page.evaluate(() => window.__klavir!.session.wrong)).toBe(1);
 });
 
-test('auto speed-up raises the speed after a clean looped pass', async ({ page }) => {
-  await open(page, {
-    mode: 'tempo',
-    speed: 1,
-    autoSpeed: true,
-    autoSpeedStart: 1,
-    autoSpeedStep: 0.1,
-    autoSpeedTarget: 1.2,
-  });
-  await selectStart(page, 0.05);
-  await page.getByTestId('play').click();
-  await perform(page);
-  await expect(page.locator('.speed output')).toHaveText('110%', { timeout: 20_000 });
-});
-
 test('count-in and metronome click on their own channel', async ({ page }) => {
   await open(page, { mode: 'tempo', countIn: true, metronome: true });
   await page.getByTestId('play').click();
