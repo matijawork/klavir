@@ -421,42 +421,181 @@ test('sound: a big chord is louder than one note and never clips', async ({ page
   expect(hard.peak, 'no clipping even when hammered').toBeLessThan(1);
 });
 
-test('progress: old history moves to the database and the chart shows the best of each day', async ({
+test('perform: locked to the real thing, cannot be paused, and only it is kept and charted', async ({
   page,
 }) => {
+  test.setTimeout(120_000);
+  // old practice history from earlier versions must disappear
   await page.addInitScript(() => {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
-    const day = (d: number, h: number) => new Date(2026, 10, d, h).getTime();
-    const rec = (at: number, score: number, whole = true) => ({
-      at,
-      score,
-      mode: 'tempo',
-      hands: 'both',
-      speed: 0.6,
-      strict: 'normal',
-      whole,
-    });
-    localStorage.setItem(
-      'klavir.history',
-      JSON.stringify({
-        'ode-to-joy/original': [
-          rec(day(8, 9), 41),
-          rec(day(8, 10), 55),
-          rec(day(10, 9), 63),
-          rec(day(10, 9), 30, false),
-          rec(day(11, 20), 58),
-          rec(day(13, 18), 84),
-          rec(day(13, 19), 79),
-        ],
-      }),
-    );
+    localStorage.setItem('klavir.history', JSON.stringify({ 'test-c/original': [{ score: 99 }] }));
+    const req = indexedDB.open('klavir', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('passes', { autoIncrement: true });
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => db.close();
+      db.transaction('passes', 'readwrite').objectStore('passes').add({ song: 'test-c/original' });
+      db.close();
+    };
+  });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('klavir.settings'))
+      localStorage.setItem(
+        'klavir.settings',
+        JSON.stringify({
+          countIn: false,
+          soundOut: 'piano',
+          monitor: false,
+          mode: 'wait',
+          hands: 'L',
+          speed: 0.5,
+          strictness: 'easy',
+        }),
+      );
   });
   await page.goto('./?mockmidi#/');
+  await page.getByTestId('midi-connect').click();
+  await expect(page.getByTestId('perform-test-c')).toBeVisible();
+  await expect(page.getByTestId('best')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('klavir.history'))).toBeNull();
+  expect(
+    await page.evaluate(
+      () =>
+        new Promise<string[]>((done) => {
+          const req = indexedDB.open('klavir');
+          req.onsuccess = () => {
+            done([...req.result.objectStoreNames]);
+            req.result.close();
+          };
+        }),
+    ),
+    'old store is gone',
+  ).toEqual(['performances']);
+
+  await page.getByTestId('perform-test-c').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  // whatever the practice settings are, a performance is tempo, both hands, 100 %, normal
+  await until(page, () => {
+    const { session, transport } = window.__klavir!;
+    const c = session.config;
+    return (
+      c.mode === 'tempo' &&
+      c.handMask === 3 &&
+      c.range === null &&
+      !c.loop &&
+      transport.rate === 1 &&
+      session.strictness === 'normal'
+    );
+  });
+  await expect(page.getByTestId('perform-badge')).toBeVisible();
+  for (const id of [
+    'mode-wait',
+    'hands-L',
+    'strict-easy',
+    'speed',
+    'speed-number',
+    'loop',
+    'listen',
+  ])
+    await expect(page.getByTestId(id), `${id} is not offered`).toHaveCount(0);
+  // shortcuts and the ruler cannot change it either
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('w');
+  await page.keyboard.press('l');
+  await page.keyboard.press('1');
+  await selectStart(page, 0.3);
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(() => {
+      const { session, transport } = window.__klavir!;
+      const c = session.config;
+      return [c.mode, c.handMask, c.range, c.loop, transport.rate];
+    }),
+  ).toEqual(['tempo', 3, null, false, 1]);
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('klavir.settings')!).speed),
+    'practice speed is left alone',
+  ).toBe(0.5);
+
+  // stopping half way throws the performance away: back to the start, nothing kept
+  await page.getByTestId('play').click();
+  await expect(page.getByTestId('play')).toHaveText('Stop');
+  await page.waitForFunction(() => window.__klavir!.transport.time() > 0.5);
+  await page.keyboard.press('Space');
+  await until(page, () => {
+    const { session, transport } = window.__klavir!;
+    return !session.running && transport.time() <= session.leadStart + 1e-6;
+  });
+  await expect(page.getByTestId('pass')).toHaveCount(0);
+
+  // a whole clean performance is scored and kept
+  await page.getByTestId('play').click();
+  await perform(page);
+  await expect(page.getByTestId('pass-score')).toHaveText('100%', { timeout: 30_000 });
+  await expect(page.getByTestId('pass')).toContainText('First performance');
+  await expect(page.getByTestId('not-kept')).toHaveCount(0);
+  // a second one, with nothing played
+  await page.getByRole('button', { name: 'Again' }).click();
+  await expect(page.getByTestId('pass-score')).toHaveText('0%', { timeout: 30_000 });
+  await expect(page.getByTestId('pass')).toContainText('Best 100%');
+
+  // the library shows the best one; it is still there after a reload (comes from the database)
+  await page.goto('./?mockmidi#/');
+  await page.reload();
   const badge = page.getByTestId('best');
-  await expect(badge).toHaveText('84%');
-  expect(await page.evaluate(() => localStorage.getItem('klavir.history')), 'moved out').toBeNull();
-  await page.reload(); // now it can only come from the database
+  await expect(badge).toHaveCount(1);
+  await expect(badge).toHaveText('100%');
+  await badge.click();
+  await expect(page.getByTestId('progress-dot')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+
+  // practising the same song adds nothing
+  await page.getByTestId('practise-test-c').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  await page.getByTestId('mode-tempo').click();
+  await page.getByTestId('hands-both').click();
+  await page.getByTestId('speed-number').fill('150');
+  await page.getByTestId('speed-number').blur();
+  await until(page, () => window.__klavir!.transport.rate === 1.5);
+  await page.getByTestId('play').click();
+  await expect(page.getByTestId('not-kept')).toBeVisible({ timeout: 30_000 });
+  await page.goto('./?mockmidi#/');
+  await page.getByTestId('best').click();
+  await expect(page.getByTestId('progress-dot')).toHaveCount(1);
+  await page.locator('.progress-plot').hover();
+  await expect(page.getByTestId('progress-tip')).toContainText('2 performances');
+});
+
+test("progress chart: one dot per day at that day's best performance", async ({ page }) => {
+  await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('perform-ode-to-joy')).toBeVisible();
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => {
+        const day = (d: number, h: number) => new Date(2026, 10, d, h).getTime();
+        const rows = [
+          [day(8, 9), 41],
+          [day(8, 10), 55],
+          [day(10, 9), 63],
+          [day(11, 20), 58],
+          [day(13, 18), 84],
+          [day(13, 19), 79],
+        ];
+        const req = indexedDB.open('klavir');
+        req.onsuccess = () => {
+          const tx = req.result.transaction('performances', 'readwrite');
+          for (const [at, score] of rows)
+            tx.objectStore('performances').add({ song: 'ode-to-joy/original', at, score });
+          tx.oncomplete = () => {
+            req.result.close();
+            done();
+          };
+        };
+      }),
+  );
+  await page.reload();
+  const badge = page.getByTestId('best');
   await expect(badge).toHaveText('84%');
   await badge.click();
   const dots = page.getByTestId('progress-dot');
@@ -466,14 +605,86 @@ test('progress: old history moves to the database and the chart shows the best o
   expect(ys[0]! > ys[1]! && ys[1]! < ys[2]! && ys[3]! < ys[1]!, '55, 63, 58, 84').toBe(true);
   const box = (await dots.nth(0).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + 30);
-  await expect(page.getByTestId('progress-tip')).toHaveText('55%8 Nov2 passes · speed 60%');
-  await page.screenshot({
-    path: '/private/tmp/claude-501/-Users-matija-Desktop-Klavir/7c7d823a-778b-4be7-8463-6f5e0ec135d7/scratchpad/chart.png',
-  });
-  await page.getByTestId('progress-parts').click();
-  await expect(dots).toHaveCount(1);
+  await expect(page.getByTestId('progress-tip')).toHaveText('55%8 Nov2 performances');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('progress')).toHaveCount(0);
+});
+
+test('speed can be typed; Review is on the toolbar once a pass exists; Wait mode shows no percent', async ({
+  page,
+}) => {
+  await open(page, { mode: 'wait' }, 'test-c');
+  const box = page.getByTestId('speed-number');
+  await box.fill('73');
+  await box.press('Enter');
+  await until(page, () => window.__klavir!.transport.rate === 0.73);
+  await expect(page.getByTestId('speed')).toHaveValue('73');
+  await box.fill('400'); // out of range: clamped
+  await box.blur();
+  await until(page, () => window.__klavir!.transport.rate === 1.5);
+  await expect(box).toHaveValue('150');
+  await box.fill('');
+  await box.blur();
+  await expect(box, 'empty keeps the speed').toHaveValue('150');
+  // typing digits in the box must not trigger the 1/2/3 hand shortcuts
+  expect(await page.evaluate(() => window.__klavir!.session.config.handMask)).toBe(3);
+
+  await expect(page.getByTestId('review-button')).toBeDisabled();
+  await page.getByTestId('play').click();
+  // wait mode: press each note when the song stops for it
+  await page.evaluate(async () => {
+    const { session } = window.__klavir!;
+    const { pitch, count } = session.song;
+    for (let i = 0; i < count; i++) {
+      while (!session.waiting) await new Promise((r) => setTimeout(r, 20));
+      window.__midi!.noteOn(pitch[i]!);
+      await new Promise((r) => setTimeout(r, 150));
+      window.__midi!.noteOff(pitch[i]!);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+  });
+  await expect(page.getByTestId('pass')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('pass-score'), 'no percent in Wait mode').toHaveCount(0);
+  await expect(page.getByTestId('hud-score')).toHaveCount(0);
+  await expect(page.getByTestId('not-kept')).toBeVisible();
+  await expect(page.getByTestId('verdict')).not.toBeEmpty();
+  await page.getByTestId('review-button').click();
+  await expect(page.getByTestId('review-text')).toBeVisible();
+  await page.getByTestId('review-close').click();
+  await expect(page.getByTestId('pass')).toBeVisible();
+});
+
+test('video: a YouTube link can be added, is shown in the app, changed and removed', async ({
+  page,
+}) => {
+  await page.route('**/*youtube*/**', (route) => route.fulfill({ status: 200, body: '' }));
+  await page.goto('./?mockmidi#/');
+  const button = page.getByTestId('video-ode-to-joy');
+  await expect(button).toHaveText('+ Video');
+  await button.click();
+  await expect(page.getByTestId('video-frame')).toHaveCount(0);
+  const link = page.getByTestId('video-link');
+  await link.fill('https://example.com/watch?v=dQw4w9WgXcQ');
+  await expect(page.getByTestId('video-save'), 'not a YouTube link').toBeDisabled();
+  await link.fill('https://youtu.be/dQw4w9WgXcQ?si=x');
+  await page.getByTestId('video-save').click();
+  await expect(page.getByTestId('video-frame')).toHaveAttribute(
+    'src',
+    'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+  );
+  await page.keyboard.press('Escape');
+  await expect(button).toHaveText('Video');
+  await page.reload();
+  await expect(button, 'remembered').toHaveText('Video');
+  await expect(page.getByTestId('video-test-c'), 'per song').toHaveText('+ Video');
+  await button.click();
+  await expect(page.getByTestId('video-frame')).toBeVisible();
+  await link.fill('');
+  await expect(page.getByTestId('video-save')).toHaveText('Remove');
+  await page.getByTestId('video-save').click();
+  await expect(page.getByTestId('video-frame')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(button).toHaveText('+ Video');
 });
 
 test('exercises: minor mode builds minor versions', async ({ page }) => {

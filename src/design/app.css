@@ -348,16 +348,21 @@ button.chip {
   color: var(--text-dim);
   font-size: 13px;
 }
-.speed output {
-  min-width: 4ch;
+.speed input[type="number"] {
+  width: 56px;
+  padding: 2px var(--s-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  background: var(--surface-1);
   color: var(--text);
   font-family: var(--font-mono);
+  font-size: 13px;
   text-align: right;
 }
 input[type="range"] {
   accent-color: var(--accent);
 }
-.speed input {
+.speed input[type="range"] {
   width: 180px;
 }
 .menu {
@@ -841,4 +846,48 @@ dialog.progress::backdrop {
 .progress-tip-value {
   color: var(--text);
   font-size: 15px;
+}
+
+/* library card: practise / perform */
+.card-actions {
+  display: flex;
+  gap: var(--s-2);
+}
+.links .link {
+  font-size: 13px;
+  text-decoration: none;
+}
+.links .link:hover {
+  text-decoration: underline;
+}
+
+/* video dialog */
+dialog.video {
+  width: min(760px, calc(100vw - var(--s-6)));
+}
+.video-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--bg);
+}
+.video-form {
+  display: flex;
+  gap: var(--s-2);
+}
+.video-form input {
+  flex: 1;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.video-form input[aria-invalid="true"] {
+  border-color: var(--fb-wrong);
 }

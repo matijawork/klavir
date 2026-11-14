@@ -5,16 +5,13 @@ export interface ScoredPass {
   at: number;
   /** 0..100 */
   score: number;
-  /** 0.1 .. 1.5 */
-  speed: number;
 }
 
 export interface DayScore {
   /** local midnight of the day, ms */
   day: number;
-  /** best score of the day, 0..100, and the speed it was played at */
+  /** best score of the day, 0..100 */
   best: number;
-  speed: number;
   passes: number;
 }
 
@@ -25,13 +22,10 @@ export function dailyScores(passes: ScoredPass[]): DayScore[] {
     const d = new Date(p.at);
     const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const cur = days.get(day);
-    if (!cur) days.set(day, { day, best: p.score, speed: p.speed, passes: 1 });
+    if (!cur) days.set(day, { day, best: p.score, passes: 1 });
     else {
       cur.passes++;
-      if (p.score > cur.best) {
-        cur.best = p.score;
-        cur.speed = p.speed;
-      }
+      if (p.score > cur.best) cur.best = p.score;
     }
   }
   return [...days.values()].sort((a, b) => a.day - b.day);

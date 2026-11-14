@@ -25,7 +25,7 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
    }
    ```
    - `difficulty` 1–5: 1 = single notes, slow; 3 = both hands independent; 5 = fast, wide leaps.
-   - `youtube`: one piano tutorial link, only if Matija gave one or you verified it resolves. Otherwise `null`.
+   - `youtube`: the link Matija gave with the song (any YouTube form: `watch?v=`, `youtu.be/`, shorts). Otherwise `null`; he can also paste one himself in the app ("+ Video" on the card).
    - Single-staff score (no hand split): add `"splitAt": 60` to the version as a last resort and tell him.
 4. **Import**: `npm run import-song <slug>`
    - It writes `public/songs/<slug>/original.json`, a sheet PDF (via MuseScore) and updates `public/songs/index.json`.
@@ -34,7 +34,10 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
 5. **Sanity check** the result: note count, measure count, both hands present, tempo plausible, key matches what the song is known to be in. Open `http://localhost:5173/klavir/#/play/<slug>/original` with `npm run dev` if in doubt.
 6. **Run** `npm test && npm run lint`.
 7. **Commit and push** `songs/<slug>/` and `public/songs/` (push deploys).
-8. **Tell Matija** in Croatian: what was added, warnings in plain words, whether fingering and pedal were in the file, and ask him to press **Listen** in the app to check it by ear.
+8. **Tell Matija** in Croatian: what was added, warnings in plain words, whether fingering and pedal were in the file, and ask him to press **Listen** (in Practise) to check it by ear.
+
+## Nothing else to build
+The import is the whole job. The new song gets its library card with Practise and Perform, scoring, the progress chart, the note-by-note review, fingering chip, sheet link and video from `public/songs/index.json` automatically. Do not write song-specific code or tests.
 
 ## What the importer handles
 Two staves or two single-staff parts as hands; chords; voices; ties; grace notes; tempo changes; time and key signature changes; fingering; pedal marks; repeats, voltas, D.C./D.S./Fine/Coda.

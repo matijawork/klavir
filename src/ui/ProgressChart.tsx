@@ -18,11 +18,7 @@ export function ProgressChart(props: { id: string; title: string; onClose: () =>
   const dialog = useRef<HTMLDialogElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   historyVersion.value;
-  const all = passesOf(props.id);
-  const hasWhole = all.some((p) => p.whole);
-  const hasParts = all.some((p) => !p.whole);
-  const [whole, setWhole] = useState(hasWhole);
-  const days: DayScore[] = dailyScores(all.filter((p) => p.whole === whole));
+  const days: DayScore[] = dailyScores(passesOf(props.id));
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -52,23 +48,8 @@ export function ProgressChart(props: { id: string; title: string; onClose: () =>
       <header>
         <div>
           <strong class="progress-title">{props.title}</strong>
-          <span>Best score of each day you practised</span>
+          <span>Best performance of each day</span>
         </div>
-        {hasWhole && hasParts && (
-          <fieldset class="seg" aria-label="Passes">
-            <button type="button" aria-pressed={whole} onClick={() => setWhole(true)}>
-              Whole piece
-            </button>
-            <button
-              type="button"
-              aria-pressed={!whole}
-              onClick={() => setWhole(false)}
-              data-testid="progress-parts"
-            >
-              Sections
-            </button>
-          </fieldset>
-        )}
         <button
           type="button"
           class="icon-btn small"
@@ -155,7 +136,7 @@ export function ProgressChart(props: { id: string; title: string; onClose: () =>
             <strong class="progress-tip-value">{h.best}%</strong>
             <span>{dayLabel(h.day)}</span>
             <span>
-              {h.passes} {h.passes === 1 ? 'pass' : 'passes'} · speed {Math.round(h.speed * 100)}%
+              {h.passes} {h.passes === 1 ? 'performance' : 'performances'}
             </span>
           </div>
         )}

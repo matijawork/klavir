@@ -17,12 +17,12 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `npm run import-song [slug] [-- --pdf]` — sources in `songs/` → `public/songs/`
 
 ## Map
-- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry), `feedback.ts` (result → plain-word tips), `exercises.ts` (scales, chords, arpeggios as SongFiles), `calibration.ts` (click-along delay), `review.ts` (pass → note-by-note steps in words), `progress.ts` (best score per day)
+- `src/engine/` pure logic, no DOM: `song.ts` (normalized format, TempoMap, loadSong), `transport.ts` (song clock), `session.ts` (practice run: wait gate, matcher, loop, count-in), `keys.ts` (88-key geometry), `feedback.ts` (result → plain-word tips), `exercises.ts` (scales, chords, arpeggios as SongFiles), `calibration.ts` (click-along delay), `review.ts` (pass → note-by-note steps in words), `progress.ts` (best score per day), `youtube.ts` (link → video id)
 - `src/midi/` `midi.ts` (Web MIDI, signals, `held[]`), `output.ts` (look-ahead scheduler, panic, Korg sounds), `mock.ts` (virtual device, `window.__midi`)
 - `src/audio/` `synth.ts` (computer sound: sampled piano from `public/samples/piano`, clicks), `monitor.ts` (player's own keys through the computer)
-- `src/store/settings.ts` practice settings signal, persisted · `history.ts` finished passes per song (IndexedDB, in-memory copy for sync reads)
+- `src/store/settings.ts` practice settings signal, persisted · `history.ts` performance scores per song (IndexedDB, in-memory copy for sync reads) · `videos.ts` his YouTube link per song
 - `src/render/player-canvas.ts` falling notes + keyboard, rAF, no per-frame allocation
-- `src/ui/` Preact screens (`FingeringChip.tsx` = where finger numbers come from, click = checked by him); hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`
+- `src/ui/` Preact screens (`FingeringChip.tsx` = where finger numbers come from, click = checked by him); hash routes `#/`, `#/play/<song>/<version>`, `#/exercise/<kind>/<key 0-11>`, and both again under `#/perform/…` (ADR-016: Practise keeps nothing, Perform is locked and is the only thing scored into history)
 - `scripts/import-song.ts`, `scripts/lib/musicxml.ts` (parser + validators), `scripts/lib/unroll.ts` (repeats, voltas, D.C./D.S./coda)
 - `songs/<slug>/` sources + `meta.json` → `public/songs/<slug>/<version>.json` + `public/songs/index.json` (generated, committed)
 
@@ -36,6 +36,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `git push` can hang on the macOS keychain helper; use `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`.
 - GitHub Pages caches `index.html` ~10 min: after a deploy tell Matija to hard-reload (Cmd+Shift+R); check the bundle name in `document.scripts`.
 - Sound has two targets (`settings.soundOut`): `computer` (Web Audio, default; the Korg D1 has no speakers) and `piano` (MIDI). E2E tests force `piano` to inspect sent MIDI.
+- Nothing in the app is per song: Practise, Perform, score, chart, review and video come from `public/songs/index.json`. Adding a song is only the `add-song` skill; never add song-specific code.
 - `songs/test-c` is a 3-note test pattern Matija asked for (not a song); keep it.
 - Fingering: copy from a named web source and add a test that compares the digits; otherwise mark it unchecked (`fingeringSource.checked = false`). Keep the "How sure we are" table in PROGRESS.md honest.
 - TypeScript 7 + Biome (typescript-eslint does not support TS 7).

@@ -131,7 +131,11 @@ function Meter(props: { label: string; value: number; text: string; title: strin
 
 interface PassInfo {
   r: PassResult;
-  /** best earlier score (0..100) of comparable passes, or null */
+  /** settings the pass was played with */
+  s: Settings;
+  /** a performance (kept in the history); practice passes are not kept */
+  kept: boolean;
+  /** best earlier performance (0..100), or null */
   prevBest: number | null;
   /** scores of the latest passes, oldest first, this one included */
   recent: number[];
@@ -148,9 +152,9 @@ function PassCard(props: {
   onCalibrate: (ms: number) => void;
   onReview: () => void;
 }) {
-  const { r, prevBest, recent } = props.info;
-  const s = settings.value;
-  const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome });
+  const { r, prevBest, recent, s, kept } = props.info;
+  const timed = s.mode === 'tempo';
+  const fb = feedback(r, { mode: s.mode, speed: s.speed, metronome: s.metronome, perform: kept });
   const score = Math.round(r.accuracy * 100);
   const onBeat = r.hits - r.early - r.late;
   const heldRight = r.hits - r.short - r.long;
@@ -164,22 +168,35 @@ function PassCard(props: {
   return (
     <div class="pass card" data-testid="pass" data-score={score}>
       <div class="pass-head">
-        <strong
-          data-testid="pass-score"
-          data-level={r.accuracy >= 0.9 ? 'high' : r.accuracy >= 0.6 ? 'mid' : 'low'}
-          title="Right notes 40 %, on the beat 35 %, held right 25 %; every wrong key lowers it"
-        >
-          {pct(r.accuracy)}
-        </strong>
+        {timed && (
+          <strong
+            data-testid="pass-score"
+            data-level={r.accuracy >= 0.9 ? 'high' : r.accuracy >= 0.6 ? 'mid' : 'low'}
+            title="Right notes 40 %, on the beat 35 %, held right 25 %; every wrong key lowers it"
+          >
+            {pct(r.accuracy)}
+          </strong>
+        )}
         <div>
           <b data-testid="verdict">{fb.verdict}</b>
-          <span title={recent.length > 1 ? `Latest passes: ${recent.join(' · ')}` : undefined}>
-            {prevBest === null
-              ? 'First pass'
-              : score > prevBest
-                ? `New best · was ${prevBest}%`
-                : `Best ${prevBest}%`}
-          </span>
+          {kept ? (
+            <span
+              title={recent.length > 1 ? `Latest performances: ${recent.join(' · ')}` : undefined}
+            >
+              {prevBest === null
+                ? 'First performance'
+                : score > prevBest
+                  ? `New best · was ${prevBest}%`
+                  : `Best ${prevBest}%`}
+            </span>
+          ) : (
+            <span
+              data-testid="not-kept"
+              title="Practice is not kept. Only Perform (from the library: whole piece, full speed, no stopping) is scored into your history and chart."
+            >
+              Practice · not kept
+            </span>
+          )}
         </div>
       </div>
       <Meter
@@ -238,7 +255,7 @@ function PassCard(props: {
         )}
       </ul>
       <div class="pass-actions">
-        {w && (
+        {w && !kept && (
           <button
             type="button"
             class="btn"
@@ -270,12 +287,17 @@ export function Player({
   songId,
   version,
   file,
+  perform = false,
 }: {
   songId: string;
   version: string;
   /** a ready-made song (exercise) instead of one fetched from the library */
   file?: SongFile;
+  /** the real thing: whole piece, Tempo mode, full speed, no stopping; the only score that is kept */
+  perform?: boolean;
 }) {
+  const eff = (s: Settings): Settings =>
+    perform ? { ...s, mode: 'tempo', hands: 'both', speed: 1, strictness: 'normal' } : s;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [song, setSong] = useState<LoadedSong | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -333,25 +355,19 @@ export function Player({
     session.onSeek = () => playback.resync();
     const historyKey = `${song.file.id}/${song.file.version}`;
     session.onPass = (r) => {
-      const s = settings.peek();
+      const s = eff(settings.peek());
       live.value = null;
       if (listen.peek() || r.expected === 0) return;
-      const whole = session.config.range === null;
-      const prevBest = bestOf(historyKey, whole);
-      addPass(historyKey, {
-        at: Date.now(),
-        score: Math.round(r.accuracy * 100),
-        mode: s.mode,
-        hands: s.hands,
-        speed: s.speed,
-        strict: s.strictness,
-        whole,
-      });
-      const recent = passesOf(historyKey)
-        .filter((p) => p.whole === whole)
-        .slice(-6)
-        .map((p) => p.score);
-      lastPass.value = { r, prevBest, recent, snap: session.snapshot() };
+      let prevBest: number | null = null;
+      let recent: number[] = [];
+      if (perform) {
+        prevBest = bestOf(historyKey);
+        addPass(historyKey, { at: Date.now(), score: Math.round(r.accuracy * 100) });
+        recent = passesOf(historyKey)
+          .slice(-6)
+          .map((p) => p.score);
+      }
+      lastPass.value = { r, s, kept: perform, prevBest, recent, snap: session.snapshot() };
     };
     session.onEnd = () => {
       playback.stop();
@@ -377,6 +393,8 @@ export function Player({
         session.pause();
         playback.stop();
         playing.value = false;
+        // a performance cannot be paused: leaving the tab ends it
+        if (perform) session.rewind();
       }
     };
     let seen = -1;
@@ -417,7 +435,7 @@ export function Player({
   useSignalEffect(() => {
     const engine = engineSig.value;
     if (!engine) return;
-    const s = settings.value;
+    const s = eff(settings.value);
     const demo = listen.value;
     const handMask = s.hands === 'both' ? 3 : s.hands === 'L' ? 1 : 2;
     const { session, playback, view, transport } = engine;
@@ -426,10 +444,10 @@ export function Player({
     transport.setRate(s.speed);
     session.strictness = s.strictness;
     session.offsetMs = s.timingOffset;
-    const loopOn = loop.value;
+    const loopOn = !perform && loop.value;
 
     // only what changes the notes to play restarts the pass; volume, zoom or speed do not
-    const r = range.value;
+    const r = perform ? null : range.value;
     const configKey = `${session.song.file.id}|${demo}|${s.mode}|${handMask}|${r?.a}-${r?.b}|${s.countIn}`;
     const reconfigure = configKey !== lastConfig.current;
     lastConfig.current = configKey;
@@ -568,7 +586,13 @@ export function Player({
     }
     playing.value = on;
   };
-  const toggle = () => setPlaying(!engine?.session.running);
+  const toggle = () => {
+    if (perform && engine?.session.running) {
+      // no pausing in a performance: stopping throws it away
+      setPlaying(false);
+      restart();
+    } else setPlaying(!engine?.session.running);
+  };
   const restart = () => {
     if (!engine) return;
     engine.view.review = null;
@@ -602,6 +626,8 @@ export function Player({
       if (slider && e.code.startsWith('Arrow')) return;
       if (box && e.code === 'Space') return;
       const s = settings.peek();
+      const locked = ['KeyL', 'KeyW', 'Digit1', 'Digit2', 'Digit3', 'ArrowUp', 'ArrowDown'];
+      if (perform && (locked.includes(e.code) || e.code === 'Equal' || e.code === 'Minus')) return;
       switch (e.code) {
         case 'Space':
           e.preventDefault();
@@ -663,7 +689,7 @@ export function Player({
   });
 
   inputVersion.value; // re-render the live input readout when keys change
-  const s = settings.value;
+  const s = eff(settings.value);
   const pass = lastPass.value;
   const now = live.value;
   const noOut = outputName.value === null;
@@ -685,7 +711,7 @@ export function Player({
             />
           )}
         </div>
-        {song && !file && (
+        {song && !file && !perform && (
           <a
             class="btn"
             href={`#/exercise/${song.file.keys[0]?.mode === 'minor' ? 'scale-minor' : 'scale-major'}/${tonicOf(song.file.keys[0]?.fifths ?? 0, song.file.keys[0]?.mode === 'minor')}`}
@@ -695,8 +721,16 @@ export function Player({
             Warm-up
           </a>
         )}
-        <button type="button" class="btn primary" onClick={toggle} title="Space" data-testid="play">
-          {playing.value ? 'Pause' : 'Play'}
+        <button
+          type="button"
+          class="btn primary"
+          onClick={toggle}
+          title={
+            perform && playing.value ? 'Stops and throws this performance away · Space' : 'Space'
+          }
+          data-testid="play"
+        >
+          {playing.value ? (perform ? 'Stop' : 'Pause') : 'Play'}
         </button>
         <button
           type="button"
@@ -707,15 +741,19 @@ export function Player({
         >
           ↺
         </button>
-        <Toggle
-          on={listen.value}
-          label="Listen"
-          title={s.soundOut === 'piano' && noOut ? 'Needs a MIDI output' : 'Hear how the song goes'}
-          onChange={(v) => {
-            listen.value = v;
-          }}
-          testid="listen"
-        />
+        {!perform && (
+          <Toggle
+            on={listen.value}
+            label="Listen"
+            title={
+              s.soundOut === 'piano' && noOut ? 'Needs a MIDI output' : 'Hear how the song goes'
+            }
+            onChange={(v) => {
+              listen.value = v;
+            }}
+            testid="listen"
+          />
+        )}
         <MidiChip />
         <button
           type="button"
@@ -729,67 +767,108 @@ export function Player({
       </header>
 
       <div class="toolbar">
-        <Seg
-          label="mode"
-          value={s.mode}
-          onChange={(v) => setSetting('mode', v)}
-          options={[
-            { value: 'wait', label: 'Wait', title: 'The song waits for the right keys · W' },
-            { value: 'tempo', label: 'Tempo', title: 'The song keeps going, rhythm is scored · W' },
-          ]}
-        />
-        <Seg
-          label="hands"
-          value={s.hands}
-          onChange={(v) => setSetting('hands', v)}
-          options={[
-            { value: 'L', label: 'Left', title: '1' },
-            { value: 'both', label: 'Both', title: '2' },
-            { value: 'R', label: 'Right', title: '3' },
-          ]}
-        />
-        <Seg
-          label="strict"
-          value={s.strictness}
-          onChange={(v) => setSetting('strictness', v)}
-          options={[
-            {
-              value: 'easy',
-              label: 'Easy',
-              title: 'Forgiving: wide timing, notes may be let go early',
-            },
-            { value: 'normal', label: 'Normal', title: 'Balanced timing and hold' },
-            {
-              value: 'strict',
-              label: 'Strict',
-              title: 'Exact: tight timing, notes must be held to the end',
-            },
-          ]}
-        />
-        <span class="sep" />
-        <label class="speed" title="Speed · ↑ ↓">
-          <input
-            type="range"
-            min={10}
-            max={150}
-            step={1}
-            value={Math.round(s.speed * 100)}
-            onInput={(e) =>
-              setSetting('speed', clampSpeed(Number((e.target as HTMLInputElement).value) / 100))
-            }
-            aria-label="Speed"
-            data-testid="speed"
-          />
-          <output>{Math.round(s.speed * 100)}%</output>
-        </label>
-        <span class="sep" />
-        <Toggle
-          on={loop.value}
-          label="Loop"
-          title="Repeat the section · L (drag on the ruler to choose one)"
-          onChange={setLoop}
-          testid="loop"
-        />
+        {perform && (
+          <span
+            class="badge best"
+            title="Whole piece, both hands, Tempo mode, 100 % speed, Normal strictness, no pausing. The score is kept and shown in the library chart."
+            data-testid="perform-badge"
+          >
+            Performance
+          </span>
+        )}
+        {!perform && (
+          <>
+            <Seg
+              label="mode"
+              value={s.mode}
+              onChange={(v) => setSetting('mode', v)}
+              options={[
+                { value: 'wait', label: 'Wait', title: 'The song waits for the right keys · W' },
+                {
+                  value: 'tempo',
+                  label: 'Tempo',
+                  title: 'The song keeps going, rhythm is scored · W',
+                },
+              ]}
+            />
+            <Seg
+              label="hands"
+              value={s.hands}
+              onChange={(v) => setSetting('hands', v)}
+              options={[
+                { value: 'L', label: 'Left', title: '1' },
+                { value: 'both', label: 'Both', title: '2' },
+                { value: 'R', label: 'Right', title: '3' },
+              ]}
+            />
+            <Seg
+              label="strict"
+              value={s.strictness}
+              onChange={(v) => setSetting('strictness', v)}
+              options={[
+                {
+                  value: 'easy',
+                  label: 'Easy',
+                  title: 'Forgiving: wide timing, notes may be let go early',
+                },
+                { value: 'normal', label: 'Normal', title: 'Balanced timing and hold' },
+                {
+                  value: 'strict',
+                  label: 'Strict',
+                  title: 'Exact: tight timing, notes must be held to the end',
+                },
+              ]}
+            />
+            <span class="sep" />
+            <label class="speed" title="Speed · ↑ ↓">
+              <input
+                type="range"
+                min={10}
+                max={150}
+                step={1}
+                value={Math.round(s.speed * 100)}
+                onInput={(e) =>
+                  setSetting(
+                    'speed',
+                    clampSpeed(Number((e.target as HTMLInputElement).value) / 100),
+                  )
+                }
+                aria-label="Speed"
+                data-testid="speed"
+              />
+              <input
+                type="number"
+                min={10}
+                max={150}
+                step={1}
+                value={Math.round(s.speed * 100)}
+                onChange={(e) => {
+                  const el = e.target as HTMLInputElement;
+                  const v = Number(el.value);
+                  const next =
+                    Number.isFinite(v) && el.value !== '' ? clampSpeed(v / 100) : s.speed;
+                  setSetting('speed', next);
+                  el.value = String(Math.round(next * 100));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                aria-label="Speed in percent"
+                title="Type the speed, 10–150 %"
+                data-testid="speed-number"
+              />
+              %
+            </label>
+            <span class="sep" />
+            <Toggle
+              on={loop.value}
+              label="Loop"
+              title="Repeat the section · L (drag on the ruler to choose one)"
+              onChange={setLoop}
+              testid="loop"
+            />
+          </>
+        )}
         <Toggle
           on={s.countIn}
           label="Count-in"
@@ -804,6 +883,20 @@ export function Player({
           onChange={(v) => setSetting('metronome', v)}
           testid="metronome"
         />
+        <button
+          type="button"
+          class="btn"
+          disabled={!pass || step !== null || (perform && playing.value)}
+          onClick={openReview}
+          title={
+            pass
+              ? 'Go through your last pass note by note: where you pressed, how long you held, wrong keys'
+              : 'Play a pass to the end first; then this shows it note by note'
+          }
+          data-testid="review-button"
+        >
+          Review
+        </button>
         <details class="menu right">
           <summary class="btn" title="Display and sound">
             ⚙
@@ -974,7 +1067,8 @@ export function Player({
         <Timeline
           song={song}
           transport={engine.transport}
-          range={range.value}
+          range={perform ? null : range.value}
+          locked={perform}
           onRange={(r) => {
             range.value = r;
             if (r) loop.value = true;
@@ -1000,9 +1094,14 @@ export function Player({
         </div>
         {now && !listen.value && (
           <div class="hud" data-testid="hud" title="This pass so far">
-            <strong data-level={now.accuracy >= 0.9 ? 'high' : now.accuracy >= 0.6 ? 'mid' : 'low'}>
-              {pct(now.accuracy)}
-            </strong>
+            {s.mode === 'tempo' && (
+              <strong
+                data-level={now.accuracy >= 0.9 ? 'high' : now.accuracy >= 0.6 ? 'mid' : 'low'}
+                data-testid="hud-score"
+              >
+                {pct(now.accuracy)}
+              </strong>
+            )}
             <span>
               {now.hits}/{now.expected}
             </span>
@@ -1090,7 +1189,13 @@ export function Player({
           // while a loop keeps running the result stays a small chip, so it never covers the notes
           (now || (loop.value && playing.value) ? (
             <div class="pass chip" data-testid="pass" title="Previous pass">
-              <span data-testid="pass-score">{pct(pass.r.accuracy)}</span>
+              {pass.s.mode === 'tempo' ? (
+                <span data-testid="pass-score">{pct(pass.r.accuracy)}</span>
+              ) : (
+                <span>
+                  {pass.r.wrong} wrong · {pass.r.short} short
+                </span>
+              )}
             </div>
           ) : (
             <PassCard

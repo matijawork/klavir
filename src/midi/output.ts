@@ -152,13 +152,15 @@ export class SongPlayback {
 
   /** Re-reads the transport position; call after any seek. Silences what was sounding. */
   resync(): void {
-    const t = this.transport.time();
+    // what was due in the last 30 ms still plays: on a busy computer the clock has already moved
+    // a little by the time this runs, and the first click or note must not be lost to that
+    const t = this.transport.time() - 0.03 * this.transport.rate;
     const { start, count } = this.song;
     let i = 0;
-    while (i < count && start[i]! < t - 1e-4) i++;
+    while (i < count && start[i]! < t) i++;
     this.next = i;
     let c = 0;
-    while (c < this.clickTime.length && this.clickTime[c]! < t - 1e-4) c++;
+    while (c < this.clickTime.length && this.clickTime[c]! < t) c++;
     this.nextClick = c;
     if (this.offCount > 0) {
       this.offCount = 0;

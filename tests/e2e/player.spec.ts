@@ -279,6 +279,9 @@ test('exercises: a scale opens in the player with fingering, best score shows in
   await page.getByTestId('play').click();
   await perform(page);
   await expect(page.getByTestId('pass-score')).toHaveText('100%', { timeout: 30_000 });
+  // practice is shown but never kept
+  await expect(page.getByTestId('not-kept')).toBeVisible();
   await page.goto('./?mockmidi#/');
-  await expect(page.locator('.badge.best')).toHaveText('100%');
+  await expect(page.getByTestId('exercise-scale-major')).toBeVisible();
+  await expect(page.locator('.badge.best')).toHaveCount(0);
 });

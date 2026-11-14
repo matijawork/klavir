@@ -12,6 +12,8 @@ export interface FeedbackContext {
   /** 0.1 .. 1.5 */
   speed: number;
   metronome: boolean;
+  /** a performance: speed, mode and strictness are fixed, so tips must not suggest changing them */
+  perform?: boolean;
 }
 
 const n = (count: number, one: string, many = `${one}s`): string =>
@@ -44,9 +46,11 @@ export function feedback(r: PassResult, ctx: FeedbackContext): Feedback {
     const slower = Math.max(30, Math.round((ctx.speed * 100 * 0.8) / 5) * 5);
     tips.push([
       r.missed / total,
-      r.missed / total > 0.2
-        ? `You skipped ${n(r.missed, 'note')}. Slow down to ${slower} % or use Wait mode until the notes are safe.`
-        : `You skipped ${n(r.missed, 'note')}. Loop that spot a few times.`,
+      ctx.perform
+        ? `You skipped ${n(r.missed, 'note')}. Practise that spot slowly, then perform again.`
+        : r.missed / total > 0.2
+          ? `You skipped ${n(r.missed, 'note')}. Slow down to ${slower} % or use Wait mode until the notes are safe.`
+          : `You skipped ${n(r.missed, 'note')}. Loop that spot a few times.`,
     ]);
   }
   if (r.wrong > 0)
@@ -81,11 +85,13 @@ export function feedback(r: PassResult, ctx: FeedbackContext): Feedback {
   const out = tips.slice(0, 3).map((t) => t[1]);
   if (out.length === 0)
     out.push(
-      ctx.speed < 1
-        ? 'Clean pass. Raise the speed a little.'
-        : ctx.mode === 'wait'
-          ? 'Clean pass. Try Tempo mode to train the rhythm.'
-          : 'Clean pass. Try Strict, or the next song.',
+      ctx.perform
+        ? 'Clean performance.'
+        : ctx.speed < 1
+          ? 'Clean pass. Raise the speed a little.'
+          : ctx.mode === 'wait'
+            ? 'Clean pass. Try Tempo mode to train the rhythm.'
+            : 'Clean pass. Try Strict, or the next song.',
     );
   return { verdict, tips: out };
 }

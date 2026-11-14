@@ -9,10 +9,12 @@ interface Props {
   onRange: (r: { a: number; b: number } | null) => void;
   /** when set, dragging moves through the song (review) instead of choosing a section */
   onSeek?: ((t: number) => void) | null;
+  /** no section can be chosen (performance) */
+  locked?: boolean;
 }
 
 /** Measure ruler: drag to choose the section to practise. The playhead moves without re-rendering. */
-export function Timeline({ song, transport, range, onRange, onSeek }: Props) {
+export function Timeline({ song, transport, range, onRange, onSeek, locked }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const head = useRef<HTMLDivElement>(null);
   const drag = useRef<number | null>(null);
@@ -53,9 +55,12 @@ export function Timeline({ song, transport, range, onRange, onSeek }: Props) {
       <div
         ref={root}
         class="timeline"
-        title={onSeek ? 'Drag to move through the pass' : 'Drag to choose a section'}
+        title={
+          onSeek ? 'Drag to move through the pass' : locked ? undefined : 'Drag to choose a section'
+        }
         data-testid="timeline"
         onPointerDown={(e) => {
+          if (locked && !onSeek) return;
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           const m = measureAt(e.clientX);
           drag.current = m;

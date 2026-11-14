@@ -78,3 +78,8 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 
 ## ADR-015 Easy versions — Decided
 - With supplied files, an Easy version is produced by transposing the supplied file to C major / A minor in the import script (no re-arranging). Offered when the original key has three or more accidentals.
+
+## ADR-016 Practise and Perform are separate — Decided (Matija, 2026-11-14)
+- **Context:** scores from Wait mode, slow speeds and sections were mixed into one history; he said only playing the whole piece in Tempo at full speed is "the real thing", and a percent in Wait mode means nothing.
+- **Decision:** two entries per song. Practise keeps nothing; Wait mode shows no percent. Perform locks mode (Tempo), hands (both), speed (100 %), strictness (Normal), range (whole), no loop, no pause; only its scores are stored and charted. Old mixed history deleted. Automatic speed-up removed for good: he changes the speed by hand.
+- **Why Normal is fixed:** a chart over time only means something if every point was judged the same way.

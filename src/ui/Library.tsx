@@ -5,6 +5,7 @@ import { bestOf, historyVersion, passesOf } from '../store/history.ts';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 import { ProgressChart } from './ProgressChart.tsx';
+import { Video, videoOf } from './Video.tsx';
 
 const base = import.meta.env.BASE_URL;
 
@@ -28,17 +29,66 @@ function Best({ id, title }: { id: string; title: string }) {
       <button
         type="button"
         class="badge best"
-        title={
-          best === null
-            ? 'Only sections practised so far · click for your progress'
-            : 'Your best score for the whole piece · click for your progress'
-        }
+        title="Your best performance · click for your progress"
         onClick={() => setOpen(true)}
         data-testid="best"
       >
-        {best === null ? '↗' : `${best}%`}
+        {best}%
       </button>
       {open && <ProgressChart id={id} title={title} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** Practise (anything goes, nothing kept) or Perform (the real thing, scored and kept). */
+function Actions({ path, testid }: { path: string; testid: string }) {
+  return (
+    <div class="card-actions">
+      <a
+        class="btn"
+        href={`#/${path}`}
+        title="Wait or Tempo mode, any speed, sections, loops. Nothing is kept."
+        data-testid={`practise-${testid}`}
+      >
+        Practise
+      </a>
+      <a
+        class="btn primary"
+        href={`#/perform/${path.replace(/^play\//, '')}`}
+        title="The real thing: whole piece, full speed, no stopping. Only this is scored, kept and charted."
+        data-testid={`perform-${testid}`}
+      >
+        Perform
+      </a>
+    </div>
+  );
+}
+
+function VideoButton({
+  id,
+  title,
+  fromSong,
+}: {
+  id: string;
+  title: string;
+  fromSong: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const has = videoOf(id, fromSong) !== null;
+  return (
+    <>
+      <button
+        type="button"
+        class="link"
+        title={
+          has ? 'Watch the video here, or change the link' : 'Add a YouTube link for this song'
+        }
+        onClick={() => setOpen(true)}
+        data-testid={`video-${id}`}
+      >
+        {has ? 'Video' : '+ Video'}
+      </button>
+      {open && <Video song={id} title={title} fromSong={fromSong} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -113,6 +163,7 @@ export function Library() {
                   />
                 )}
               </div>
+              <Actions path={`play/${s.id}/${s.versions[0]?.id ?? 'original'}`} testid={s.id} />
               <div class="links">
                 <a
                   href={`${base}songs/${s.id}/sheet-${s.versions[0]?.id ?? 'original'}.pdf`}
@@ -121,11 +172,7 @@ export function Library() {
                 >
                   Sheet
                 </a>
-                {s.youtube && (
-                  <a href={s.youtube} target="_blank" rel="noreferrer">
-                    YouTube
-                  </a>
-                )}
+                <VideoButton id={s.id} title={s.title} fromSong={s.youtube} />
                 <a href={s.source.url} target="_blank" rel="noreferrer" title={s.source.license}>
                   Source
                 </a>
@@ -187,6 +234,7 @@ export function Library() {
                     source={fingeringSourceOf(e.kind)}
                   />
                 </div>
+                <Actions path={`exercise/${e.kind}/${pc}${suffix}`} testid={e.kind} />
               </article>
             );
           })}
