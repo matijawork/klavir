@@ -55,16 +55,17 @@ Matija marks fingerings he checked himself by clicking the chip ("checked by you
 
 ## Next
 1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
-2. Then M8 tablet / PWA, M9 audit. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
+2. App is finished and reviewed (see Final review). Later, only if he asks: M8 tablet / PWA. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
 
 ## Prompt for the next session (he pastes this after /clear)
 ```
 Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
-(posebno "Next", "How sure we are" i "Working agreement").
-Sinkronizacija je uključena; ako javim problem s prijavom na live stranici, prvo to.
-Inače nastavi s "Next" točka 2.
+(posebno "Next", "How sure we are", "Final review" i "Working agreement").
+Aplikacija je gotova i pregledana (2026-11-15); ne dodaji ništa novo bez da tražim.
+Ako šaljem pjesmu: add-song skill. Ako javim problem: prvo ga ponovi, pa popravi.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
+Nova pjesma: <putanja do datoteke + YouTube link ako ga imam>
 Prijava na dva uređaja: <radi / točan tekst greške>
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
 ```
