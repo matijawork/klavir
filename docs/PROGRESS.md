@@ -61,8 +61,11 @@ Matija marks fingerings he checked himself by clicking the chip ("checked by you
 ```
 Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
 (posebno "Next", "How sure we are" i "Working agreement").
+Sinkronizacija je uključena; ako javim problem s prijavom na live stranici, prvo to.
+Inače nastavi s "Next" točka 2.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
+Prijava na dva uređaja: <radi / točan tekst greške>
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
 ```
 
@@ -75,7 +78,7 @@ Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed 
 - MIDI chip "Test" sends three notes to the piano only; silent on the D1 without headphones.
 - `PassResult.seconds` counts from configure, not from Play.
 - A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
-- History is per browser; exercises have no sheet.
+- Exercises have no sheet. History is per browser until he signs in (then synced).
 - Calibration measures against the click sound; with Bluetooth speakers the result includes their lag (wanted for judging by ear, but then the picture needs the Picture slider).
 - Gymnopédie source: 6 unmatched ties, 8 trimmed overlaps. Demo scores' "public domain" claim has no license file.
 - Real MIDI-out timing and 120 Hz frame times never measured on his Mac (`?debug`).
@@ -84,3 +87,4 @@ Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed 
 - Test it yourself first; hand him only what needs ears or hands. Say plainly what was checked and how, and what was not.
 - Never say "works" for something only reasoned about. If he says something does not work and it cannot be reproduced, ask for the exact steps instead of repeating that it works.
 - Show trust level in the app where it matters (fingering chips).
+- Console / account steps (Firebase, Google): he wants Claude to click them in his Chrome itself; ask permission in one question per step that accepts terms, signs in or changes account settings (2026-11-15).
