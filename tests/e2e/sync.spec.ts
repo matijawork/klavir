@@ -190,6 +190,17 @@ test('two devices end up with the same scores, days, video, marks and last perfo
   await b.reload();
   await synced(b);
   expect(net.puts, 'a sync with nothing new writes nothing').toBe(before);
+  const stored = await a.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const open = indexedDB.open('klavir');
+        open.onsuccess = () => {
+          const count = open.result.transaction('performances').objectStore('performances').count();
+          count.onsuccess = () => resolve(count.result);
+        };
+      }),
+  );
+  expect(stored, 'syncing again and again stores no score twice').toBe(2);
 
   // signing out keeps what is on the device and stops sending
   await a.getByTestId('sync-chip').click();

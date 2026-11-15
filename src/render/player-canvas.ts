@@ -269,7 +269,7 @@ export class PlayerCanvas {
         if (!mine && this.otherHand === 'hide') continue;
         const inRange = s >= rangeStart - 1e-6 && s < rangeEnd - 1e-6;
         const active = s <= t;
-        if (active && (mine || this.otherHand !== 'hide')) this.due[p] = mine ? hand[i]! + 1 : 0;
+        if (active && mine) this.due[p] = hand[i]! + 1;
         if (mine && inRange && !active && s <= soonUntil) this.soon[p] = 1;
         if (mine && inRange && active && !this.demo) {
           this.dueStart[p] = s;

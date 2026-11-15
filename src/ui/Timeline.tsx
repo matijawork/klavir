@@ -79,6 +79,9 @@ export function Timeline({ song, transport, range, onRange, onSeek, locked }: Pr
         onPointerUp={() => {
           drag.current = null;
         }}
+        onPointerCancel={() => {
+          drag.current = null;
+        }}
       >
         {labels.map((i) => (
           <span key={i} class="tick" style={{ left: pct(i) }}>

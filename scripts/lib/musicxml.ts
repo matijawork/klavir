@@ -322,7 +322,7 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
   } else {
     throw new Error(
       `Cannot assign hands: ${parts.length} part(s) with staves [${staffCounts.join(', ')}]. ` +
-        'Expected one part with two staves or two single-staff parts. Use --split <midi> as a last resort.',
+        'Expected one part with two staves or two single-staff parts. Add "splitAt" (e.g. 60) to the version in meta.json as a last resort.',
     );
   }
 
@@ -403,11 +403,10 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
       continue;
     }
     if (n.tieStop) brokenTies++;
-    if (n.tieStart) open.set(key, n);
-    else open.delete(key);
     const { tieStart: _s, tieStop: _e, ...clean } = n;
     song.notes.push(clean);
     if (n.tieStart) open.set(key, clean as Placed);
+    else open.delete(key);
   }
   if (brokenTies)
     warnings.push(`${brokenTies} tie(s) had no matching start and were kept as separate notes`);

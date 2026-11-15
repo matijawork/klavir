@@ -42,11 +42,44 @@ interface Engine {
   view: PlayerCanvas;
 }
 
-function heldNames(): string {
+/** The keys held right now and the pedal. Its own component, so a key press re-renders only this. */
+function LiveInput() {
+  inputVersion.value; // re-render when keys change
   const names: string[] = [];
   for (let p = 21; p <= 108; p++) if (held[p]! > 0) names.push(noteName(p));
-  return names.join('  ');
+  return (
+    <div class="live" data-testid="live-input">
+      <span class="live-notes">{names.join('  ')}</span>
+      <span class="pedal-dot" data-on={sustainDown.value} title="Sustain pedal">
+        Ped
+      </span>
+    </div>
+  );
 }
+
+/** Keeps the screen on while a pass runs. */
+let awake = false;
+let wakeLock: WakeLockSentinel | null = null;
+function keepAwake(on: boolean): void {
+  awake = on;
+  if (!on) {
+    void wakeLock?.release();
+    wakeLock = null;
+  } else if (!wakeLock)
+    navigator.wakeLock
+      ?.request('screen')
+      .then((lock) => {
+        // stopped again before the answer came, or asked twice: this one is not needed
+        if (awake && !wakeLock) wakeLock = lock;
+        else void lock.release();
+      })
+      .catch(() => {
+        /* refused (e.g. low battery): practice still works */
+      });
+}
+
+/** With no key pressed for this long the pass is not counted as playing time (he walked away). */
+const IDLE_MS = 60_000;
 
 function Seg<T extends string>(props: {
   value: T;
@@ -367,7 +400,6 @@ export function Player({
   const lastClicks = useRef('');
   const debug = useSignal(new URLSearchParams(location.search).has('debug'));
   const statsText = useSignal('');
-  const wakeLock = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
     if (file) {
@@ -433,10 +465,12 @@ export function Player({
     session.onEnd = () => {
       playback.stop();
       playing.value = false;
-      void wakeLock.current?.release();
-      wakeLock.current = null;
+      keepAwake(false);
     };
+    // last key press, or the moment the pass started
+    let activeAt = 0;
     const offNote = onNote((e) => {
+      activeAt = e.time;
       if (!e.on) {
         session.noteOff(e.pitch, e.time);
         return;
@@ -450,18 +484,25 @@ export function Player({
     engineSig.value = { transport, session, playback, view };
 
     const onHide = () => {
-      if (document.hidden && session.running) {
+      if (!document.hidden) return;
+      stopReplay();
+      if (session.running) {
         session.pause();
         playback.stop();
         playing.value = false;
+        keepAwake(false);
         // a performance cannot be paused: leaving the tab ends it
         if (perform) session.rewind();
       }
     };
-    // playing time of the day, for the practice calendar (listening does not count)
+    // playing time of the day, for the practice calendar (listening and sitting idle do not count)
     let played = 0;
+    let wasRunning = false;
     const dayTimer = setInterval(() => {
-      if (session.running && !listen.peek()) played++;
+      const now = performance.now();
+      if (session.running && !wasRunning) activeAt = now;
+      wasRunning = session.running;
+      if (session.running && !listen.peek() && now - activeAt < IDLE_MS) played++;
       if (played >= 10) {
         addPlayTime(played);
         played = 0;
@@ -479,12 +520,6 @@ export function Player({
       const s = view.stats;
       statsText.value = `${s.hz.toFixed(0)} Hz · frame ${s.avgFrameMs.toFixed(1)} ms (p99 ${s.p99FrameMs.toFixed(1)}) · draw ${s.avgDrawMs.toFixed(2)} ms · key→frame ${s.inputToFrameMs.toFixed(1)} ms`;
     }, 250);
-    // menus close when you click anywhere else
-    const closeMenus = (e: PointerEvent) => {
-      for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]'))
-        if (!d.contains(e.target as Node)) d.open = false;
-    };
-    document.addEventListener('pointerdown', closeMenus);
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('pagehide', panic);
     return () => {
@@ -492,10 +527,9 @@ export function Player({
       clearInterval(liveTimer);
       clearInterval(dayTimer);
       addPlayTime(played);
-      replay.current?.stop();
-      replay.current = null;
+      stopReplay();
+      keepAwake(false);
       offNote();
-      document.removeEventListener('pointerdown', closeMenus);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', panic);
       playback.stop();
@@ -540,26 +574,8 @@ export function Player({
       live.value = null;
       review.value = null;
       view.review = null;
-      replay.current?.stop();
-      replaying.value = false;
-      if (perform && !demo) {
-        // the latest performance with these hands, kept from an earlier visit, can still be reviewed
-        const key = `${session.song.file.id}/${session.song.file.version}`;
-        void loadLast<SavedPerformance>(key, s.hands).then((saved) => {
-          if (!saved || saved.count !== session.song.count) return;
-          if (lastConfig.current !== configKey || lastPass.peek() !== null) return;
-          lastPass.value = {
-            r: saved.r,
-            s: saved.s,
-            kept: true,
-            prevBest: null,
-            recent: [],
-            snap: saved.snap,
-            whole: true,
-            old: saved.at,
-          };
-        });
-      }
+      stopReplay();
+      if (perform) showSaved(session, s.hands);
     } else if (session.config.loop !== loopOn) session.config = { ...session.config, loop: loopOn };
 
     playback.handMask = demo ? 3 : s.otherHand === 'play' ? 3 & ~handMask : 0;
@@ -610,14 +626,37 @@ export function Player({
 
   /** song seconds between the hit line and the note being looked at, so its press mark shows too */
   const reviewLead = () => (90 * (engine?.transport.rate ?? 1)) / settings.peek().zoom;
+  // reads only refs and signals, so the copy held by the engine effect stays valid
   const stopReplay = () => {
     if (replayTimer.current) clearInterval(replayTimer.current);
     replayTimer.current = null;
     if (!replay.current) return;
     replay.current.stop();
     replay.current = null;
-    engine?.transport.pause();
+    engineSig.peek()?.transport.pause();
     replaying.value = false;
+  };
+  /**
+   * Perform: the latest performance with these hands, kept in full, can be reviewed and heard
+   * again whenever no newer result is on screen (a later visit, or after a stopped run).
+   */
+  const showSaved = (session: PracticeSession, hands: PerfHands) => {
+    const config = lastConfig.current;
+    const key = `${session.song.file.id}/${session.song.file.version}`;
+    void loadLast<SavedPerformance>(key, hands).then((saved) => {
+      if (!saved || saved.count !== session.song.count) return;
+      if (lastConfig.current !== config || lastPass.peek() !== null || session.running) return;
+      lastPass.value = {
+        r: saved.r,
+        s: saved.s,
+        kept: true,
+        prevBest: null,
+        recent: [],
+        snap: saved.snap,
+        whole: true,
+        old: saved.at,
+      };
+    });
   };
   /** Plays the recording from where the review stands; the step text follows along. */
   const startReplay = () => {
@@ -698,20 +737,11 @@ export function Player({
       if (!engine.session.config.loop) lastPass.value = null;
       engine.session.play();
       engine.playback.start();
-      navigator.wakeLock
-        ?.request('screen')
-        .then((l) => {
-          wakeLock.current = l;
-        })
-        .catch(() => {
-          /* refused (e.g. low battery): practice still works */
-        });
     } else {
       engine.session.pause();
       engine.playback.stop();
-      void wakeLock.current?.release();
-      wakeLock.current = null;
     }
+    keepAwake(on);
     playing.value = on;
   };
   const toggle = () => {
@@ -729,6 +759,7 @@ export function Player({
     engine.session.rewind();
     lastPass.value = null;
     live.value = null;
+    if (perform) showSaved(engine.session, performHands.peek());
   };
   const again = () => {
     restart();
@@ -820,7 +851,6 @@ export function Player({
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  inputVersion.value; // re-render the live input readout when keys change
   const s = eff(settings.value);
   const pass = lastPass.value;
   const now = live.value;
@@ -1243,12 +1273,7 @@ export function Player({
         }}
       >
         {error ? <p class="empty">{error}</p> : <canvas ref={canvasRef} data-testid="stage" />}
-        <div class="live" data-testid="live-input">
-          <span class="live-notes">{heldNames()}</span>
-          <span class="pedal-dot" data-on={sustainDown.value} title="Sustain pedal">
-            Ped
-          </span>
-        </div>
+        <LiveInput />
         {now && !listen.value && (
           <div class="hud" data-testid="hud" title="This pass so far">
             {s.mode === 'tempo' && (

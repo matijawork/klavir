@@ -71,12 +71,23 @@ Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno klikn
 
 Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
 
+## Final review 2026-11-15 (whole code read, fixes below; 249 unit + 37 e2e green after)
+- Sync could store every score twice when it started before the stored history was loaded: it now waits (`historyReady`); e2e counts the stored rows. A full sync asked for during a running one is no longer downgraded to a push; sign-out errors are shown.
+- Stop inside the 100 ms look-ahead could leave a faint ghost note on computer sound (`synth.ts` `release`); checked in Chrome: silence after 6 stops at random moments.
+- Screen wake lock was never released on leaving the player and could leak; one `keepAwake` now.
+- Playing time: a pass left running with no key for 60 s stops counting (Wait mode used to count forever).
+- Perform: after Stop or Restart the saved last performance is offered for Review again (was lost until reload).
+- Replay timer kept running after leaving the player; replay now also stops when the tab is hidden.
+- A key press re-rendered the whole player; only the small key readout now (`LiveInput`).
+- The remembered MIDI device wins again when it is plugged back in; other hand's note no longer switches off a practised key light; menus close on outside click in the library too.
+- Removed: unused `tonal` dependency, `PassResult.seconds`, `heldAt`, `.controls` CSS; wrong `--split` hint in the importer.
+- Checked in his Chrome on localhost (virtual piano): Space on a focused Play toggles once, Perform → score → Again → Stop → Review → Hear it (sound measured), a real YouTube video loads in the frame, no console errors.
+
 ## Known gaps
 - Fixed 2026-11-14: on a busy computer the first count-in click (and a note exactly at the start) could be dropped (`SongPlayback.resync` compared against a clock that had already moved). Found through a test that failed 4 of 12 times under load; 12 of 12 after the fix.
 - Perform fixes strictness to Normal so scores stay comparable; count-in and metronome stay his choice.
 - Click volume does nothing when Sound = Piano (MIDI velocity is fixed).
 - MIDI chip "Test" sends three notes to the piano only; silent on the D1 without headphones.
-- `PassResult.seconds` counts from configure, not from Play.
 - A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
 - Exercises have no sheet. History is per browser until he signs in (then synced).
 - Calibration measures against the click sound; with Bluetooth speakers the result includes their lag (wanted for judging by ear, but then the picture needs the Picture slider).

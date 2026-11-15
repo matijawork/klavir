@@ -35,8 +35,6 @@ export const midiPlayed = signal(false);
 
 /** velocity of each held key (0 = up), indexed by MIDI pitch; read directly by the render loop */
 export const held = new Uint8Array(128);
-/** timeStamp of the latest note-on per pitch */
-export const heldAt = new Float64Array(128);
 /** timeStamp of the most recent note-on, for input-to-glow measurement (0 = none pending) */
 export let lastNoteOnAt = 0;
 export const clearLastNoteOn = (): void => {
@@ -87,10 +85,7 @@ function handleMessage(e: MIDIMessageEvent): void {
     const on = status === 0x90 && velocity > 0;
     if (!midiPlayed.peek()) midiPlayed.value = true;
     held[pitch] = on ? velocity : 0;
-    if (on) {
-      heldAt[pitch] = time;
-      lastNoteOnAt = time;
-    }
+    if (on) lastNoteOnAt = time;
     inputVersion.value++;
     for (const fn of noteListeners) fn({ on, pitch, velocity, time });
   } else if (status === 0xb0 && d[1] === 64) {
@@ -116,7 +111,7 @@ function refreshPorts(): void {
   midiInputs.value = ins.map((p) => ({ id: p.id, name: label(p) }));
   midiOutputs.value = outs.map((p) => ({ id: p.id, name: label(p) }));
 
-  const wantIn = inputName.value ?? read(STORE_IN);
+  const wantIn = read(STORE_IN) ?? inputName.value;
   const nextIn = ins.find((p) => label(p) === wantIn) ?? ins[0] ?? null;
   if (nextIn !== input) {
     if (input) input.onmidimessage = null;
@@ -128,7 +123,7 @@ function refreshPorts(): void {
   }
   inputName.value = input ? label(input) : null;
 
-  const wantOut = outputName.value ?? read(STORE_OUT);
+  const wantOut = read(STORE_OUT) ?? outputName.value;
   const nextOut = outs.find((p) => label(p) === wantOut) ?? outs[0] ?? null;
   const changed = nextOut !== output;
   output = nextOut;

@@ -8,6 +8,8 @@
 interface Voice {
   gain: GainNode;
   sources: AudioScheduledSourceNode[];
+  /** audio-clock time the note starts (it may be scheduled a moment ahead) */
+  startAt: number;
 }
 
 const SAMPLE_NAMES = ['A', 'C', 'Ds', 'Fs'];
@@ -161,6 +163,13 @@ function release(key: number, when: number): void {
   const v = voices.get(key);
   if (!v) return;
   voices.delete(key);
+  if (when <= v.startAt) {
+    // silenced before it began (stop pressed inside the look-ahead): it must not sound at all
+    v.gain.gain.cancelScheduledValues(0);
+    v.gain.gain.value = 0;
+    for (const o of v.sources) o.stop(v.startAt);
+    return;
+  }
   v.gain.gain.cancelScheduledValues(when);
   v.gain.gain.setTargetAtTime(0, when, 0.07);
   for (const o of v.sources) o.stop(when + 0.8);
@@ -189,7 +198,7 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
     gain.gain.setValueAtTime(0.25 + 1.75 * vel ** 1.7, when);
     src.connect(filter).connect(gain).connect(piano);
     src.start(when, lead[k]);
-    voices.set(key, { gain, sources: [src] });
+    voices.set(key, { gain, sources: [src], startAt: when });
     return;
   }
 
@@ -216,7 +225,7 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
     o.start(when);
     sources.push(o);
   }
-  voices.set(key, { gain, sources });
+  voices.set(key, { gain, sources, startAt: when });
 }
 
 export function synthOff(group: number, pitch: number, time?: number): void {

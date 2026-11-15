@@ -58,8 +58,6 @@ export interface PassResult {
   weak: { a: number; b: number } | null;
   /** 0..1 overall score: see noteScore; every wrong key adds to the total */
   accuracy: number;
-  /** wall-clock seconds the pass took */
-  seconds: number;
 }
 
 /** Everything needed to look at a finished pass again, note by note. */
@@ -285,7 +283,6 @@ export class PracticeSession {
   private group = 0;
   private missPtr = 0;
   private openWall = 0;
-  private passStartWall = 0;
   private readonly lastOn = new Float64Array(128);
   private readonly down = new Uint8Array(128);
   /** per pitch: the press (its wall time) that already counted for an earlier note */
@@ -377,7 +374,6 @@ export class PracticeSession {
     this.missPtr = 0;
     this.waiting = false;
     this.openWall = wall;
-    this.passStartWall = wall;
     this.transport.seek(this.leadStart, wall);
     this.updateGate();
     this.onSeek?.();
@@ -601,7 +597,7 @@ export class PracticeSession {
    * Result of the pass so far (`final` = false: only notes already judged count) or of the whole
    * pass. Allocates; not for the frame loop.
    */
-  result(final: boolean, wall: number = performance.now()): PassResult {
+  result(final: boolean): PassResult {
     const tempoMode = this.config.mode === 'tempo';
     let sum = 0;
     let timingSum = 0;
@@ -660,7 +656,6 @@ export class PracticeSession {
       spread,
       weak: this.weakSpot(err),
       accuracy: total > 0 ? sum / total : 1,
-      seconds: (wall - this.passStartWall) / 1000,
     };
   }
 
@@ -769,7 +764,7 @@ export class PracticeSession {
     }
 
     if (!this.waiting && t >= this.rangeEnd - 1e-6) {
-      this.onPass?.(this.result(true, wall));
+      this.onPass?.(this.result(true));
       if (this.config.loop) {
         this.rewind(wall);
         t = tr.time(wall);

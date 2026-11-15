@@ -23,7 +23,6 @@ const result = (over: Partial<PassResult>): PassResult => ({
   spread: 10,
   weak: null,
   accuracy: 1,
-  seconds: 10,
   ...over,
 });
 const ctx = { mode: 'tempo', speed: 1, metronome: false } as const;
@@ -138,7 +137,7 @@ describe('strictness, offset and over-holding', () => {
     session.noteOff(60, at(song.end[1]! + 1));
     expect(session.long).toBe(1);
     expect(session.hold[1]).toBe(0.5);
-    expect(session.result(false, 5000).long).toBe(1);
+    expect(session.result(false).long).toBe(1);
   });
 });
 

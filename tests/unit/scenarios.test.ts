@@ -88,7 +88,7 @@ describe('press timing by strictness', () => {
       const s = setup(1, level);
       s.noteOn(60, at(4) + 140);
       s.noteOff(60, at(4.9));
-      return s.result(true, 9000).accuracy;
+      return s.result(true).accuracy;
     });
     expect(scores[0]).toBe(1);
     expect(scores[1]!).toBeLessThan(scores[0]!);
@@ -121,7 +121,7 @@ describe('holding a 2-second note by strictness', () => {
           s.noteOff(60, at(4 + 2 * share));
           const got = s.state[0] === SHORT ? 'short' : s.long ? 'long' : 'ok';
           expect(got).toBe(verdicts[k]);
-          const r = s.result(true, 12000);
+          const r = s.result(true);
           expect(r.short).toBe(got === 'short' ? 1 : 0);
           expect(r.long).toBe(got === 'long' ? 1 : 0);
           if (got === 'ok') expect(r.hold).toBe(1);
@@ -137,13 +137,13 @@ describe('holding a 2-second note by strictness', () => {
       s.noteOn(60, at(4));
       s.noteOff(60, at(4.2));
       expect(s.state[0]).toBe(HIT);
-      expect(s.result(true, 9000).hold).toBe(1);
+      expect(s.result(true).hold).toBe(1);
     }
   });
 
   it('does not judge a key that is never let go before the pass ends', () => {
     const s = setup(2, 'strict');
     s.noteOn(60, at(4));
-    expect(s.result(true, 9000)).toMatchObject({ short: 0, long: 0, hold: 1 });
+    expect(s.result(true)).toMatchObject({ short: 0, long: 0, hold: 1 });
   });
 });

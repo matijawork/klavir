@@ -18,6 +18,7 @@ import {
   addPass,
   allPasses,
   getLast,
+  historyReady,
   lastIndex,
   type PerfRecord,
   putLast,
@@ -81,7 +82,8 @@ interface Seen {
 }
 let seen: Seen | null = null;
 let running: Promise<void> | null = null;
-let again = false;
+/** a sync asked for while one was running: null = none, else whether it must be a full one */
+let again: boolean | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 async function syncStamped<T>(
@@ -105,6 +107,8 @@ async function syncStamped<T>(
 }
 
 async function run(b: Backend, full: boolean): Promise<void> {
+  // the stored scores must be in memory first, or everything in the cloud looks new and is added twice
+  await historyReady;
   const s: Seen = full || !seen ? { perf: new Set(), days: '', kv: {}, last: {} } : seen;
   const pull = full || !seen;
 
@@ -151,8 +155,11 @@ async function run(b: Backend, full: boolean): Promise<void> {
   // latest performances in full: only the newer ones travel
   if (pull) s.last = (((await b.get('kv', 'lastIndex'))?.at ?? {}) as Record<string, number>) || {};
   const mineIndex: Record<string, number> = {};
-  for (const [key, at] of Object.entries(await lastIndex())) mineIndex[safeId(key)] = at;
-  const keyOf = new Map(Object.keys(await lastIndex()).map((key) => [safeId(key), key]));
+  const keyOf = new Map<string, string>();
+  for (const [key, at] of Object.entries(await lastIndex())) {
+    mineIndex[safeId(key)] = at;
+    keyOf.set(safeId(key), key);
+  }
   const diff = newer(mineIndex, s.last);
   if (pull)
     for (const id of diff.fetch) {
@@ -185,7 +192,7 @@ export function sync(full: boolean): Promise<void> {
   const b = backend;
   if (!b || !syncState.peek().user) return Promise.resolve();
   if (running) {
-    again = true;
+    again = again || full;
     return running;
   }
   set({ status: 'syncing' });
@@ -196,9 +203,10 @@ export function sync(full: boolean): Promise<void> {
     )
     .finally(() => {
       running = null;
-      if (again) {
-        again = false;
-        void sync(false);
+      if (again !== null) {
+        const next = again;
+        again = null;
+        void sync(next);
       }
     });
   return running;
@@ -212,7 +220,11 @@ export async function signIn(): Promise<void> {
   }
 }
 export async function signOut(): Promise<void> {
-  await backend?.signOut();
+  try {
+    await backend?.signOut();
+  } catch (e) {
+    set({ status: 'error', error: words(e) });
+  }
 }
 
 /**

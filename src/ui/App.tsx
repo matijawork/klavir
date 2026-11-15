@@ -9,6 +9,12 @@ window.addEventListener('hashchange', () => {
   route.value = location.hash.slice(1) || '/';
 });
 
+// menus close when you click anywhere else
+document.addEventListener('pointerdown', (e) => {
+  for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]'))
+    if (!d.contains(e.target as Node)) d.open = false;
+});
+
 export function App() {
   const all = route.value.split('/').filter(Boolean);
   const perform = all[0] === 'perform';

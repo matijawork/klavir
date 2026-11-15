@@ -148,13 +148,13 @@ describe('tempo mode', () => {
     const { session } = make([R(60, 0), R(62, 1), R(64, 2)]);
     session.configure({ ...base, mode: 'tempo' }, 0);
     session.play(0);
-    expect(session.result(false, 0).judged).toBe(0);
+    expect(session.result(false).judged).toBe(0);
     session.noteOn(60, at(0));
     session.noteOn(61, at(0) + 500);
-    const r = session.result(false, at(0) + 500);
+    const r = session.result(false);
     expect(r).toMatchObject({ judged: 1, hits: 1, wrong: 1, accuracy: 0.5, timing: 1, hold: 1 });
     session.update(at(2));
-    expect(session.result(false, at(2))).toMatchObject({ judged: 2, missed: 1 });
+    expect(session.result(false)).toMatchObject({ judged: 2, missed: 1 });
   });
 
   it('matches repeated notes in order', () => {
@@ -400,7 +400,7 @@ describe('releasing keys', () => {
     session.noteOn(60, 2000);
     session.noteOff(60, 2500);
     expect(session.hold[0]).toBeCloseTo(0.25);
-    const r = session.result(true, 5000);
+    const r = session.result(true);
     expect(r.hold).toBeCloseTo(0.25);
     expect(r.accuracy).toBeCloseTo(noteScore(1, 0.25));
   });
