@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-14. Live: https://matijawork.github.io/klavir/ · 249 unit + 36 e2e green.
+Updated 2026-11-15. Live: https://matijawork.github.io/klavir/ · 249 unit + 36 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -54,8 +54,24 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-1. **Waiting for Matija** (needs his Google account): create the Firebase project, then Claude fills `src/sync/config.ts`, deploys `firestore.rules` and tests the real thing with him. Steps: console.firebase.google.com → Add project (no Analytics) → Build → Authentication → Sign-in method → Google → Enable; Authentication → Settings → Authorized domains → add `matijawork.github.io`; Build → Firestore Database → Create (production mode, europe-west); Project settings → Your apps → Web (</>) → register → copy the `firebaseConfig` block to Claude. Rules: paste `firestore.rules` into Firestore → Rules → Publish (or `npx firebase-tools login` once and Claude deploys them).
-2. After that: M7 Firebase sync, M8 tablet / PWA, M9 audit.
+1. **Switch sync on (first thing next session).** Matija chose path B on 2026-11-15 and said yes to Claude creating things in his Google account. State: `npx firebase-tools login:list` → "No authorized accounts" (his `/login` was the Claude one). Do, in order:
+   1. Ask him to type `! npx firebase-tools login` and finish the browser sign-in; check with `npx firebase-tools login:list`.
+   2. `npx firebase-tools projects:create <id> --display-name Klavir` (id must be globally unique, e.g. `klavir-<random>`), `npx firebase-tools apps:create WEB Klavir --project <id>`, `npx firebase-tools apps:sdkconfig WEB --project <id>` → put `apiKey`, `authDomain`, `projectId`, `appId` into `src/sync/config.ts`.
+   3. `npx firebase-tools firestore:databases:create "(default)" --location eur3 --project <id>`, add `.firebaserc` (`{"projects":{"default":"<id>"}}`), `npx firebase-tools deploy --only firestore:rules`.
+   4. Only he can do these two in the console (Authentication): Sign-in method → Google → Enable; Settings → Authorized domains → add `matijawork.github.io` (`localhost` is there by default).
+   5. Test the real thing: `npm run dev`, sign in, check in the console that `users/<uid>/performances` fills; then push, and he signs in on the live site on two devices. Until this passes, the Sync row in "How sure we are" stays "real Firebase not checked". Never commit anything but the public web config.
+2. Then M8 tablet / PWA, M9 audit. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
+
+## Prompt for the next session (he pastes this after /clear)
+```
+Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
+(posebno "Next", "How sure we are" i "Working agreement").
+Prvo: uključi sinkronizaciju po koracima iz "Next" točka 1 (put B, već sam rekao da).
+Reci mi točno što da upišem i kliknem, ostalo napravi sam i provjeri s pravim Firebaseom.
+Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
+ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
+Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
+```
 
 Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
 
