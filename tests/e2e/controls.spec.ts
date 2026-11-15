@@ -724,9 +724,10 @@ test('practice days: playing time is counted per day and shown as a streak and a
   await page.goto('./?mockmidi#/');
   await expect(page.getByTestId('streak')).toHaveText('3 days in a row');
   // listening is not playing
-  const before = await page.evaluate(() => localStorage.getItem('klavir.days'));
   await page.getByTestId('practise-test-c').click();
   await page.waitForFunction(() => !!window.__klavir);
+  // read after the first player is gone: it adds its last seconds when it closes
+  const before = await page.evaluate(() => localStorage.getItem('klavir.days'));
   await page.getByTestId('listen').click();
   await page.getByTestId('play').click();
   await page.waitForTimeout(3000);

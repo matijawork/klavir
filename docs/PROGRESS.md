@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-15. Live: https://matijawork.github.io/klavir/ · 249 unit + 36 e2e green.
+Updated 2026-11-15. Live: https://matijawork.github.io/klavir/ · 249 unit + 37 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -11,7 +11,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Recording and "Hear it"**: every pass records his keys (with velocity) and pedal (`session.rec*`, in the snapshot). In Review, "Hear it" / Space plays it back from where the review stands, at the current speed, through the app's sound (`midi/replay.ts`); the step text follows. Tempo passes only: Wait mode stops the song, so there is no rhythm to replay.
 - **Last performance kept**: result, notes and recording of the latest performance per song and hands are stored (IndexedDB `last`); on a later visit Perform's Review button opens it (no result card).
 - **MIDI import**: `.mid` / `.midi` through the same `import-song` (`scripts/lib/midi.ts`). Hands from two tracks or two channels (track names first, else the higher one = right, with a warning); one track needs `splitAt` or `oneHand`. Nothing is quantized; a played-in recording is flagged.
-- **Sync** (ADR-017): built, **not switched on**: `src/sync/config.ts` is `null` until Matija creates the Firebase project (steps in "Waiting for Matija"). With a config: "Sign in to sync" in the library header (Google popup), then scores, practice days, videos, "checked by me" marks and the latest performances are the same on every device; the device stays the source of truth and works offline. Practice settings (speed, offsets, sound) are per device on purpose: the delay depends on the equipment.
+- **Sync** (ADR-017): **on** since 2026-11-15. Firebase project `klavir-7c41e9` (his Google account, Spark plan, Firestore in `eur3`, Google sign-in, authorized domain `matijawork.github.io`, no Analytics); public config in `src/sync/config.ts`, rules in `firestore.rules` (`npx firebase-tools deploy --only firestore:rules`; never plain `deploy` on a project without a database: it creates one in the US). "Sign in to sync" in the library header (Google popup), then scores, practice days, videos, "checked by me" marks and the latest performances are the same on every device; the device stays the source of truth and works offline. Practice settings (speed, offsets, sound) are per device on purpose: the delay depends on the equipment. `?nosync` = as if no cloud were configured.
 - **Speed**: slider, ↑ ↓, or type the percent in the box next to the slider. No automatic speed changes.
 - **Video**: "+ Video" on a song card: paste a YouTube link (stored in `klavir.videos`, overrides `meta.json`), plays inside the app, "Open on YouTube" as fallback.
 - **Player**: falling notes, 88 keys, wait / tempo mode, hands, speed 10–150 %, section loop, count-in, metronome, pedal lane, finger badges, fullscreen, shortcuts (Space, R, L, W, 1/2/3, ↑↓, C, M, F, D).
@@ -45,7 +45,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Ready to perform | Rule: 8 cases in a unit test. E2E: not at 95 %, yes at 100 %, button opens Perform. |
 | Practice days | Streak, calendar, levels: 11 unit cases. E2E: seeded days, 12 s of playing tips today over a minute, listening adds nothing. |
 | MIDI import | 9 unit cases on generated files (hands by name / by height / by channel, one track, tempo, 3/4, 6/8 change, pedal, bad files, played-in recording). Ran the real `import-song` on a generated two-track file: JSON, index entry and sheet PDF came out; then removed. **No real-world MIDI file tried yet**: files from the web often have one track or are played-in recordings; the importer says so instead of guessing. |
-| Sync | Rules: 12 unit cases (copy what is missing, later change wins, days add up, saved performance survives packing bit for bit). E2E with two separate browsers and a stand-in cloud: data made before sign-in goes up, a fresh device gets it all and can review and hear the other device's performance, offline changes are kept and sent later, a later removal wins, practice time is not counted twice, a sync with nothing new writes nothing, sign-out keeps the device's data. **Not checked: the real Firebase** (`src/sync/firebase.ts` type-checks against the SDK but has never run: no project exists yet). |
+| Sync | Rules: 12 unit cases (copy what is missing, later change wins, days add up, saved performance survives packing bit for bit). E2E with two separate browsers and a stand-in cloud: data made before sign-in goes up, a fresh device gets it all and can review and hear the other device's performance, offline changes are kept and sent later, a later removal wins, practice time is not counted twice, a sync with nothing new writes nothing, sign-out keeps the device's data. **Real Firebase, 2026-11-15, on localhost with the virtual piano:** Google popup sign-in, survives reload; a performance of `test-c` arrived in `users/<uid>/performances`, `last`, `days`, `kv` (read back over the REST API); after wiping the device's data the score and the other device's seconds came back; another user's path and a request without sign-in both get 403; test data removed afterwards. **Not checked: sign-in on the live site (github.io) and two real devices** — his to do. |
 | Video | Link parsing: 13 cases in a unit test. E2E: add, shown as an embedded frame, remembered, per song, remove. **Not checked: that a real video plays** (tests block YouTube); some videos forbid embedding, then "Open on YouTube". |
 | Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
 | Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
@@ -54,20 +54,13 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-1. **Switch sync on (first thing next session).** Matija chose path B on 2026-11-15 and said yes to Claude creating things in his Google account. State: `npx firebase-tools login:list` → "No authorized accounts" (his `/login` was the Claude one). Do, in order:
-   1. Ask him to type `! npx firebase-tools login` and finish the browser sign-in; check with `npx firebase-tools login:list`.
-   2. `npx firebase-tools projects:create <id> --display-name Klavir` (id must be globally unique, e.g. `klavir-<random>`), `npx firebase-tools apps:create WEB Klavir --project <id>`, `npx firebase-tools apps:sdkconfig WEB --project <id>` → put `apiKey`, `authDomain`, `projectId`, `appId` into `src/sync/config.ts`.
-   3. `npx firebase-tools firestore:databases:create "(default)" --location eur3 --project <id>`, add `.firebaserc` (`{"projects":{"default":"<id>"}}`), `npx firebase-tools deploy --only firestore:rules`.
-   4. Only he can do these two in the console (Authentication): Sign-in method → Google → Enable; Settings → Authorized domains → add `matijawork.github.io` (`localhost` is there by default).
-   5. Test the real thing: `npm run dev`, sign in, check in the console that `users/<uid>/performances` fills; then push, and he signs in on the live site on two devices. Until this passes, the Sync row in "How sure we are" stays "real Firebase not checked". Never commit anything but the public web config.
+1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
 2. Then M8 tablet / PWA, M9 audit. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
 
 ## Prompt for the next session (he pastes this after /clear)
 ```
 Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
 (posebno "Next", "How sure we are" i "Working agreement").
-Prvo: uključi sinkronizaciju po koracima iz "Next" točka 1 (put B, već sam rekao da).
-Reci mi točno što da upišem i kliknem, ostalo napravi sam i provjeri s pravim Firebaseom.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>

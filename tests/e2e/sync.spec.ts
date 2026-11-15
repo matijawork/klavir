@@ -57,8 +57,21 @@ async function performTestC(page: Page) {
   await page.goto('./?mockmidi&mocksync#/');
 }
 
-test('without a cloud nothing about sync is shown', async ({ page }) => {
+test('with the real cloud configured, sign-in is offered and nothing is sent before it', async ({
+  page,
+}) => {
+  const sent: string[] = [];
+  page.on('request', (r) => {
+    if (/firestore\.googleapis\.com/.test(r.url())) sent.push(r.url());
+  });
   await page.goto('./?mockmidi#/');
+  await expect(page.getByTestId('sync-signin')).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(sent).toEqual([]);
+});
+
+test('without a cloud nothing about sync is shown', async ({ page }) => {
+  await page.goto('./?mockmidi&nosync#/');
   await expect(page.getByTestId('perform-test-c')).toBeVisible();
   await expect(page.getByTestId('sync-signin')).toHaveCount(0);
   await expect(page.getByTestId('sync-chip')).toHaveCount(0);

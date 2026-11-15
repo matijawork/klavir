@@ -215,10 +215,14 @@ export async function signOut(): Promise<void> {
   await backend?.signOut();
 }
 
-/** Call once at start-up. Does nothing visible unless a cloud is configured (or ?mocksync). */
+/**
+ * Call once at start-up. Does nothing visible unless a cloud is configured (or ?mocksync).
+ * `?nosync` = behave as if no cloud were configured (for the tests).
+ */
 export async function startSync(): Promise<void> {
-  const mock = new URLSearchParams(location.search).has('mocksync');
-  if (!mock && !firebaseConfig) return;
+  const query = new URLSearchParams(location.search);
+  const mock = query.has('mocksync');
+  if (query.has('nosync') || (!mock && !firebaseConfig)) return;
   set({ available: true });
   try {
     backend = mock

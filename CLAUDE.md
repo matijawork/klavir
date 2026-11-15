@@ -11,7 +11,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - After each milestone: tests green, push (deploys), update PROGRESS.md, Croatian report. Test everything yourself first (scenario tables in `tests/unit/scenarios.test.ts`, control audit in `tests/e2e/controls.spec.ts`, `window.__klavir.level()` for sound); leave him only what needs ears and hands on the real piano.
 
 ## Commands
-- `npm run dev` — dev server at http://localhost:5173/klavir/ (`?mockmidi` = virtual piano, `?debug` or key D = frame stats, `?mocksync` = stand-in cloud at `__cloud/`, answered by the tests)
+- `npm run dev` — dev server at http://localhost:5173/klavir/ (`?mockmidi` = virtual piano, `?debug` or key D = frame stats, `?mocksync` = stand-in cloud at `__cloud/`, answered by the tests, `?nosync` = no cloud at all)
 - `npm test` — Vitest unit tests · `npm run e2e` — Playwright (builds, serves on :4173)
 - `npm run lint` / `npm run format` — Biome · `npm run build` — type-check + build
 - `npm run import-song [slug] [-- --pdf]` — sources in `songs/` → `public/songs/`
