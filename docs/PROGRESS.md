@@ -92,7 +92,7 @@ Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed 
 - A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
 - Exercises have no sheet. History is per browser until he signs in (then synced).
 - Calibration measures against the click sound; with Bluetooth speakers the result includes their lag (wanted for judging by ear, but then the picture needs the Picture slider).
-- Gymnopédie source: 6 unmatched ties, 8 trimmed overlaps. Demo scores' "public domain" claim has no license file.
+- Library holds only `test-c` until he supplies songs (2026-11-16: demo songs removed). E2E tests serve two fixture pieces (`tests/fixtures/songs`, via `tests/e2e/fixtures.ts`) on top of the real library, so they never depend on it.
 - Real MIDI-out timing and 120 Hz frame times never measured on his Mac (`?debug`).
 
 ## Working agreement (from his feedback)

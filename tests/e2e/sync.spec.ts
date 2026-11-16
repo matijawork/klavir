@@ -1,5 +1,6 @@
 /** Two browsers (two "devices") against one stand-in cloud: what one does, the other gets. */
 import { type BrowserContext, expect, type Page, test } from '@playwright/test';
+import { serveFixtureSongs } from './fixtures';
 
 type Cloud = Map<string, Record<string, unknown>>;
 
@@ -85,6 +86,8 @@ test('two devices end up with the same scores, days, video, marks and last perfo
   const net = { down: false, puts: 0 };
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
+  await serveFixtureSongs(ctxA);
+  await serveFixtureSongs(ctxB);
   await attach(ctxA, cloud, net);
   await attach(ctxB, cloud, net);
 

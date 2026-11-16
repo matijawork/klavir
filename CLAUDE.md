@@ -37,6 +37,7 @@ Personal piano practice web app (falling notes, MIDI in/out to a Korg D1). Spec:
 - `git push` can hang on the macOS keychain helper; use `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`.
 - GitHub Pages caches `index.html` ~10 min: after a deploy tell Matija to hard-reload (Cmd+Shift+R); check the bundle name in `document.scripts`.
 - Sound has two targets (`settings.soundOut`): `computer` (Web Audio, default; the Korg D1 has no speakers) and `piano` (MIDI). E2E tests force `piano` to inspect sent MIDI.
+- E2E tests use fixture songs from `tests/fixtures/songs` (served by `tests/e2e/fixtures.ts`), not the library; a new e2e spec must import `test` from `./fixtures`.
 - Nothing in the app is per song: Practise, Perform, score, chart, review and video come from `public/songs/index.json`. Adding a song is only the `add-song` skill; never add song-specific code.
 - `songs/test-c` is a 3-note test pattern Matija asked for (not a song); keep it.
 - Fingering: copy from a named web source and add a test that compares the digits; otherwise mark it unchecked (`fingeringSource.checked = false`). Keep the "How sure we are" table in PROGRESS.md honest.

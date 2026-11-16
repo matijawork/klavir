@@ -1,5 +1,6 @@
 /** Function check of every control in the player: toolbar, menus, shortcuts, result-card actions. */
-import { expect, type Page, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 async function open(page: Page, settings: Record<string, unknown> = {}, song = 'ode-to-joy') {
   await page.addInitScript(

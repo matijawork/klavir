@@ -1,4 +1,5 @@
-import { expect, type Page, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /** Opens a song with the virtual piano connected and the given practice settings. */
 async function open(page: Page, settings: Record<string, unknown> = {}, song = 'ode-to-joy') {
