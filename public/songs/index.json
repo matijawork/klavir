@@ -18,13 +18,23 @@
     },
     "durationSec": 8,
     "noteCount": 3,
-    "fingering": "claude",
+    "fingering": null,
     "pedal": null,
     "checks": {
       "hands": "one",
       "tempo": "score",
       "bpm": 60,
-      "key": "guessed"
+      "key": "none",
+      "reference": {
+        "file": "reference.mid",
+        "of": 3,
+        "matched": 3,
+        "twins": 0,
+        "extra": 0,
+        "otherHand": 0,
+        "pedalOf": 0,
+        "pedalMatched": 0
+      }
     }
   },
   {
@@ -39,47 +49,111 @@
         "label": "Original"
       }
     ],
-    "youtube": null,
+    "youtube": "https://www.youtube.com/watch?v=u76xhxWD6hk",
     "source": {
       "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Marien Bosch)",
       "license": "unknown, supplied by Matija (musescore.com user score)"
     },
-    "durationSec": 146,
+    "durationSec": 126,
     "noteCount": 949,
     "fingering": "claude",
     "pedal": null,
     "checks": {
       "hands": "score",
-      "tempo": "default",
-      "bpm": 120,
+      "tempo": "claude",
+      "bpm": 139,
+      "tempoSources": [
+        {
+          "bpm": 139,
+          "site": "Hooktheory",
+          "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+          "quote": "139 BPM"
+        },
+        {
+          "bpm": 140,
+          "site": "audiokeychain",
+          "url": "https://www.audiokeychain.com/track/YTj/gigi-dagostino-lamour-toujours",
+          "quote": "140.00 BPM"
+        },
+        {
+          "bpm": 135,
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/gigi-d-agostino/l-amour-toujours.html",
+          "quote": "Same as the original tempo: 135 BPM (a comment there says it is the album version)"
+        }
+      ],
+      "tempoNote": "Your file has no tempo. Claude set 139, the record's tempo as Hooktheory gives it (audiokeychain: 140). MuseScore would play it at 120.",
       "key": "source",
-      "keySource": {
-        "site": "Hooktheory",
-        "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
-        "note": "\"Key: D Major\"."
-      },
-      "chords": {
-        "site": "guitartabs.cc",
-        "url": "https://www.guitartabs.cc/tabs/g/gigi_dagostino/lamour_toujours_tab.html",
-        "listed": [
-          "G",
-          "D",
-          "F#",
-          "Bm"
-        ],
-        "same": [
-          "7",
-          "2",
-          "11m"
-        ],
-        "onlySource": [
-          "6"
-        ],
-        "onlyFile": [
-          "6m"
-        ],
-        "note": "That chart is written by a user for the record and has F♯ major; this arrangement plays F♯ minor there (A instead of A♯)."
-      },
+      "keySources": [
+        {
+          "key": "D major",
+          "site": "Hooktheory",
+          "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+          "quote": "Key: D Major"
+        },
+        {
+          "key": "D major",
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/gigi-d-agostino/l-amour-toujours.html",
+          "quote": "In the same key as the original: D"
+        },
+        {
+          "key": "G major",
+          "site": "audiokeychain",
+          "url": "https://www.audiokeychain.com/track/YTj/gigi-dagostino-lamour-toujours",
+          "quote": "9B / G"
+        }
+      ],
+      "pedalNote": "The score has no pedal marks, and Claude did not add any: in every measure the right hand plays A, G and F♯ over the same bass note, and a pedal held through the measure would make G and F♯, two neighbouring keys, ring together. Pedal it yourself if you like the sound.",
+      "chordsNote": "Both pages have F♯ major; this arrangement plays F♯ minor there (A instead of A♯). Claude checked those measures note by note.",
+      "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites).",
+      "charts": [
+        {
+          "site": "guitartabs.cc",
+          "url": "https://www.guitartabs.cc/tabs/g/gigi_dagostino/lamour_toujours_tab.html",
+          "quote": "Intro: G D F# Bm",
+          "listed": [
+            "G",
+            "D",
+            "F#",
+            "Bm"
+          ],
+          "same": [
+            "7",
+            "2",
+            "11m"
+          ],
+          "onlySource": [
+            "6"
+          ],
+          "onlyFile": [
+            "6m"
+          ]
+        },
+        {
+          "site": "Hooktheory",
+          "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+          "quote": "chordString=I V6/vi vi IV6",
+          "note": "Shown only as a link; Claude read I V/vi vi IV in D major as D, F♯, B minor, G.",
+          "listed": [
+            "D",
+            "F#",
+            "Bm",
+            "G"
+          ],
+          "same": [
+            "7",
+            "2",
+            "11m"
+          ],
+          "onlySource": [
+            "6"
+          ],
+          "onlyFile": [
+            "6m"
+          ]
+        }
+      ],
       "reference": {
         "file": "reference.mid",
         "of": 949,
@@ -96,22 +170,76 @@
       {
         "root": 6,
         "minor": true,
-        "count": 12
+        "count": 12,
+        "right": {
+          "style": "broken",
+          "tones": [
+            1,
+            6,
+            9
+          ]
+        },
+        "left": {
+          "style": "single",
+          "tones": [
+            6
+          ]
+        }
       },
       {
         "root": 7,
         "minor": false,
-        "count": 8
+        "count": 8,
+        "right": {
+          "style": "broken",
+          "tones": [
+            2,
+            7
+          ]
+        },
+        "left": {
+          "style": "single",
+          "tones": [
+            7
+          ]
+        }
       },
       {
         "root": 2,
         "minor": false,
-        "count": 7
+        "count": 7,
+        "right": {
+          "style": "broken",
+          "tones": [
+            2,
+            6,
+            9
+          ]
+        },
+        "left": {
+          "style": "single",
+          "tones": [
+            2
+          ]
+        }
       },
       {
         "root": 11,
         "minor": true,
-        "count": 7
+        "count": 7,
+        "right": {
+          "style": "broken",
+          "tones": [
+            2,
+            6
+          ]
+        },
+        "left": {
+          "style": "single",
+          "tones": [
+            11
+          ]
+        }
       }
     ],
     "heard": "2026-11-16"
@@ -128,7 +256,7 @@
         "label": "Original"
       }
     ],
-    "youtube": null,
+    "youtube": "https://www.youtube.com/watch?v=Y4IS549HX5Q",
     "source": {
       "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Clocks - Coldplay\")",
       "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -141,35 +269,110 @@
       "hands": "score",
       "tempo": "score",
       "bpm": 132,
-      "key": "source",
-      "keySource": {
-        "site": "Musicnotes",
-        "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
-        "note": "\"Original Published Key: Ab Major\". The ukebuddy chord chart says B♭ minor instead, but that key has five flats and your file has four."
-      },
-      "chords": {
-        "site": "ukebuddy",
-        "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks",
-        "listed": [
-          "Eb",
-          "Bbm",
-          "Fm",
-          "Gbmaj7",
-          "Db",
-          "Ab"
-        ],
-        "same": [
-          "10m",
-          "5m",
-          "3",
-          "1",
-          "6"
-        ],
-        "onlySource": [
-          "8"
-        ],
-        "onlyFile": []
-      },
+      "tempoSources": [
+        {
+          "bpm": 131,
+          "site": "songbpm",
+          "url": "https://songbpm.com/@coldplay/clocks",
+          "quote": "Tempo (BPM) 131"
+        },
+        {
+          "bpm": 131.21,
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/clocks.html",
+          "quote": "Same as the original tempo: 131.21 BPM"
+        },
+        {
+          "bpm": 130,
+          "site": "Musicnotes",
+          "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
+          "quote": "Metronome q = 130"
+        }
+      ],
+      "key": "claude",
+      "keySources": [
+        {
+          "key": "A♭ major",
+          "site": "Musicnotes",
+          "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
+          "quote": "Original Published Key: Ab Major"
+        },
+        {
+          "key": "E♭ major",
+          "site": "Pianote",
+          "url": "https://pianote.com/blog/?p=64",
+          "quote": "Clocks is written in the key of Eb major (one accidental: Db)"
+        },
+        {
+          "key": "E♭ major",
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/clocks.html",
+          "quote": "In the same key as the original: E♭"
+        },
+        {
+          "key": "F minor",
+          "site": "songbpm",
+          "url": "https://songbpm.com/@coldplay/clocks",
+          "quote": "Key F, minor mode"
+        },
+        {
+          "key": "B♭ minor",
+          "site": "ukebuddy",
+          "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks",
+          "quote": "Key: Bb Minor"
+        }
+      ],
+      "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice.",
+      "charts": [
+        {
+          "site": "ukebuddy",
+          "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks",
+          "quote": "This tab uses these chords: Eb, Bbm, Fm, Gbmaj7, Db, Ab",
+          "listed": [
+            "Eb",
+            "Bbm",
+            "Fm",
+            "Gbmaj7",
+            "Db",
+            "Ab"
+          ],
+          "same": [
+            "10m",
+            "5m",
+            "3",
+            "1",
+            "6"
+          ],
+          "onlySource": [
+            "8"
+          ],
+          "onlyFile": []
+        },
+        {
+          "site": "Pianote",
+          "url": "https://pianote.com/blog/?p=64",
+          "quote": "three chords: Eb, Bb minor, and F minor ... switching to Gb, Db, and Ab",
+          "listed": [
+            "Eb",
+            "Bbm",
+            "Fm",
+            "Gb",
+            "Db",
+            "Ab"
+          ],
+          "same": [
+            "10m",
+            "5m",
+            "3",
+            "1",
+            "6"
+          ],
+          "onlySource": [
+            "8"
+          ],
+          "onlyFile": []
+        }
+      ],
       "reference": {
         "file": "reference.mid",
         "of": 2571,
@@ -179,33 +382,121 @@
         "otherHand": 0,
         "pedalOf": 248,
         "pedalMatched": 248
+      },
+      "fingering": {
+        "site": "Artie's Piano (artmaster.com)",
+        "url": "https://www.artmaster.com/articles/how-to-play-clocks-on-piano-coldplay-intro-riff",
+        "quote": "D# (5), A# (2), G (1) ... C# (4), A# (2), F (1) ... C (4), G# (2), F (1)",
+        "note": "The only page found with finger numbers for Clocks (also checked: Pianote, pianowithjonny, piano-keyboard-guide).",
+        "patterns": [
+          "right hand E♭–B♭–G: 5-2-1",
+          "right hand D♭–B♭–F: 4-2-1",
+          "right hand C–A♭–F: 4-2-1"
+        ],
+        "notes": 548,
+        "of": 1290
       }
     },
     "chords": [
       {
         "root": 10,
         "minor": true,
-        "count": 68
+        "count": 68,
+        "right": {
+          "style": "broken",
+          "tones": [
+            5,
+            10,
+            1
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            5,
+            10,
+            1
+          ]
+        }
       },
       {
         "root": 5,
         "minor": true,
-        "count": 37
+        "count": 37,
+        "right": {
+          "style": "broken",
+          "tones": [
+            5,
+            8,
+            0
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            5,
+            8,
+            0
+          ]
+        }
       },
       {
         "root": 3,
         "minor": false,
-        "count": 36
+        "count": 36,
+        "right": {
+          "style": "broken",
+          "tones": [
+            7,
+            10,
+            3
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            7,
+            10,
+            3
+          ]
+        }
       },
       {
         "root": 1,
         "minor": false,
-        "count": 7
+        "count": 7,
+        "right": {
+          "style": "broken",
+          "tones": [
+            1,
+            8
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            1,
+            5
+          ]
+        }
       },
       {
         "root": 6,
         "minor": false,
-        "count": 5
+        "count": 5,
+        "right": {
+          "style": "block",
+          "tones": [
+            1,
+            10
+          ]
+        },
+        "left": {
+          "style": "single",
+          "tones": [
+            6
+          ]
+        }
       }
     ],
     "heard": "2026-11-16",
@@ -236,12 +527,79 @@
       "hands": "score",
       "tempo": "score",
       "bpm": 100,
+      "tempoSources": [
+        {
+          "bpm": 96,
+          "site": "Musicnotes",
+          "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
+          "quote": "Metronome q = 96 (another arrangement, 3/4)"
+        },
+        {
+          "bpm": 96,
+          "site": "Hooktheory",
+          "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+          "quote": "96 BPM (written in 6/8)"
+        }
+      ],
+      "tempoNote": "Your arrangement says 100; the two pages say 96 for their versions. Close enough to keep the score's 100.",
       "key": "source",
-      "keySource": {
-        "site": "Musicnotes",
-        "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
-        "note": "\"Original Published Key: A Minor\"."
-      },
+      "keySources": [
+        {
+          "key": "A minor",
+          "site": "Musicnotes",
+          "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
+          "quote": "Original Published Key: A Minor"
+        },
+        {
+          "key": "A minor",
+          "site": "Hooktheory",
+          "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+          "quote": "Key: A Minor"
+        }
+      ],
+      "fingeringNote": "No page with finger numbers for this arrangement was found. Pianote's lesson only says: for the big chord, play two notes with your thumb.",
+      "charts": [
+        {
+          "site": "guitartabsexplorer",
+          "url": "https://guitartabsexplorer.com/misc-soundtrack-Tabs/interstellar---main-theme-crd.php",
+          "quote": "F C F G A C / G D G A B D / A E A B C E / G D G A B D",
+          "note": "The page writes note patterns, not chord names; Claude read them as F, G and A minor.",
+          "listed": [
+            "F",
+            "G",
+            "Am"
+          ],
+          "same": [
+            "9m",
+            "7",
+            "5"
+          ],
+          "onlySource": [],
+          "onlyFile": [
+            "4m"
+          ]
+        },
+        {
+          "site": "Hooktheory",
+          "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+          "quote": "chordString=VI7 v6 i v65",
+          "note": "Shown on the page only as a link, not as text; Claude read the numbers (A minor: VI7 v6 i v65) as F, E minor, A minor.",
+          "listed": [
+            "Fmaj7",
+            "Em",
+            "Am"
+          ],
+          "same": [
+            "4m",
+            "9m",
+            "5"
+          ],
+          "onlySource": [],
+          "onlyFile": [
+            "7"
+          ]
+        }
+      ],
       "reference": {
         "file": "reference.mid",
         "of": 2057,
@@ -257,22 +615,86 @@
       {
         "root": 4,
         "minor": true,
-        "count": 47
+        "count": 47,
+        "right": {
+          "style": "broken",
+          "tones": [
+            4,
+            7,
+            11
+          ]
+        },
+        "left": {
+          "style": "broken",
+          "tones": [
+            7,
+            4,
+            11
+          ]
+        }
       },
       {
         "root": 9,
         "minor": true,
-        "count": 44
+        "count": 44,
+        "right": {
+          "style": "broken",
+          "tones": [
+            4,
+            9,
+            0
+          ]
+        },
+        "left": {
+          "style": "broken",
+          "tones": [
+            9,
+            0,
+            4
+          ]
+        }
       },
       {
         "root": 7,
         "minor": false,
-        "count": 20
+        "count": 20,
+        "right": {
+          "style": "broken",
+          "tones": [
+            2,
+            7,
+            11
+          ]
+        },
+        "left": {
+          "style": "broken",
+          "tones": [
+            7,
+            2,
+            11
+          ]
+        }
       },
       {
         "root": 5,
         "minor": false,
-        "count": 8
+        "count": 8,
+        "right": {
+          "style": "broken",
+          "tones": [
+            0,
+            5,
+            9
+          ]
+        },
+        "left": {
+          "style": "broken",
+          "tones": [
+            5,
+            0,
+            9
+          ]
+        }
       }
     ],
     "heard": "2026-11-16"
@@ -289,7 +711,7 @@
         "label": "Original"
       }
     ],
-    "youtube": null,
+    "youtube": "https://www.youtube.com/watch?v=hvqc8lPmCfU",
     "source": {
       "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Anastazja Szczepłek)",
       "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -302,26 +724,76 @@
       "hands": "score",
       "tempo": "score",
       "bpm": 170,
-      "key": "guessed",
-      "chords": {
-        "site": "ukutabs",
-        "url": "https://ukutabs.com/i/indila/love-story-2/",
-        "listed": [
-          "Bbm",
-          "Fm",
-          "Gb",
-          "Ab"
-        ],
-        "same": [
-          "8",
-          "10m",
-          "6",
-          "5m"
-        ],
-        "onlySource": [],
-        "onlyFile": [],
-        "note": "Read from the page's title in web search (\"Intro (x4): Bbm Fm Gb Ab\"); the page itself refuses automatic reading."
-      },
+      "tempoSources": [
+        {
+          "bpm": 64,
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/karaoke/indila/love-story.html",
+          "quote": "Same as the original tempo: 64 BPM"
+        }
+      ],
+      "tempoNote": "Your arrangement is a waltz: 170 beats a minute, three to a measure, so about 57 measures a minute. The record's 64 does not say which note it counts, so the two cannot be compared; Claude kept the score's tempo.",
+      "key": "source",
+      "keySources": [
+        {
+          "key": "B♭ minor",
+          "site": "quickpartitions",
+          "url": "https://www.quickpartitions.com/en/sheetmusic/indila/love-story/3179",
+          "quote": "Key: B♭ minor"
+        },
+        {
+          "key": "B♭ minor",
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/karaoke/indila/love-story.html",
+          "quote": "In the same key as the original: B♭m"
+        }
+      ],
+      "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites).",
+      "charts": [
+        {
+          "site": "ukutabs",
+          "url": "https://ukutabs.com/i/indila/love-story-2/",
+          "quote": "Intro (x4): Bbm Fm Gb Ab",
+          "note": "Read from the page title in a web search; the page itself refuses automatic reading.",
+          "listed": [
+            "Bbm",
+            "Fm",
+            "Gb",
+            "Ab"
+          ],
+          "same": [
+            "8",
+            "10m",
+            "6",
+            "5m"
+          ],
+          "onlySource": [],
+          "onlyFile": []
+        },
+        {
+          "site": "ukulele-tabs.com",
+          "url": "https://www.ukulele-tabs.com/uke-songs/indila/love-story-uke-tab-82564.html",
+          "quote": "Capo 1 ... Am, G, Dm, Em",
+          "note": "Written for a capo on fret 1: Am G Dm Em sound as B♭m A♭ E♭m Fm; Claude moved them up for the comparison.",
+          "listed": [
+            "Bbm",
+            "Ab",
+            "Ebm",
+            "Fm"
+          ],
+          "same": [
+            "8",
+            "10m",
+            "5m"
+          ],
+          "onlySource": [
+            "3m"
+          ],
+          "onlyFile": [
+            "6"
+          ]
+        }
+      ],
       "reference": {
         "file": "reference.mid",
         "of": 1190,
@@ -337,22 +809,76 @@
       {
         "root": 8,
         "minor": false,
-        "count": 56
+        "count": 56,
+        "right": {
+          "style": "single",
+          "tones": [
+            0
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            8,
+            3
+          ]
+        }
       },
       {
         "root": 10,
         "minor": true,
-        "count": 50
+        "count": 50,
+        "right": {
+          "style": "single",
+          "tones": [
+            10
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            10,
+            5
+          ]
+        }
       },
       {
         "root": 6,
         "minor": false,
-        "count": 46
+        "count": 46,
+        "right": {
+          "style": "single",
+          "tones": [
+            10
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            6,
+            1
+          ]
+        }
       },
       {
         "root": 5,
         "minor": true,
-        "count": 36
+        "count": 36,
+        "right": {
+          "style": "broken",
+          "tones": [
+            5,
+            8,
+            0
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            5,
+            0
+          ]
+        }
       }
     ],
     "heard": "2026-11-16",
@@ -370,7 +896,7 @@
         "label": "Original"
       }
     ],
-    "youtube": null,
+    "youtube": "https://www.youtube.com/watch?v=eCQlFkwpChc",
     "source": {
       "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Viva La Vida - Coldplay\")",
       "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -383,30 +909,88 @@
       "hands": "score",
       "tempo": "score",
       "bpm": 140,
+      "tempoSources": [
+        {
+          "bpm": 138,
+          "site": "songbpm",
+          "url": "https://songbpm.com/@coldplay/viva-la-vida",
+          "quote": "Tempo (BPM) 138"
+        },
+        {
+          "bpm": 138,
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/viva-la-vida.html",
+          "quote": "Same as the original tempo: 138 BPM"
+        }
+      ],
       "key": "source",
-      "keySource": {
-        "site": "ukebuddy",
-        "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
-        "note": "\"Key: Ab Major\"."
-      },
-      "chords": {
-        "site": "ukebuddy",
-        "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
-        "listed": [
-          "Db",
-          "Eb",
-          "Ab",
-          "Fm"
-        ],
-        "same": [
-          "8",
-          "5m",
-          "1",
-          "3"
-        ],
-        "onlySource": [],
-        "onlyFile": []
-      },
+      "keySources": [
+        {
+          "key": "A♭ major",
+          "site": "ukebuddy",
+          "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
+          "quote": "Key: Ab Major"
+        },
+        {
+          "key": "A♭ major",
+          "site": "karaoke-version",
+          "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/viva-la-vida.html",
+          "quote": "In the same key as the original: A♭"
+        },
+        {
+          "key": "A♭ major",
+          "site": "guitartabs.cc",
+          "url": "https://www.guitartabs.cc/tabs/c/coldplay/viva_la_vida_crd_ver_3.html",
+          "quote": "Key: A flat major (small chance it's the relative minor, Fm)"
+        },
+        {
+          "key": "F minor",
+          "site": "songbpm",
+          "url": "https://songbpm.com/@coldplay/viva-la-vida",
+          "quote": "Key F, minor mode"
+        }
+      ],
+      "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites).",
+      "charts": [
+        {
+          "site": "ukebuddy",
+          "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
+          "quote": "This tab uses these chords: Db, Eb, Ab, Fm",
+          "listed": [
+            "Db",
+            "Eb",
+            "Ab",
+            "Fm"
+          ],
+          "same": [
+            "8",
+            "5m",
+            "1",
+            "3"
+          ],
+          "onlySource": [],
+          "onlyFile": []
+        },
+        {
+          "site": "guitartabs.cc",
+          "url": "https://www.guitartabs.cc/tabs/c/coldplay/viva_la_vida_crd_ver_3.html",
+          "quote": "Intro: Db Eb Ab Fm x2",
+          "listed": [
+            "Db",
+            "Eb",
+            "Ab",
+            "Fm"
+          ],
+          "same": [
+            "8",
+            "5m",
+            "1",
+            "3"
+          ],
+          "onlySource": [],
+          "onlyFile": []
+        }
+      ],
       "reference": {
         "file": "reference.mid",
         "of": 2768,
@@ -422,22 +1006,81 @@
       {
         "root": 8,
         "minor": false,
-        "count": 35
+        "count": 35,
+        "right": {
+          "style": "block",
+          "tones": [
+            3,
+            8,
+            0
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            3,
+            8,
+            0
+          ]
+        }
       },
       {
         "root": 5,
         "minor": true,
-        "count": 34
+        "count": 34,
+        "right": {
+          "style": "block",
+          "tones": [
+            5,
+            0
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            5,
+            8,
+            0
+          ]
+        }
       },
       {
         "root": 1,
         "minor": false,
-        "count": 33
+        "count": 33,
+        "right": {
+          "style": "block",
+          "tones": [
+            8,
+            5
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            1,
+            8
+          ]
+        }
       },
       {
         "root": 3,
         "minor": false,
-        "count": 33
+        "count": 33,
+        "right": {
+          "style": "block",
+          "tones": [
+            7,
+            10
+          ]
+        },
+        "left": {
+          "style": "block",
+          "tones": [
+            3,
+            10
+          ]
+        }
       }
     ],
     "heard": "2026-11-16",

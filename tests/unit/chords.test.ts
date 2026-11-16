@@ -58,9 +58,44 @@ describe('chordsOf', () => {
     ];
     const song = { measures, notes } as unknown as SongFile;
     expect(chordsOf(song, aMinor)).toEqual([
-      { root: 9, minor: true, count: 3 },
-      { root: 5, minor: false, count: 3 },
+      { root: 9, minor: true, count: 3, left: { style: 'block', tones: [9, 0, 4] } },
+      { root: 5, minor: false, count: 3, left: { style: 'block', tones: [5, 9, 0] } },
     ]);
+  });
+});
+
+describe('how a hand plays a chord', () => {
+  const measures = [0, 4, 8].map((b, i) => ({ b, len: 4, num: 4, den: 4, n: String(i + 1) }));
+  it('one note after another, in the position it starts from (Clocks: G–B♭–E♭ is first inversion)', () => {
+    // E♭ major broken downwards in the right hand, held E♭ in the left, three measures
+    const notes = measures.flatMap((m) => [
+      { p: 39, b: m.b, d: 4, h: 'L' as const },
+      ...[75, 70, 67, 75, 70, 67, 75, 70].map((p, k) => ({
+        p,
+        b: m.b + k * 0.5,
+        d: 0.5,
+        h: 'R' as const,
+      })),
+    ]);
+    const [chord] = chordsOf({ measures, notes } as unknown as SongFile, {
+      tonic: 8,
+      minor: false,
+    });
+    expect(chord).toEqual({
+      root: 3,
+      minor: false,
+      count: 3,
+      right: { style: 'broken', tones: [7, 10, 3] },
+      left: { style: 'single', tones: [3] },
+    });
+  });
+  it('a hand playing mostly other notes plays the melody', () => {
+    const notes = measures.flatMap((m) => [
+      ...[45, 48, 52].map((p) => ({ p, b: m.b, d: 4, h: 'L' as const })),
+      ...[74, 76, 77, 79, 81].map((p, k) => ({ p, b: m.b + k * 0.5, d: 0.5, h: 'R' as const })),
+    ]);
+    const [chord] = chordsOf({ measures, notes } as unknown as SongFile, aMinor);
+    expect(chord!.right).toEqual({ style: 'melody', tones: [4, 9] });
   });
 });
 

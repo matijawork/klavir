@@ -2,7 +2,7 @@
   "title": "Viva La Vida",
   "composer": "Coldplay",
   "difficulty": 3,
-  "youtube": null,
+  "youtube": "https://www.youtube.com/watch?v=eCQlFkwpChc",
   "source": {
     "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Viva La Vida - Coldplay\")",
     "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -15,21 +15,70 @@
       "reference": "reference.mid"
     }
   ],
-  "keySource": {
-    "key": "A♭ major",
-    "site": "ukebuddy",
-    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
-    "note": "\"Key: Ab Major\"."
-  },
-  "chordSource": {
-    "chords": [
-      "Db",
-      "Eb",
-      "Ab",
-      "Fm"
-    ],
-    "site": "ukebuddy",
-    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida"
-  },
-  "heard": "2026-11-16"
+  "heard": "2026-11-16",
+  "keySources": [
+    {
+      "key": "A♭ major",
+      "site": "ukebuddy",
+      "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
+      "quote": "Key: Ab Major"
+    },
+    {
+      "key": "A♭ major",
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/viva-la-vida.html",
+      "quote": "In the same key as the original: A♭"
+    },
+    {
+      "key": "A♭ major",
+      "site": "guitartabs.cc",
+      "url": "https://www.guitartabs.cc/tabs/c/coldplay/viva_la_vida_crd_ver_3.html",
+      "quote": "Key: A flat major (small chance it's the relative minor, Fm)"
+    },
+    {
+      "key": "F minor",
+      "site": "songbpm",
+      "url": "https://songbpm.com/@coldplay/viva-la-vida",
+      "quote": "Key F, minor mode"
+    }
+  ],
+  "tempoSources": [
+    {
+      "bpm": 138,
+      "site": "songbpm",
+      "url": "https://songbpm.com/@coldplay/viva-la-vida",
+      "quote": "Tempo (BPM) 138"
+    },
+    {
+      "bpm": 138,
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/viva-la-vida.html",
+      "quote": "Same as the original tempo: 138 BPM"
+    }
+  ],
+  "chordSources": [
+    {
+      "chords": [
+        "Db",
+        "Eb",
+        "Ab",
+        "Fm"
+      ],
+      "site": "ukebuddy",
+      "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
+      "quote": "This tab uses these chords: Db, Eb, Ab, Fm"
+    },
+    {
+      "chords": [
+        "Db",
+        "Eb",
+        "Ab",
+        "Fm"
+      ],
+      "site": "guitartabs.cc",
+      "url": "https://www.guitartabs.cc/tabs/c/coldplay/viva_la_vida_crd_ver_3.html",
+      "quote": "Intro: Db Eb Ab Fm x2"
+    }
+  ],
+  "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites)."
 }

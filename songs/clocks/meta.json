@@ -2,7 +2,7 @@
   "title": "Clocks",
   "composer": "Coldplay",
   "difficulty": 3,
-  "youtube": null,
+  "youtube": "https://www.youtube.com/watch?v=Y4IS549HX5Q",
   "source": {
     "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Clocks - Coldplay\")",
     "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -15,23 +15,134 @@
       "reference": "reference.mid"
     }
   ],
-  "keySource": {
-    "key": "A♭ major",
-    "site": "Musicnotes",
-    "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
-    "note": "\"Original Published Key: Ab Major\". The ukebuddy chord chart says B♭ minor instead, but that key has five flats and your file has four."
-  },
-  "chordSource": {
-    "chords": [
-      "Eb",
-      "Bbm",
-      "Fm",
-      "Gbmaj7",
-      "Db",
-      "Ab"
-    ],
-    "site": "ukebuddy",
-    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks"
-  },
-  "heard": "2026-11-16"
+  "heard": "2026-11-16",
+  "key": "A♭ major",
+  "keySources": [
+    {
+      "key": "A♭ major",
+      "site": "Musicnotes",
+      "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
+      "quote": "Original Published Key: Ab Major"
+    },
+    {
+      "key": "E♭ major",
+      "site": "Pianote",
+      "url": "https://pianote.com/blog/?p=64",
+      "quote": "Clocks is written in the key of Eb major (one accidental: Db)"
+    },
+    {
+      "key": "E♭ major",
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/clocks.html",
+      "quote": "In the same key as the original: E♭"
+    },
+    {
+      "key": "F minor",
+      "site": "songbpm",
+      "url": "https://songbpm.com/@coldplay/clocks",
+      "quote": "Key F, minor mode"
+    },
+    {
+      "key": "B♭ minor",
+      "site": "ukebuddy",
+      "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks",
+      "quote": "Key: Bb Minor"
+    }
+  ],
+  "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice.",
+  "tempoSources": [
+    {
+      "bpm": 131,
+      "site": "songbpm",
+      "url": "https://songbpm.com/@coldplay/clocks",
+      "quote": "Tempo (BPM) 131"
+    },
+    {
+      "bpm": 131.21,
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/coldplay/clocks.html",
+      "quote": "Same as the original tempo: 131.21 BPM"
+    },
+    {
+      "bpm": 130,
+      "site": "Musicnotes",
+      "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
+      "quote": "Metronome q = 130"
+    }
+  ],
+  "chordSources": [
+    {
+      "chords": [
+        "Eb",
+        "Bbm",
+        "Fm",
+        "Gbmaj7",
+        "Db",
+        "Ab"
+      ],
+      "site": "ukebuddy",
+      "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks",
+      "quote": "This tab uses these chords: Eb, Bbm, Fm, Gbmaj7, Db, Ab"
+    },
+    {
+      "chords": [
+        "Eb",
+        "Bbm",
+        "Fm",
+        "Gb",
+        "Db",
+        "Ab"
+      ],
+      "site": "Pianote",
+      "url": "https://pianote.com/blog/?p=64",
+      "quote": "three chords: Eb, Bb minor, and F minor ... switching to Gb, Db, and Ab"
+    }
+  ],
+  "fingeringSource": {
+    "site": "Artie's Piano (artmaster.com)",
+    "url": "https://www.artmaster.com/articles/how-to-play-clocks-on-piano-coldplay-intro-riff",
+    "quote": "D# (5), A# (2), G (1) ... C# (4), A# (2), F (1) ... C (4), G# (2), F (1)",
+    "note": "The only page found with finger numbers for Clocks (also checked: Pianote, pianowithjonny, piano-keyboard-guide).",
+    "patterns": [
+      {
+        "hand": "R",
+        "notes": [
+          "Eb",
+          "Bb",
+          "G"
+        ],
+        "fingers": [
+          5,
+          2,
+          1
+        ]
+      },
+      {
+        "hand": "R",
+        "notes": [
+          "Db",
+          "Bb",
+          "F"
+        ],
+        "fingers": [
+          4,
+          2,
+          1
+        ]
+      },
+      {
+        "hand": "R",
+        "notes": [
+          "C",
+          "Ab",
+          "F"
+        ],
+        "fingers": [
+          4,
+          2,
+          1
+        ]
+      }
+    ]
+  }
 }

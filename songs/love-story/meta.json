@@ -2,7 +2,7 @@
   "title": "Love Story (piano ver.)",
   "composer": "Indila",
   "difficulty": 3,
-  "youtube": null,
+  "youtube": "https://www.youtube.com/watch?v=hvqc8lPmCfU",
   "source": {
     "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Anastazja Szczepłek)",
     "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -15,16 +15,55 @@
       "reference": "reference.mid"
     }
   ],
-  "chordSource": {
-    "chords": [
-      "Bbm",
-      "Fm",
-      "Gb",
-      "Ab"
-    ],
-    "site": "ukutabs",
-    "url": "https://ukutabs.com/i/indila/love-story-2/",
-    "note": "Read from the page's title in web search (\"Intro (x4): Bbm Fm Gb Ab\"); the page itself refuses automatic reading."
-  },
-  "heard": "2026-11-16"
+  "heard": "2026-11-16",
+  "keySources": [
+    {
+      "key": "B♭ minor",
+      "site": "quickpartitions",
+      "url": "https://www.quickpartitions.com/en/sheetmusic/indila/love-story/3179",
+      "quote": "Key: B♭ minor"
+    },
+    {
+      "key": "B♭ minor",
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/karaoke/indila/love-story.html",
+      "quote": "In the same key as the original: B♭m"
+    }
+  ],
+  "tempoSources": [
+    {
+      "bpm": 64,
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/karaoke/indila/love-story.html",
+      "quote": "Same as the original tempo: 64 BPM"
+    }
+  ],
+  "tempoNote": "Your arrangement is a waltz: 170 beats a minute, three to a measure, so about 57 measures a minute. The record's 64 does not say which note it counts, so the two cannot be compared; Claude kept the score's tempo.",
+  "chordSources": [
+    {
+      "chords": [
+        "Bbm",
+        "Fm",
+        "Gb",
+        "Ab"
+      ],
+      "site": "ukutabs",
+      "url": "https://ukutabs.com/i/indila/love-story-2/",
+      "quote": "Intro (x4): Bbm Fm Gb Ab",
+      "note": "Read from the page title in a web search; the page itself refuses automatic reading."
+    },
+    {
+      "chords": [
+        "Bbm",
+        "Ab",
+        "Ebm",
+        "Fm"
+      ],
+      "site": "ukulele-tabs.com",
+      "url": "https://www.ukulele-tabs.com/uke-songs/indila/love-story-uke-tab-82564.html",
+      "quote": "Capo 1 ... Am, G, Dm, Em",
+      "note": "Written for a capo on fret 1: Am G Dm Em sound as B♭m A♭ E♭m Fm; Claude moved them up for the comparison."
+    }
+  ],
+  "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites)."
 }

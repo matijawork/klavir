@@ -175,3 +175,45 @@ export function measurePedal(
   if (down && last) out.push({ b: last.b + last.len, on: false });
   return out;
 }
+
+/**
+ * Copies finger numbers from a named source onto a repeating figure, e.g. Clocks' right hand
+ * E♭–B♭–G played 5-2-1: every run of single notes of `hand` that walks the figure's pitch classes
+ * in order, at least once round, gets the source's fingers (marked `verified`). Returns how many
+ * notes it covered.
+ */
+export function applyFingerPattern(
+  notes: SongNote[],
+  hand: 'L' | 'R',
+  pcs: number[],
+  fingers: number[],
+): number {
+  const own = notes.filter((n) => n.h === hand && !n.g).sort((a, b) => a.b - b.b || a.p - b.p);
+  // single notes only: a chord breaks the figure
+  const single = own.filter(
+    (n, i) =>
+      !(i > 0 && Math.abs(own[i - 1]!.b - n.b) < 1e-6) &&
+      !(i + 1 < own.length && Math.abs(own[i + 1]!.b - n.b) < 1e-6),
+  );
+  const L = pcs.length;
+  let covered = 0;
+  let i = 0;
+  while (i < single.length) {
+    const k0 = pcs.indexOf(single[i]!.p % 12);
+    if (k0 < 0) {
+      i++;
+      continue;
+    }
+    let j = i + 1;
+    while (j < single.length && single[j]!.p % 12 === pcs[(k0 + (j - i)) % L]) j++;
+    if (j - i >= L) {
+      for (let x = i; x < j; x++) {
+        single[x]!.f = fingers[(k0 + (x - i)) % L]!;
+        single[x]!.fs = 'verified';
+      }
+      covered += j - i;
+      i = j;
+    } else i++;
+  }
+  return covered;
+}

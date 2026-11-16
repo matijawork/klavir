@@ -4,15 +4,7 @@
  * notes show is reported; a measure that fits no triad well (a melody alone, a passing figure)
  * counts for nothing.
  */
-import type { SongFile } from '../../src/engine/song.ts';
-
-export interface ChordCount {
-  /** pitch class of the root, 0 = C */
-  root: number;
-  minor: boolean;
-  /** number of measures (or half measures) it fills */
-  count: number;
-}
+import type { ChordUse, SongChord, SongFile, SongNote } from '../../src/engine/song.ts';
 
 /** Scale steps of a key and the triad quality on each (major key; natural minor). */
 const DIATONIC = {
@@ -81,19 +73,66 @@ export function triadOf(
   return found && found.inside >= 0.6 * total ? { root: found.root, minor: found.minor } : null;
 }
 
-/** Chords of the piece, most used first; one in fewer than three measures is left out (passing). */
-export function chordsOf(song: SongFile, key: { tonic: number; minor: boolean }): ChordCount[] {
-  const counts = new Map<string, ChordCount>();
+/** How one hand plays the chord in one measure, or null when it plays none of its notes. */
+function useIn(notes: SongNote[], t: { root: number; minor: boolean }): ChordUse | null {
+  const chord = [t.root, (t.root + (t.minor ? 3 : 4)) % 12, (t.root + 7) % 12];
+  const tones = notes.filter((n) => chord.includes(n.p % 12));
+  if (tones.length === 0) return null;
+  const sorted = [...tones].sort((x, y) => x.p - y.p);
+  const order = [...new Set(sorted.map((n) => n.p % 12))];
+  if (notes.length - tones.length > tones.length) return { style: 'melody', tones: order };
+  const atOnce = new Map<number, Set<number>>();
+  for (const n of tones) atOnce.set(n.b, (atOnce.get(n.b) ?? new Set()).add(n.p % 12));
+  const stacked = Math.max(...[...atOnce.values()].map((x) => x.size));
+  return {
+    style: order.length === 1 ? 'single' : stacked >= 2 ? 'block' : 'broken',
+    tones: order,
+  };
+}
+
+/** The most common way among the measures; one-note and melody only when nothing else is common. */
+function mostCommon(uses: ChordUse[]): ChordUse | undefined {
+  const count = new Map<string, { use: ChordUse; n: number }>();
+  for (const u of uses) {
+    const k = `${u.style}:${u.tones.join(',')}`;
+    const e = count.get(k) ?? { use: u, n: 0 };
+    e.n++;
+    count.set(k, e);
+  }
+  const all = [...count.values()].sort((x, y) => y.n - x.n);
+  const chordal = all.filter((e) => e.use.style === 'broken' || e.use.style === 'block');
+  const chordalTotal = chordal.reduce((sum, e) => sum + e.n, 0);
+  if (chordal.length && chordalTotal >= Math.max(2, 0.25 * uses.length)) return chordal[0]!.use;
+  return all[0]?.use;
+}
+
+/**
+ * Chords of the piece, most used first, with how each hand mostly plays them; a chord in fewer
+ * than three measures is left out (passing).
+ */
+export function chordsOf(song: SongFile, key: { tonic: number; minor: boolean }): SongChord[] {
+  const found = new Map<
+    string,
+    {
+      root: number;
+      minor: boolean;
+      count: number;
+      R: ReturnType<typeof useIn>[];
+      L: ReturnType<typeof useIn>[];
+    }
+  >();
   for (const m of song.measures) {
     const a = m.b;
     const b = a + m.len;
     const weight = new Array<number>(12).fill(0);
     let bass: number | null = null;
     let low = 128;
+    const starting: SongNote[] = [];
     for (const n of song.notes) {
       if (n.b >= b) break;
       const overlap = Math.min(b, n.b + n.d) - Math.max(a, n.b);
       if (overlap <= 1e-6) continue;
+      if (n.b >= a - 1e-6 && !n.g) starting.push(n);
       // the left hand carries the harmony; the right hand's melody counts less
       weight[n.p % 12]! += overlap * (n.h === 'L' ? 2 : 1);
       if (n.p < low) {
@@ -105,9 +144,34 @@ export function chordsOf(song: SongFile, key: { tonic: number; minor: boolean })
     const t = triadOf(weight, bass, key);
     if (!t) continue;
     const id = `${t.root}${t.minor ? 'm' : ''}`;
-    const c = counts.get(id) ?? { ...t, count: 0 };
+    const c = found.get(id) ?? { ...t, count: 0, R: [], L: [] };
     c.count++;
-    counts.set(id, c);
+    c.R.push(
+      useIn(
+        starting.filter((n) => n.h === 'R'),
+        t,
+      ),
+    );
+    c.L.push(
+      useIn(
+        starting.filter((n) => n.h === 'L'),
+        t,
+      ),
+    );
+    found.set(id, c);
   }
-  return [...counts.values()].filter((c) => c.count >= 3).sort((x, y) => y.count - x.count);
+  return [...found.values()]
+    .filter((c) => c.count >= 3)
+    .sort((x, y) => y.count - x.count)
+    .map((c) => {
+      const right = mostCommon(c.R.filter((u): u is ChordUse => u !== null));
+      const left = mostCommon(c.L.filter((u): u is ChordUse => u !== null));
+      return {
+        root: c.root,
+        minor: c.minor,
+        count: c.count,
+        ...(right ? { right } : {}),
+        ...(left ? { left } : {}),
+      };
+    });
 }

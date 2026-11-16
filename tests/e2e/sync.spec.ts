@@ -43,6 +43,8 @@ async function performTestC(page: Page) {
   if (await connect.isVisible()) await connect.click();
   await page.getByTestId('perform-test-c').click();
   await page.waitForFunction(() => !!window.__klavir);
+  // settings reach the engine on the next frame: a Play before that is rewound by them
+  await page.waitForFunction(() => window.__klavir!.session.config.countIn === false);
   await page.getByTestId('play').click();
   await page.evaluate(() => {
     const { session, transport } = window.__klavir!;

@@ -3,7 +3,7 @@ import { checkedSplit, checklist } from '../engine/checklist.ts';
 import type { LibraryEntry } from '../engine/song.ts';
 import { checkedStore, isChecked, toggleChecked } from '../store/checked.ts';
 
-const MARK = { source: '✓', mine: '✓', open: '?', none: '–' } as const;
+const MARK = { source: '✓', claude: '✎', mine: '✓', open: '?', none: '–' } as const;
 const isUrl = (s: string) => /^https?:\/\//.test(s);
 
 /** On a song card: what is checked and what is not, by name; a click opens how. */
@@ -12,7 +12,13 @@ export function Checks({ song, version }: { song: LibraryEntry; version: string 
   checkedStore.map.value;
   const id = `${song.id}/${version}`;
   const rows = checklist(song, { fingering: isChecked(id), ear: isChecked(`ear:${id}`) });
-  const { yes, no } = checkedSplit(rows);
+  const { claude, you, added, no } = checkedSplit(rows);
+  const line = (cls: string, mark: string, label: string, items: typeof rows, testid: string) =>
+    items.length > 0 && (
+      <span class={cls} data-testid={testid}>
+        {mark} {label}: {items.map((r) => r.what).join(' · ')}
+      </span>
+    );
   return (
     <>
       <button
@@ -22,16 +28,10 @@ export function Checks({ song, version }: { song: LibraryEntry; version: string 
         onClick={() => setOpen(true)}
         data-testid={`checks-${song.id}`}
       >
-        {yes.length > 0 && (
-          <span class="checks-yes" data-testid="checks-yes">
-            ✓ Checked: {yes.map((r) => r.what).join(' · ')}
-          </span>
-        )}
-        {no.length > 0 && (
-          <span class="checks-no" data-testid="checks-no">
-            ? Not checked: {no.map((r) => r.what).join(' · ')}
-          </span>
-        )}
+        {line('checks-yes', '✓', 'Checked by Claude', claude, 'checks-claude')}
+        {line('checks-yes', '✓', 'Checked by you', you, 'checks-you')}
+        {line('checks-added', '✎', 'Added by Claude, not checked', added, 'checks-added')}
+        {line('checks-no', '?', 'Not checked', no, 'checks-no')}
       </button>
       {open && <ChecksDialog song={song} id={id} rows={rows} onClose={() => setOpen(false)} />}
     </>
@@ -64,7 +64,9 @@ function ChecksDialog(props: {
       <header>
         <div>
           <strong class="progress-title">{song.title}</strong>
-          <span>What is checked, and how</span>
+          <span>
+            What is checked, by whom and how. Claude's checks can be wrong: look again if in doubt.
+          </span>
         </div>
         <button
           type="button"

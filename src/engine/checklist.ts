@@ -1,22 +1,34 @@
 /**
- * What is checked about a song and what is not, in plain words: the import's own checks
- * (`LibraryEntry.checks`), named web sources, where fingering and pedal come from, and what
- * Matija checked himself.
+ * What is checked about a song and what is not, in plain words, and by whom: compared by Claude
+ * with the file's MuseScore playback or with named web pages; added or chosen by Claude (not in the
+ * file, nobody checked it); checked by Matija; or not checked at all. Claude's checks are not the
+ * last word: the text says what was compared, so he can look again.
  */
 import { chordName, fromChordId, prettyChord } from './harmony.ts';
 import type { LibraryEntry } from './song.ts';
 
-/** source = checked against a file or a named source; mine = checked by Matija; open = not checked */
-export type CheckState = 'source' | 'mine' | 'open' | 'none';
+/** source = checked by Claude; claude = added or chosen by Claude; mine = by Matija; open = not checked */
+export type CheckState = 'source' | 'claude' | 'mine' | 'open' | 'none';
 
 export interface CheckRow {
-  id: 'notes' | 'hands' | 'tempo' | 'key' | 'chords' | 'fingering' | 'pedal' | 'ear';
+  id:
+    | 'notes'
+    | 'hands'
+    | 'tempo'
+    | 'key'
+    | 'chords'
+    | 'fingering-source'
+    | 'fingering'
+    | 'pedal'
+    | 'ear';
   what: string;
   state: CheckState;
   text: string;
 }
 
 const MUSESCORE = "MuseScore's own playback of your file";
+const list = (items: string[]): string => items.join(' · ');
+const bpm = (v: number): string => String(Math.round(v * 100) / 100);
 
 export function checklist(
   s: LibraryEntry,
@@ -24,6 +36,7 @@ export function checklist(
 ): CheckRow[] {
   const rows: CheckRow[] = [];
   const c = s.checks;
+  const flats = s.flats === true;
   const ref = c?.reference;
   if (ref) {
     const same = ref.matched + ref.twins === ref.of && ref.extra === 0;
@@ -35,9 +48,9 @@ export function checklist(
       what: 'Notes',
       state: same || ref.note ? 'source' : 'open',
       text: same
-        ? `All ${ref.of} notes are the same as ${MUSESCORE}: same keys, same moments.${twins}`
+        ? `Claude compared all ${ref.of} notes with ${MUSESCORE}: same keys, same moments.${twins}`
         : ref.note
-          ? `${ref.matched} of ${ref.of} notes are the same as ${MUSESCORE}. ${ref.note}`
+          ? `Claude compared the notes with ${MUSESCORE}: ${ref.matched} of ${ref.of} the same. ${ref.note}`
           : `Only ${ref.matched} of ${ref.of} notes are the same as ${MUSESCORE}.`,
     });
   } else
@@ -47,93 +60,123 @@ export function checklist(
       state: 'open',
       text: `${s.noteCount} notes from the file, not compared with anything.`,
     });
+
   if (c && c.hands !== 'one')
     rows.push({
       id: 'hands',
       what: 'Hands',
-      state: c.hands === 'score' ? 'source' : 'open',
+      state: c.hands === 'score' ? 'source' : 'claude',
       text:
         c.hands === 'score'
           ? "From the score's two staves: the upper one is the right hand."
           : c.hands === 'height'
-            ? 'Guessed: the file does not say, so the higher part is taken as the right hand.'
-            : 'Guessed: the file has one staff, so the notes were split by pitch.',
+            ? 'Guessed by the app: the file does not say, so the higher part is the right hand.'
+            : 'Guessed by the app: the file has one staff, so the notes were split by pitch.',
     });
-  if (c)
+
+  if (c) {
+    const pages = c.tempoSources?.length
+      ? ` The pages say: ${list(c.tempoSources.map((t) => `${t.site} ${bpm(t.bpm)}`))}.`
+      : '';
+    const note = c.tempoNote ? ` ${c.tempoNote}` : '';
     rows.push({
       id: 'tempo',
       what: 'Tempo',
-      state: c.tempo === 'score' ? 'source' : 'open',
+      state: c.tempo === 'score' ? 'source' : c.tempo === 'claude' ? 'claude' : 'open',
       text:
         c.tempo === 'score'
-          ? `${Math.round(c.bpm)} beats a minute, written in the score.`
-          : `Not written in the score: ${Math.round(c.bpm)} beats a minute, as MuseScore plays it. Set the speed to what sounds right.`,
+          ? `${bpm(c.bpm)} beats a minute, written in the score.${pages}${note}`
+          : c.tempo === 'claude'
+            ? `Set by Claude to ${bpm(c.bpm)} beats a minute.${pages}${note}`
+            : `Not written in the score: ${bpm(c.bpm)} beats a minute, as MuseScore plays it. Set the speed to what sounds right.`,
     });
-  if (c && c.key !== 'none')
+  }
+
+  if (c && c.key !== 'none') {
+    const pages = c.keySources?.length
+      ? ` The pages say: ${list(c.keySources.map((k) => `${k.site} ${k.key}`))}.`
+      : '';
+    const note = c.keyNote ? ` ${c.keyNote}` : '';
     rows.push({
       id: 'key',
       what: 'Key',
-      state: c.key === 'guessed' ? 'open' : 'source',
+      state: c.key === 'source' || c.key === 'score' ? 'source' : 'claude',
       text:
-        c.key === 'source' && c.keySource
-          ? `${s.key}, as ${c.keySource.site} gives it (and it fits your file's key signature).${c.keySource.note ? ` ${c.keySource.note}` : ''}`
-          : c.key === 'score'
-            ? `${s.key}, written in the score.`
-            : `${s.key}: guessed from the notes. The score only has the key signature, and that fits two keys. No web source checked.`,
+        c.key === 'source'
+          ? `${s.key}: Claude checked it on several pages, and it fits your file's key signature.${pages}${note}`
+          : c.key === 'claude'
+            ? `${s.key}: chosen by Claude.${pages}${note}`
+            : c.key === 'score'
+              ? `${s.key}, written in the score.`
+              : `${s.key}: guessed by the app from the notes (the file has only the key signature, which fits two keys). No page checked.`,
     });
+  }
+
   if (s.chords?.length) {
-    const flats = s.flats === true;
     const found = s.chords.map((ch) => chordName(ch, flats)).join(', ');
-    const cc = c?.chords;
+    const charts = c?.charts ?? [];
     const names = (ids: string[]) => ids.map((id) => chordName(fromChordId(id), flats)).join(', ');
-    const match = !!cc && cc.onlySource.length === 0 && cc.onlyFile.length === 0;
+    const onAChart = s.chords.every((ch) =>
+      charts.some((x) => x.same.includes(`${ch.root}${ch.minor ? 'm' : ''}`)),
+    );
+    const lines = charts.map(
+      (x) =>
+        ` ${x.site}: ${x.listed.map(prettyChord).join(' ')}` +
+        (x.onlySource.length ? ` (not a full chord in your file: ${names(x.onlySource)})` : '') +
+        (x.note ? ` (${x.note})` : '') +
+        '.',
+    );
     rows.push({
       id: 'chords',
       what: 'Chords',
-      state: cc && (match || cc.note || cc.onlyFile.length === 0) ? 'source' : 'open',
-      text: !cc
-        ? `Counted from the notes of your file: ${found}. No chord chart on the web to compare with.`
-        : match
-          ? `Counted from the notes of your file: ${found}. The same as the chart on ${cc.site}.`
-          : `Counted from the notes of your file: ${found}. The chart on ${cc.site} lists ${cc.listed.map(prettyChord).join(', ')}.` +
-            (cc.onlySource.length
-              ? ` Never a full chord in your file: ${names(cc.onlySource)}.`
-              : '') +
-            (cc.onlyFile.length ? ` Only in your file: ${names(cc.onlyFile)}.` : '') +
-            (cc.note ? ` ${cc.note}` : ''),
+      state: charts.length && (onAChart || c?.chordsNote) ? 'source' : 'open',
+      text: charts.length
+        ? `Counted by Claude's program from the notes of your file: ${found}. Compared with chord charts:${lines.join('')}${c?.chordsNote ? ` ${c.chordsNote}` : ''}`
+        : `Counted by Claude's program from the notes of your file: ${found}. No chord chart on the web to compare with.`,
     });
   }
+
+  const fsrc = c?.fingering;
+  if (fsrc)
+    rows.push({
+      id: 'fingering-source',
+      what: 'Fingering (main pattern)',
+      state: 'source',
+      text: `Copied from ${fsrc.site} for ${fsrc.notes} of ${fsrc.of} notes: ${list(fsrc.patterns)}.${fsrc.note ? ` ${fsrc.note}` : ''}`,
+    });
   rows.push({
     id: 'fingering',
-    what: 'Fingering',
+    what: fsrc ? 'Fingering (rest)' : 'Fingering',
     state: marks.fingering
       ? 'mine'
       : !s.fingering
         ? 'none'
         : s.fingering === 'claude'
-          ? 'open'
+          ? 'claude'
           : 'source',
     text: marks.fingering
       ? 'Checked by you.'
       : !s.fingering
         ? 'No finger numbers.'
         : s.fingering === 'claude'
-          ? 'Not in the score: the app suggests finger numbers. Nobody has checked them.'
+          ? `Suggested by the app (Claude's program), not in the score; nobody has checked it.${c?.fingeringNote ? ` ${c.fingeringNote}` : ''}`
           : 'Written in the score.',
   });
+
   const pedalSame = !!ref && ref.pedalOf > 0 && ref.pedalMatched === ref.pedalOf;
   rows.push({
     id: 'pedal',
     what: 'Pedal',
-    state: !s.pedal ? 'none' : s.pedal === 'claude' ? 'open' : 'source',
+    state: !s.pedal ? 'none' : s.pedal === 'claude' ? 'claude' : 'source',
     text: !s.pedal
-      ? 'The score has no pedal marks.'
+      ? (c?.pedalNote ?? 'The score has no pedal marks.')
       : s.pedal === 'claude'
-        ? 'Not in the score: the app suggests one pedal change per measure. Not checked.'
+        ? `Added by Claude: one pedal change per measure.${c?.pedalNote ? ` ${c.pedalNote}` : ''}`
         : pedalSame
-          ? `Written in the score: ${Math.ceil(ref.pedalOf / 2)} times down and up, all at the same moments as ${MUSESCORE}. Listen plays it: a key let go while the pedal is down keeps sounding until it comes up.`
+          ? `Written in the score: ${Math.ceil(ref.pedalOf / 2)} times down and up; Claude compared every one with ${MUSESCORE}: same moments. Listen plays it: a key let go while the pedal is down keeps sounding until it comes up.`
           : 'Written in the score. Listen plays it: a key let go while the pedal is down keeps sounding until it comes up.',
   });
+
   rows.push({
     id: 'ear',
     what: 'By ear',
@@ -147,8 +190,12 @@ export function checklist(
   return rows;
 }
 
-/** The rows split into what is checked and what is not ("none" rows are left out). */
-export const checkedSplit = (rows: CheckRow[]): { yes: CheckRow[]; no: CheckRow[] } => ({
-  yes: rows.filter((r) => r.state === 'source' || r.state === 'mine'),
+/** The rows by who checked them ("none" rows are left out). */
+export const checkedSplit = (
+  rows: CheckRow[],
+): { claude: CheckRow[]; you: CheckRow[]; added: CheckRow[]; no: CheckRow[] } => ({
+  claude: rows.filter((r) => r.state === 'source'),
+  you: rows.filter((r) => r.state === 'mine'),
+  added: rows.filter((r) => r.state === 'claude'),
   no: rows.filter((r) => r.state === 'open'),
 });

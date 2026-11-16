@@ -9,7 +9,7 @@ export function Keys({ song }: { song: LibraryEntry }) {
   useEffect(() => {
     if (open) dialog.current?.showModal();
   }, [open]);
-  const { groups, chart } = learnList(song);
+  const groups = learnList(song);
   if (groups.length === 0) return null;
   return (
     <>
@@ -36,7 +36,7 @@ export function Keys({ song }: { song: LibraryEntry }) {
           <header>
             <div>
               <strong class="progress-title">{song.title}</strong>
-              <span>Key and chords: pick what to practise</span>
+              <span>What to practise for this song</span>
             </div>
             <button
               type="button"
@@ -49,7 +49,7 @@ export function Keys({ song }: { song: LibraryEntry }) {
             </button>
           </header>
           <ul class="keys-list">
-            {groups.map((g, k) => (
+            {groups.map((g) => (
               <li key={g.title} data-testid="keys-group">
                 <div>
                   <strong>{g.title}</strong>
@@ -59,7 +59,8 @@ export function Keys({ song }: { song: LibraryEntry }) {
                   {g.links.map((l) => (
                     <a
                       key={l.href}
-                      class={`btn${k === 0 && l.label === 'Scale' ? ' primary' : ''}`}
+                      class={`btn${l.main ? ' primary' : ''}`}
+                      title={l.main ? 'This trains what the song does' : undefined}
                       href={l.href}
                       data-testid="keys-link"
                     >
@@ -70,7 +71,10 @@ export function Keys({ song }: { song: LibraryEntry }) {
               </li>
             ))}
           </ul>
-          {chart && <p class="checks-source">{chart}</p>}
+          <p class="checks-source">
+            Chords and how they are played: counted by Claude's program from the notes of your file.
+            Highlighted: the exercise that trains what the song does.
+          </p>
         </dialog>
       )}
     </>

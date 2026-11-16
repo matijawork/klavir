@@ -2,7 +2,7 @@
   "title": "L'amour toujours (I'll fly with you)",
   "composer": "Gigi D'Agostino",
   "difficulty": 2,
-  "youtube": null,
+  "youtube": "https://www.youtube.com/watch?v=u76xhxWD6hk",
   "source": {
     "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Marien Bosch)",
     "license": "unknown, supplied by Matija (musescore.com user score)"
@@ -16,22 +16,75 @@
       "referenceNote": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
     }
   ],
-  "keySource": {
-    "key": "D major",
-    "site": "Hooktheory",
-    "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
-    "note": "\"Key: D Major\"."
-  },
-  "chordSource": {
-    "chords": [
-      "G",
-      "D",
-      "F#",
-      "Bm"
-    ],
-    "site": "guitartabs.cc",
-    "url": "https://www.guitartabs.cc/tabs/g/gigi_dagostino/lamour_toujours_tab.html",
-    "note": "That chart is written by a user for the record and has F♯ major; this arrangement plays F♯ minor there (A instead of A♯)."
-  },
-  "heard": "2026-11-16"
+  "heard": "2026-11-16",
+  "keySources": [
+    {
+      "key": "D major",
+      "site": "Hooktheory",
+      "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+      "quote": "Key: D Major"
+    },
+    {
+      "key": "D major",
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/gigi-d-agostino/l-amour-toujours.html",
+      "quote": "In the same key as the original: D"
+    },
+    {
+      "key": "G major",
+      "site": "audiokeychain",
+      "url": "https://www.audiokeychain.com/track/YTj/gigi-dagostino-lamour-toujours",
+      "quote": "9B / G"
+    }
+  ],
+  "tempo": 139,
+  "tempoSources": [
+    {
+      "bpm": 139,
+      "site": "Hooktheory",
+      "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+      "quote": "139 BPM"
+    },
+    {
+      "bpm": 140,
+      "site": "audiokeychain",
+      "url": "https://www.audiokeychain.com/track/YTj/gigi-dagostino-lamour-toujours",
+      "quote": "140.00 BPM"
+    },
+    {
+      "bpm": 135,
+      "site": "karaoke-version",
+      "url": "https://www.karaoke-version.com/custombackingtrack/gigi-d-agostino/l-amour-toujours.html",
+      "quote": "Same as the original tempo: 135 BPM (a comment there says it is the album version)"
+    }
+  ],
+  "tempoNote": "Your file has no tempo. Claude set 139, the record's tempo as Hooktheory gives it (audiokeychain: 140). MuseScore would play it at 120.",
+  "chordSources": [
+    {
+      "chords": [
+        "G",
+        "D",
+        "F#",
+        "Bm"
+      ],
+      "site": "guitartabs.cc",
+      "url": "https://www.guitartabs.cc/tabs/g/gigi_dagostino/lamour_toujours_tab.html",
+      "quote": "Intro: G D F# Bm"
+    },
+    {
+      "chords": [
+        "D",
+        "F#",
+        "Bm",
+        "G"
+      ],
+      "site": "Hooktheory",
+      "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+      "quote": "chordString=I V6/vi vi IV6",
+      "note": "Shown only as a link; Claude read I V/vi vi IV in D major as D, F♯, B minor, G."
+    }
+  ],
+  "pedalNote": "The score has no pedal marks, and Claude did not add any: in every measure the right hand plays A, G and F♯ over the same bass note, and a pedal held through the measure would make G and F♯, two neighbouring keys, ring together. Pedal it yourself if you like the sound.",
+  "chordsNote": "Both pages have F♯ major; this arrangement plays F♯ minor there (A instead of A♯). Claude checked those measures note by note.",
+  "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites)."
 }

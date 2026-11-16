@@ -15,11 +15,59 @@
       "reference": "reference.mid"
     }
   ],
-  "keySource": {
-    "key": "A minor",
-    "site": "Musicnotes",
-    "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
-    "note": "\"Original Published Key: A Minor\"."
-  },
-  "heard": "2026-11-16"
+  "heard": "2026-11-16",
+  "keySources": [
+    {
+      "key": "A minor",
+      "site": "Musicnotes",
+      "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
+      "quote": "Original Published Key: A Minor"
+    },
+    {
+      "key": "A minor",
+      "site": "Hooktheory",
+      "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+      "quote": "Key: A Minor"
+    }
+  ],
+  "tempoSources": [
+    {
+      "bpm": 96,
+      "site": "Musicnotes",
+      "url": "https://www.musicnotes.com/sheetmusic/joyce-leong/interstellar-main-theme/MN0183998",
+      "quote": "Metronome q = 96 (another arrangement, 3/4)"
+    },
+    {
+      "bpm": 96,
+      "site": "Hooktheory",
+      "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+      "quote": "96 BPM (written in 6/8)"
+    }
+  ],
+  "tempoNote": "Your arrangement says 100; the two pages say 96 for their versions. Close enough to keep the score's 100.",
+  "chordSources": [
+    {
+      "chords": [
+        "F",
+        "G",
+        "Am"
+      ],
+      "site": "guitartabsexplorer",
+      "url": "https://guitartabsexplorer.com/misc-soundtrack-Tabs/interstellar---main-theme-crd.php",
+      "quote": "F C F G A C / G D G A B D / A E A B C E / G D G A B D",
+      "note": "The page writes note patterns, not chord names; Claude read them as F, G and A minor."
+    },
+    {
+      "chords": [
+        "Fmaj7",
+        "Em",
+        "Am"
+      ],
+      "site": "Hooktheory",
+      "url": "https://www.hooktheory.com/theorytab/view/hans-zimmer/interstellar-main-theme",
+      "quote": "chordString=VI7 v6 i v65",
+      "note": "Shown on the page only as a link, not as text; Claude read the numbers (A minor: VI7 v6 i v65) as F, E minor, A minor."
+    }
+  ],
+  "fingeringNote": "No page with finger numbers for this arrangement was found. Pianote's lesson only says: for the big chord, play two notes with your thumb."
 }

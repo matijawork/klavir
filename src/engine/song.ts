@@ -66,32 +66,57 @@ export interface ReferenceCheck {
   pedalMatched: number;
 }
 
-/** What the import could check by itself; the card's "What's checked" list shows it. */
+/** A web page something was checked against: what it says, quoted. */
+export interface WebSource {
+  site: string;
+  url: string;
+  /** the words on the page relied on */
+  quote?: string;
+  /** how Claude read it, when that took interpretation */
+  note?: string;
+}
+
+/** What the import could check by itself and against named sources; the card's lists show it. */
 export interface SongChecks {
   /** hands from the score's two staves (or named tracks), from track height, or a pitch split */
   hands: 'score' | 'height' | 'split' | 'one';
-  /** tempo written in the score, or 120 because it has none */
-  tempo: 'score' | 'default';
+  /** tempo written in the score; set by Claude from web sources (the score has none); or 120 */
+  tempo: 'score' | 'claude' | 'default';
   bpm: number;
+  tempoSources?: (WebSource & { bpm: number })[];
+  tempoNote?: string;
   /**
-   * major/minor written in the score, taken from a named source (`keySource`), guessed from the
-   * notes, or no key signature at all
+   * key: written in the score; as several named sources agree; chosen by Claude (sources
+   * disagree); guessed from the notes; or none (no key signature, or a one-note test pattern)
    */
-  key: 'score' | 'source' | 'guessed' | 'none';
-  keySource?: { site: string; url: string; note?: string };
+  key: 'score' | 'source' | 'claude' | 'guessed' | 'none';
+  keySources?: (WebSource & { key: string })[];
+  keyNote?: string;
   reference?: ReferenceCheck & { file: string; note?: string };
-  /** the chords counted from the file compared with a chord chart on the web */
-  chords?: {
-    site: string;
-    url: string;
-    /** the chart's chords as it writes them */
+  /** chord charts on the web compared with the chords counted from the file (chord ids: "10m") */
+  charts?: (WebSource & {
     listed: string[];
-    /** chord ids ("10m" = B♭ minor, "3" = E♭ major): in both, only in the chart, only in the file */
     same: string[];
     onlySource: string[];
     onlyFile: string[];
-    note?: string;
-  };
+  })[];
+  /** finger numbers copied from a named source for repeating figures, and how many notes */
+  fingering?: WebSource & { patterns: string[]; notes: number; of: number };
+  /** why there is no pedal, or why Claude added or did not add one */
+  pedalNote?: string;
+  /** a difference between the charts and the file that Claude checked, in words */
+  chordsNote?: string;
+  /** where finger numbers were looked for, when none were found */
+  fingeringNote?: string;
+}
+
+/**
+ * How one hand plays a chord in the song: one note after another, all at once, its root alone, or
+ * the melody (mostly other notes); `tones` = the chord notes it plays, lowest first (pitch classes).
+ */
+export interface ChordUse {
+  style: 'broken' | 'block' | 'single' | 'melody';
+  tones: number[];
 }
 
 /** A chord the piece is built on: root pitch class, minor or major, measures it fills. */
@@ -99,6 +124,8 @@ export interface SongChord {
   root: number;
   minor: boolean;
   count: number;
+  right?: ChordUse;
+  left?: ChordUse;
 }
 
 export interface LibraryEntry {

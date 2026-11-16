@@ -968,6 +968,9 @@ dialog.video {
 .checks-yes {
   color: var(--fb-correct);
 }
+.checks-added {
+  color: var(--accent-strong);
+}
 .checks-no {
   color: var(--fb-early);
 }
@@ -1054,6 +1057,9 @@ dialog.checks-dialog {
 .checks-list li[data-state="source"] .checks-mark,
 .checks-list li[data-state="mine"] .checks-mark {
   color: var(--fb-correct);
+}
+.checks-list li[data-state="claude"] .checks-mark {
+  color: var(--accent-strong);
 }
 .checks-list li[data-state="open"] .checks-mark {
   color: var(--fb-early);

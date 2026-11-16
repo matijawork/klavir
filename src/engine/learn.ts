@@ -1,23 +1,29 @@
 /**
- * What to practise before a song: the scale and chord progression of its key, then an arpeggio
- * and the inversions of every chord the song is built on (counted from its notes), each a link
- * to that exercise.
+ * What to practise for a song: the scale of its key, then every chord it is built on (counted
+ * from its notes), each with how the song plays it (which hand, one note after another or all at
+ * once, which position) and a link to the exercise that trains exactly that.
  */
 import { keyName } from './exercises.ts';
-import { chordName, fromChordId, parseKey, prettyChord } from './harmony.ts';
-import type { LibraryEntry } from './song.ts';
+import { chordName, parseKey } from './harmony.ts';
+import type { ChordUse, LibraryEntry, SongChord } from './song.ts';
 
 export interface LearnLink {
   label: string;
   href: string;
+  /** the one that trains what the song does */
+  main?: boolean;
 }
 export interface LearnGroup {
   /** "A minor" */
   title: string;
-  /** where it comes from, in words */
+  /** what it is and how the song uses it, in words */
   detail: string;
   links: LearnLink[];
 }
+
+const FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const POSITION = ['root position', 'first inversion', 'second inversion'];
 
 const exercise = (kind: string, pc: number, minor: boolean): string =>
   kind === 'scale'
@@ -31,48 +37,70 @@ function title(root: number, minor: boolean, flats: boolean): string {
   return name.startsWith(`${own} `) ? name : name.replace(' ', ` / ${own} `);
 }
 
-export function learnList(s: LibraryEntry): { groups: LearnGroup[]; chart: string | null } {
+/** "one note after another, first inversion (low to high: G–B♭–E♭)", "all at once: E and B (no third)" */
+function how(ch: SongChord, use: ChordUse, hand: 'L' | 'R', flats: boolean): string {
+  const names = flats ? FLAT : SHARP;
+  if (use.style === 'melody') return 'the melody';
+  if (use.style === 'single')
+    return hand === 'L' ? `the bass note ${names[use.tones[0]!]}` : `only ${names[use.tones[0]!]}`;
+  const way = use.style === 'broken' ? 'one note after another' : 'all at once';
+  const third = (ch.root + (ch.minor ? 3 : 4)) % 12;
+  if (use.tones.length >= 3) {
+    const pos = use.tones[0] === ch.root ? 0 : use.tones[0] === third ? 1 : 2;
+    return `${way}, ${POSITION[pos]} (low to high: ${use.tones.map((pc) => names[pc]).join('–')})`;
+  }
+  const played = use.tones.map((pc) => names[pc]).join(' and ');
+  return `${way}: ${played}${use.tones.includes(third) ? '' : ' (no third)'}`;
+}
+
+export function learnList(s: LibraryEntry): LearnGroup[] {
+  const c = s.checks;
+  if (c?.key === 'none') return [];
   const key = parseKey(s.key);
   const flats = s.flats === true;
   const groups: LearnGroup[] = [];
-  const c = s.checks;
   if (key) {
+    const agree = (c?.keySources ?? [])
+      .filter((k) => k.key === s.key)
+      .map((k) => k.site)
+      .join(', ');
     const from =
-      c?.key === 'source' && c.keySource
-        ? `The key, as ${c.keySource.site} gives it.`
-        : c?.key === 'guessed'
-          ? 'The key, guessed from the notes (the file has only the key signature).'
-          : 'The key, written in the score.';
+      c?.key === 'source'
+        ? `checked by Claude on ${agree}`
+        : c?.key === 'claude'
+          ? 'chosen by Claude, the pages disagree (see what is checked)'
+          : c?.key === 'guessed'
+            ? 'guessed by the app from the notes'
+            : 'written in the score';
     groups.push({
       title: title(key.tonic, key.minor, flats),
-      detail: from,
+      detail: `The key of the song: ${from}. Its scale has the notes the song uses.`,
       links: [
-        { label: 'Scale', href: exercise('scale', key.tonic, key.minor) },
+        { label: 'Scale', href: exercise('scale', key.tonic, key.minor), main: true },
         { label: 'Five-finger', href: exercise('five-finger', key.tonic, key.minor) },
         { label: 'Chord progression', href: exercise('cadence', key.tonic, key.minor) },
       ],
     });
   }
-  for (const ch of s.chords ?? [])
+  for (const ch of s.chords ?? []) {
+    const hands = [
+      ch.left ? `Left hand: ${how(ch, ch.left, 'L', flats)}.` : '',
+      ch.right ? `Right hand: ${how(ch, ch.right, 'R', flats)}.` : '',
+    ].filter(Boolean);
+    const broken = ch.left?.style === 'broken' || ch.right?.style === 'broken';
+    const block = ch.left?.style === 'block' || ch.right?.style === 'block';
     groups.push({
       title: title(ch.root, ch.minor, flats),
-      detail: `Chord in ${ch.count} measure${ch.count === 1 ? '' : 's'}.`,
+      detail: `Chord in ${ch.count} measure${ch.count === 1 ? '' : 's'}. ${hands.join(' ')}`.trim(),
       links: [
-        { label: 'Arpeggio', href: exercise('arpeggio', ch.root, ch.minor) },
-        { label: 'Inversions', href: exercise('chords', ch.root, ch.minor) },
+        { label: 'Arpeggio', href: exercise('arpeggio', ch.root, ch.minor), main: broken },
+        {
+          label: 'Inversions',
+          href: exercise('chords', ch.root, ch.minor),
+          main: block,
+        },
       ],
     });
-  let chart: string | null = null;
-  const cc = c?.chords;
-  if (cc) {
-    const names = (ids: string[]) => ids.map((id) => chordName(fromChordId(id), flats)).join(', ');
-    chart =
-      cc.onlySource.length === 0 && cc.onlyFile.length === 0
-        ? `Same chords as the chart on ${cc.site}: ${cc.listed.map(prettyChord).join(', ')}.`
-        : `The chart on ${cc.site} lists ${cc.listed.map(prettyChord).join(', ')}.` +
-          (cc.onlySource.length ? ` Not a full chord in your file: ${names(cc.onlySource)}.` : '') +
-          (cc.onlyFile.length ? ` Only in your file: ${names(cc.onlyFile)}.` : '');
-    if (cc.note) chart += ` ${cc.note}`;
   }
-  return { groups, chart };
+  return groups;
 }

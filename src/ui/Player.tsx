@@ -538,6 +538,8 @@ export function Player({
       panic();
       view.destroy();
       engineSig.value = null;
+      // a stale handle would let tests (and ?debug) read a player that is gone
+      if (window.__klavir?.session === session) window.__klavir = undefined;
     };
   }, [song]);
 

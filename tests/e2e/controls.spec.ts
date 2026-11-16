@@ -15,8 +15,14 @@ async function open(page: Page, settings: Record<string, unknown> = {}, song = '
   await page.waitForFunction(() => !!window.__klavir);
 }
 
-/** Waits until the engine state matches (settings reach the engine on the next frame). */
-const until = (page: Page, fn: () => boolean) => page.waitForFunction(fn);
+/**
+ * Waits until the engine state matches (settings reach the engine on the next frame). While the
+ * player is rebuilt after a route change there is no engine for a moment: that counts as "not yet".
+ */
+const until = (page: Page, fn: () => boolean) =>
+  page.waitForFunction(
+    `(() => { try { return (${fn.toString()})(); } catch { return false; } })()`,
+  );
 
 async function selectStart(page: Page, fraction: number) {
   const box = (await page.getByTestId('timeline').boundingBox())!;
