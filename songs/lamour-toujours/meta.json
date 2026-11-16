@@ -15,5 +15,23 @@
       "reference": "reference.mid",
       "referenceNote": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
     }
-  ]
+  ],
+  "keySource": {
+    "key": "D major",
+    "site": "Hooktheory",
+    "url": "https://hooktheory.com/theorytab/view/gigi-dagostino/lamour-toujours",
+    "note": "\"Key: D Major\"."
+  },
+  "chordSource": {
+    "chords": [
+      "G",
+      "D",
+      "F#",
+      "Bm"
+    ],
+    "site": "guitartabs.cc",
+    "url": "https://www.guitartabs.cc/tabs/g/gigi_dagostino/lamour_toujours_tab.html",
+    "note": "That chart is written by a user for the record and has F♯ major; this arrangement plays F♯ minor there (A instead of A♯)."
+  },
+  "heard": "2026-11-16"
 }

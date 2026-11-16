@@ -83,6 +83,43 @@ test('listen mode sends notes on the playback channel and leaves none hanging', 
   expect(lastPanic, 'a panic lands after every scheduled note-on').toBeGreaterThan(lastOn);
 });
 
+test('listen plays the score pedal: a key let go under the pedal sounds until it comes up', async ({
+  page,
+}) => {
+  // the fixture with a pedal: down at beat 0.5, up at 3.5 (140 BPM, one beat = 0.43 s)
+  const { readFileSync } = await import('node:fs');
+  const song = JSON.parse(
+    readFileSync(new URL('../fixtures/songs/ode-to-joy/original.json', import.meta.url), 'utf8'),
+  );
+  song.pedal = [
+    { b: 0.5, on: true },
+    { b: 3.5, on: false },
+  ];
+  song.pedalSource = 'arranger';
+  await page.route('**/songs/ode-to-joy/original.json', (route) => route.fulfill({ json: song }));
+  await open(page);
+  await page.getByTestId('listen').click();
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(2600);
+  await page.getByTestId('play').click();
+  const sent = await page.evaluate(() => window.__midi!.sent);
+  const held = (pitch: number) => {
+    const on = sent.find((m) => m.data[0] === 0x92 && m.data[1] === pitch)!;
+    const off = sent.find((m) => m.data[0] === 0x82 && m.data[1] === pitch && m.time > on.time)!;
+    return (off.time - on.time) / (60000 / 140);
+  };
+  // D5 (72) is written beat 2-3; the pedal holds it to 3.5
+  expect(held(72)).toBeCloseTo(1.5, 1);
+  // B4 (71) is struck again on beat 1: that cuts it, pedal or not
+  expect(held(71)).toBeCloseTo(1, 1);
+  // the left-hand chord ends on beat 4, after the pedal is up: as written
+  expect(held(55)).toBeCloseTo(4, 1);
+  expect(
+    sent.some((m) => (m.data[0]! & 0xf0) === 0xb0 && m.data[1] === 64 && m.data[2]! > 0),
+    'no pedal message goes to the piano: the held sound is in the note lengths',
+  ).toBe(false);
+});
+
 test('wait mode holds the song until the right keys are pressed', async ({ page }) => {
   await open(page, { mode: 'wait' });
   await page.getByTestId('play').click();

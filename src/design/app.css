@@ -950,33 +950,79 @@ dialog.video {
 .menu.sync .panel {
   width: 220px;
 }
-.prepare {
+
+/* what is checked about a song: two lines on the card, the list behind them */
+.checks-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+.checks-yes {
+  color: var(--fb-correct);
+}
+.checks-no {
+  color: var(--fb-early);
+}
+.checks-lines:hover span {
+  text-decoration: underline;
+}
+button.badge.keys {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.badge.keys:hover {
+  color: var(--text);
+}
+dialog.keys-dialog {
+  width: min(620px, calc(100vw - var(--s-6)));
+}
+.keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.keys-list li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  font-size: 14px;
+}
+.keys-list li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.keys-detail {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.keys-links {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--s-2);
 }
-.prepare .btn {
-  height: 28px;
-  padding: 0 var(--s-2);
-  font-size: 12px;
-}
-
-/* what is checked about a song */
-button.badge.checks {
-  border: 0;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-button.badge.checks[data-state="all"] {
-  color: var(--fb-correct);
-}
-button.badge.checks[data-state="some"] {
-  color: var(--fb-early);
-}
-button.badge.checks:hover {
-  color: var(--text);
+.keys-links .btn {
+  height: 30px;
+  padding: 0 var(--s-3);
+  font-size: 13px;
 }
 dialog.checks-dialog {
   width: min(620px, calc(100vw - var(--s-6)));

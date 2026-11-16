@@ -1,29 +1,37 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { checkedCount, checklist } from '../engine/checklist.ts';
+import { checkedSplit, checklist } from '../engine/checklist.ts';
 import type { LibraryEntry } from '../engine/song.ts';
 import { checkedStore, isChecked, toggleChecked } from '../store/checked.ts';
 
 const MARK = { source: '✓', mine: '✓', open: '?', none: '–' } as const;
 const isUrl = (s: string) => /^https?:\/\//.test(s);
 
-/** "4 of 7 checked" on a song card; opens the list of what is checked, how, and what is not. */
+/** On a song card: what is checked and what is not, by name; a click opens how. */
 export function Checks({ song, version }: { song: LibraryEntry; version: string }) {
   const [open, setOpen] = useState(false);
   checkedStore.map.value;
   const id = `${song.id}/${version}`;
   const rows = checklist(song, { fingering: isChecked(id), ear: isChecked(`ear:${id}`) });
-  const { ok, of } = checkedCount(rows);
+  const { yes, no } = checkedSplit(rows);
   return (
     <>
       <button
         type="button"
-        class="badge checks"
-        data-state={ok === of ? 'all' : 'some'}
-        title="What is checked about this song, and what is not"
+        class="checks-lines"
+        title="How each of these was checked"
         onClick={() => setOpen(true)}
         data-testid={`checks-${song.id}`}
       >
-        {ok === of ? '✓' : '?'} {ok} of {of} checked
+        {yes.length > 0 && (
+          <span class="checks-yes" data-testid="checks-yes">
+            ✓ Checked: {yes.map((r) => r.what).join(' · ')}
+          </span>
+        )}
+        {no.length > 0 && (
+          <span class="checks-no" data-testid="checks-no">
+            ? Not checked: {no.map((r) => r.what).join(' · ')}
+          </span>
+        )}
       </button>
       {open && <ChecksDialog song={song} id={id} rows={rows} onClose={() => setOpen(false)} />}
     </>
@@ -56,7 +64,7 @@ function ChecksDialog(props: {
       <header>
         <div>
           <strong class="progress-title">{song.title}</strong>
-          <span>What is checked</span>
+          <span>What is checked, and how</span>
         </div>
         <button
           type="button"
@@ -87,7 +95,7 @@ function ChecksDialog(props: {
                 {r.state === 'mine' ? 'Undo' : 'I checked it'}
               </button>
             )}
-            {r.id === 'ear' && (
+            {r.id === 'ear' && !song.heard && (
               <button
                 type="button"
                 class="btn"

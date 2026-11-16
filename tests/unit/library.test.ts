@@ -5,7 +5,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkedCount, checklist } from '../../src/engine/checklist.ts';
+import { checkedSplit, checklist } from '../../src/engine/checklist.ts';
+import { buildExercise, EXERCISES } from '../../src/engine/exercises.ts';
+import { learnList } from '../../src/engine/learn.ts';
 import type { LibraryEntry, SongFile } from '../../src/engine/song.ts';
 
 const dir = join(import.meta.dirname, '..', '..', 'public', 'songs');
@@ -36,9 +38,23 @@ describe('library', () => {
         expect(ref.matched + ref.twins, 'every note as in MuseScore playback').toBe(ref.of);
         expect(ref.extra).toBe(0);
       }
+      if (ref) expect(ref.pedalMatched, 'every pedal mark as in MuseScore').toBe(ref.pedalOf);
+      const chart = s.checks?.chords;
+      if (chart && !chart.note)
+        expect(chart.onlyFile, 'every chord found is on the web chart').toEqual([]);
       const rows = checklist(s, { fingering: false, ear: false });
-      expect(rows.find((r) => r.id === 'ear')?.state).toBe('open');
-      expect(checkedCount(rows).of).toBeGreaterThan(0);
+      const { yes, no } = checkedSplit(rows);
+      expect(yes.length + no.length).toBeGreaterThan(0);
+      // every "learn" link opens a real exercise
+      for (const g of learnList(s).groups)
+        for (const l of g.links) {
+          const m = /^#\/exercise\/([a-z-]+)\/(\d+)(\/minor)?$/.exec(l.href);
+          expect(m, l.href).not.toBeNull();
+          expect(EXERCISES.some((e) => e.kind === m![1])).toBe(true);
+          expect(
+            buildExercise(m![1] as never, Number(m![2]), !!m![3]).notes.length,
+          ).toBeGreaterThan(0);
+        }
     });
 });
 
@@ -61,29 +77,59 @@ describe('checklist', () => {
       tempo: 'score',
       bpm: 100,
       key: 'guessed',
-      reference: { file: 'r.mid', of: 100, matched: 98, twins: 2, extra: 0, otherHand: 0 },
+      reference: {
+        file: 'r.mid',
+        of: 100,
+        matched: 98,
+        twins: 2,
+        extra: 0,
+        otherHand: 0,
+        pedalOf: 8,
+        pedalMatched: 8,
+      },
     },
+    chords: [
+      { root: 9, minor: true, count: 10 },
+      { root: 5, minor: false, count: 4 },
+    ],
   };
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
 
-  it('says what is checked and what is not', () => {
-    const rows = checklist(entry, { fingering: false, ear: false });
-    const state = Object.fromEntries(rows.map((r) => [r.id, r.state]));
-    expect(state).toEqual({
-      notes: 'source',
-      hands: 'source',
-      tempo: 'source',
-      key: 'open',
-      fingering: 'open',
-      pedal: 'source',
-      ear: 'open',
-    });
-    expect(checkedCount(rows)).toEqual({ ok: 4, of: 7 });
-    expect(rows[0]!.text).toMatch(/All 100 notes .* 2 of them are one key struck by both hands/);
+  it('says by name what is checked and what is not', () => {
+    const { yes, no } = checkedSplit(checklist(entry, { fingering: false, ear: false }));
+    expect(ids(yes)).toEqual(['notes', 'hands', 'tempo', 'pedal']);
+    expect(ids(no)).toEqual(['key', 'chords', 'fingering', 'ear']);
+    const notes = checklist(entry, { fingering: false, ear: false })[0]!;
+    expect(notes.text).toMatch(/All 100 notes .* \(2 times both hands have the same key/);
   });
 
-  it('counts the player’s own marks', () => {
-    const rows = checklist(entry, { fingering: true, ear: true });
-    expect(checkedCount(rows)).toEqual({ ok: 6, of: 7 });
+  it('a key and chords from a named source count as checked; so does what Matija heard', () => {
+    const sourced: LibraryEntry = {
+      ...entry,
+      heard: '2026-11-16',
+      checks: {
+        ...entry.checks!,
+        key: 'source',
+        keySource: { site: 'Musicnotes', url: 'https://example.com' },
+        chords: {
+          site: 'ukebuddy',
+          url: 'https://example.com',
+          listed: ['Am', 'F', 'G'],
+          same: ['9m', '5'],
+          onlySource: ['7'],
+          onlyFile: [],
+        },
+      },
+    };
+    const rows = checklist(sourced, { fingering: true, ear: false });
+    const { yes, no } = checkedSplit(rows);
+    expect(ids(no)).toEqual([]);
+    expect(ids(yes)).toContain('ear');
+    expect(rows.find((r) => r.id === 'key')!.text).toMatch(/as Musicnotes gives it/);
+    expect(rows.find((r) => r.id === 'chords')!.text).toMatch(
+      /A minor, F major\. The chart on ukebuddy lists Am, F, G\. Never a full chord in your file: G major\./,
+    );
+    expect(rows.find((r) => r.id === 'pedal')!.text).toMatch(/4 times down and up/);
   });
 
   it('does not call a mismatch checked unless it is explained', () => {
@@ -107,11 +153,45 @@ describe('checklist', () => {
 
   it('leaves out what the song does not have', () => {
     const rows = checklist(
-      { ...entry, pedal: null, checks: undefined },
+      { ...entry, pedal: null, checks: undefined, chords: undefined },
       { fingering: false, ear: false },
     );
-    expect(rows.map((r) => r.id)).toEqual(['notes', 'fingering', 'pedal', 'ear']);
+    expect(ids(rows)).toEqual(['notes', 'fingering', 'pedal', 'ear']);
     expect(rows.find((r) => r.id === 'pedal')!.state).toBe('none');
-    expect(checkedCount(rows)).toEqual({ ok: 0, of: 3 });
+  });
+});
+
+describe('learnList', () => {
+  it('the key first (scale, five-finger, progression), then each chord (arpeggio, inversions)', () => {
+    const { groups } = learnList({
+      id: 'x',
+      title: 'X',
+      composer: '',
+      difficulty: 2,
+      key: 'B♭ minor',
+      flats: true,
+      versions: [{ id: 'original', label: 'Original' }],
+      youtube: null,
+      source: { url: '', license: '' },
+      durationSec: 1,
+      noteCount: 1,
+      fingering: null,
+      pedal: null,
+      chords: [
+        { root: 10, minor: true, count: 9 },
+        { root: 6, minor: false, count: 5 },
+      ],
+    });
+    expect(groups.map((g) => g.title)).toEqual(['B♭ minor', 'B♭ minor', 'G♭ / F♯ major']);
+    expect(groups[0]!.links.map((l) => l.href)).toEqual([
+      '#/exercise/scale-minor/10',
+      '#/exercise/five-finger/10/minor',
+      '#/exercise/cadence/10/minor',
+    ]);
+    expect(groups[2]!.links.map((l) => l.href)).toEqual([
+      '#/exercise/arpeggio/6',
+      '#/exercise/chords/6',
+    ]);
+    expect(groups[1]!.detail).toBe('Chord in 9 measures.');
   });
 });

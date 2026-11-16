@@ -5,7 +5,7 @@
  */
 
 import { synthAllOff, synthClick, synthOff, synthOn, VOICE_SONG } from '../audio/synth.ts';
-import type { LoadedSong } from '../engine/song.ts';
+import { type LoadedSong, soundingEnds } from '../engine/song.ts';
 import type { Transport } from '../engine/transport.ts';
 import { hasOutput, onOutputReady, send as sendMidi } from './midi.ts';
 
@@ -141,10 +141,13 @@ export class SongPlayback {
   private offCount = 0;
   private readonly song: LoadedSong;
   private readonly transport: Transport;
+  /** per note: when its sound stops, with the score's pedal (soundingEnds) */
+  private readonly soundEnd: Float64Array;
 
   constructor(song: LoadedSong, transport: Transport) {
     this.song = song;
     this.transport = transport;
+    this.soundEnd = soundingEnds(song);
   }
 
   get running(): boolean {
@@ -212,7 +215,8 @@ export class SongPlayback {
       send([0x80 | CH_CLICK, CLICK_BEAT, 64], next + CLICK_MS);
       return;
     }
-    const { start, end, pitch, hand, count } = this.song;
+    const { start, pitch, hand, count } = this.song;
+    const end = this.soundEnd;
 
     // note-offs first, so a repeated pitch is released before it is struck again
     let kept = 0;

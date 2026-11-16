@@ -61,6 +61,9 @@ export interface ReferenceCheck {
   extra: number;
   /** matched notes that the MIDI puts in the other hand */
   otherHand: number;
+  /** pedal downs and ups in the score, and how many the MIDI has at the same beat */
+  pedalOf: number;
+  pedalMatched: number;
 }
 
 /** What the import could check by itself; the card's "What's checked" list shows it. */
@@ -70,9 +73,32 @@ export interface SongChecks {
   /** tempo written in the score, or 120 because it has none */
   tempo: 'score' | 'default';
   bpm: number;
-  /** major/minor written in the score, guessed from the notes, or no key signature at all */
-  key: 'score' | 'guessed' | 'none';
+  /**
+   * major/minor written in the score, taken from a named source (`keySource`), guessed from the
+   * notes, or no key signature at all
+   */
+  key: 'score' | 'source' | 'guessed' | 'none';
+  keySource?: { site: string; url: string; note?: string };
   reference?: ReferenceCheck & { file: string; note?: string };
+  /** the chords counted from the file compared with a chord chart on the web */
+  chords?: {
+    site: string;
+    url: string;
+    /** the chart's chords as it writes them */
+    listed: string[];
+    /** chord ids ("10m" = B♭ minor, "3" = E♭ major): in both, only in the chart, only in the file */
+    same: string[];
+    onlySource: string[];
+    onlyFile: string[];
+    note?: string;
+  };
+}
+
+/** A chord the piece is built on: root pitch class, minor or major, measures it fills. */
+export interface SongChord {
+  root: number;
+  minor: boolean;
+  count: number;
 }
 
 export interface LibraryEntry {
@@ -90,8 +116,13 @@ export interface LibraryEntry {
   /** where the pedal marks come from; null = the song has none */
   pedal: Provenance | null;
   /** exercises worth knowing before this song, each with the reason */
-  prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
   checks?: SongChecks;
+  /** its chords, counted from the notes, most used first (scripts/lib/chords.ts) */
+  chords?: SongChord[];
+  /** the day Matija listened and said it sounds right */
+  heard?: string;
+  /** the key signature has flats: name black keys as flats (B♭, not A♯) */
+  flats?: true;
 }
 
 /** Converts beats to seconds (at 100 % speed) through a tempo map. */
@@ -207,4 +238,40 @@ export function loadSong(file: SongFile): LoadedSong {
     duration,
     maxLen,
   };
+}
+
+/**
+ * When each note stops sounding in playback: at its written end, or, when the score's sustain
+ * pedal is already down at that moment, when the pedal comes up (as on a real piano). A note of
+ * the same key struck again cuts the earlier one there.
+ */
+export function soundingEnds(song: LoadedSong): Float64Array {
+  const { start, end, pitch, count, pedalTime, pedalOn } = song;
+  const out = Float64Array.from(end);
+  // pedal down-intervals [from, to)
+  const from: number[] = [];
+  const to: number[] = [];
+  for (let k = 0; k < pedalTime.length; k++) {
+    if (pedalOn[k]) {
+      if (from.length === to.length) from.push(pedalTime[k]!);
+    } else if (from.length > to.length) to.push(pedalTime[k]!);
+  }
+  if (from.length > to.length) to.push(Number.POSITIVE_INFINITY);
+  let j = 0;
+  const order = Array.from({ length: count }, (_, i) => i).sort((a, b) => end[a]! - end[b]!);
+  for (const i of order) {
+    const e = end[i]!;
+    while (j < to.length && to[j]! <= e) j++;
+    // the pedal must already be down a moment before the key comes up; pressed exactly then, it
+    // catches nothing (a pedal change on the next chord)
+    if (j < from.length && from[j]! < e - 0.01) out[i] = Math.max(e, to[j]!);
+  }
+  const lastOf = new Int32Array(128).fill(-1);
+  for (let i = 0; i < count; i++) {
+    const prev = lastOf[pitch[i]!]!;
+    if (prev >= 0 && out[prev]! > start[i]!) out[prev] = Math.max(end[prev]!, start[i]!);
+    lastOf[pitch[i]!] = i;
+  }
+  for (let i = 0; i < count; i++) if (out[i] === Number.POSITIVE_INFINITY) out[i] = song.duration;
+  return out;
 }

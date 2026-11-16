@@ -20,8 +20,11 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { LibraryEntry, SongChecks, SongFile } from '../src/engine/song.ts';
+import { chordId, keyFitsSignature, parseChord, parseKey } from '../src/engine/harmony.ts';
+import { usesFlats } from '../src/engine/keys.ts';
+import type { LibraryEntry, SongChecks, SongChord, SongFile } from '../src/engine/song.ts';
 import { TempoMap } from '../src/engine/song.ts';
+import { chordsOf } from './lib/chords.ts';
 import { autoFinger, measurePedal } from './lib/fingering.ts';
 import { guessMode } from './lib/key.ts';
 import { importMidi } from './lib/midi.ts';
@@ -53,8 +56,12 @@ interface Meta {
   fingering?: 'auto' | 'none';
   /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
   pedal?: 'measure';
-  /** exercises to learn first, shown on the song's card as buttons (key = tonic pitch class 0-11) */
-  prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
+  /** the key as a named web source gives it ("A♭ major"); must fit the file's key signature */
+  keySource?: { key: string; site: string; url: string; note?: string };
+  /** a chord chart on the web, compared with the chords counted from the file */
+  chordSource?: { chords: string[]; site: string; url: string; note?: string };
+  /** the day Matija listened and said it sounds right (YYYY-MM-DD) */
+  heard?: string;
 }
 
 const MAJOR = ['C♭', 'G♭', 'D♭', 'A♭', 'E♭', 'B♭', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F♯', 'C♯'];
@@ -70,6 +77,7 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
   mkdirSync(join(outDir, slug), { recursive: true });
   let first: SongFile | undefined;
   let checks: SongChecks | undefined;
+  let chords: SongChord[] = [];
 
   for (const v of meta.versions) {
     const src = join(dir, v.file);
@@ -93,7 +101,15 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
       throw new Error(`${slug}/${v.id}: ${errors.length} validation error(s)`);
     }
     const key = song.keys[0];
-    if (key && key.mode === null) {
+    if (key && meta.keySource) {
+      const named = parseKey(meta.keySource.key);
+      if (!named) throw new Error(`${slug}: keySource "${meta.keySource.key}" is not a key name`);
+      if (!keyFitsSignature(named, key.fifths))
+        throw new Error(
+          `${slug}: ${meta.keySource.site} says ${meta.keySource.key}, which does not fit the file's key signature (${key.fifths} fifths)`,
+        );
+      key.mode = named.minor ? 'minor' : 'major';
+    } else if (key && key.mode === null) {
       const until = song.keys[1]?.b ?? Number.POSITIVE_INFINITY;
       key.mode = guessMode(
         song.notes.filter((n) => n.b < until),
@@ -113,8 +129,50 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
         ? 'default'
         : 'score',
       bpm: song.tempos[0]!.bpm,
-      key: !key ? 'none' : song.keyGuessed ? 'guessed' : 'score',
+      key: !key ? 'none' : meta.keySource ? 'source' : song.keyGuessed ? 'guessed' : 'score',
+      ...(meta.keySource
+        ? {
+            keySource: {
+              site: meta.keySource.site,
+              url: meta.keySource.url,
+              ...(meta.keySource.note ? { note: meta.keySource.note } : {}),
+            },
+          }
+        : {}),
     };
+    if (key) {
+      const major = (((key.fifths * 7) % 12) + 12) % 12;
+      const found = chordsOf(
+        song,
+        key.mode === 'minor'
+          ? { tonic: (major + 9) % 12, minor: true }
+          : { tonic: major, minor: false },
+      );
+      if (meta.chordSource) {
+        const listed = meta.chordSource.chords.map((c) => {
+          const t = parseChord(c);
+          if (!t) throw new Error(`${slug}: chordSource "${c}" is not a chord name`);
+          return chordId(t);
+        });
+        const mine = found.map(chordId);
+        versionChecks.chords = {
+          site: meta.chordSource.site,
+          url: meta.chordSource.url,
+          listed: meta.chordSource.chords,
+          same: mine.filter((c) => listed.includes(c)),
+          onlySource: [...new Set(listed)].filter((c) => !mine.includes(c)),
+          onlyFile: mine.filter((c) => !listed.includes(c)),
+          ...(meta.chordSource.note ? { note: meta.chordSource.note } : {}),
+        };
+      }
+      if (!first) chords = found;
+      console.log(
+        `  chords ${slug}/${v.id}: ${found.map((c) => `${chordId(c)}×${c.count}`).join(' ')}` +
+          (versionChecks.chords
+            ? ` | ${versionChecks.chords.site}: same ${versionChecks.chords.same.join(',')}, only there ${versionChecks.chords.onlySource.join(',') || '-'}, only in file ${versionChecks.chords.onlyFile.join(',') || '-'}`
+            : ''),
+      );
+    }
     if (v.reference) {
       const { song: midi, errors: midiErrors } = importMidi(readFileSync(join(dir, v.reference)), {
         id: slug,
@@ -130,7 +188,8 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
       console.log(
         `  check ${slug}/${v.id} vs ${v.reference}: ${r.matched} of ${r.of} notes match` +
           `${r.twins ? `, ${r.twins} same key in both hands` : ''}, ${r.extra} extra in the MIDI` +
-          `${r.otherHand ? `, ${r.otherHand} in the other hand` : ''}`,
+          `${r.otherHand ? `, ${r.otherHand} in the other hand` : ''}` +
+          `; pedal ${r.pedalMatched} of ${r.pedalOf} match (MIDI has ${midi.pedal.length})`,
       );
     }
     checks ??= versionChecks;
@@ -174,8 +233,10 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     noteCount: song.notes.length,
     fingering: song.notes.find((n) => n.f)?.fs ?? null,
     pedal: song.pedal.length ? song.pedalSource : null,
-    ...(meta.prepare?.length ? { prepare: meta.prepare } : {}),
     checks,
+    ...(chords.length ? { chords } : {}),
+    ...(meta.heard ? { heard: meta.heard } : {}),
+    ...(usesFlats(song.keys) ? { flats: true as const } : {}),
   };
 }
 

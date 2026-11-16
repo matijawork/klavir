@@ -38,11 +38,16 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
    - **Errors stop the import.** Do not work around them by editing notes. Report the message to Matija.
    - Read every warning: measure-length mismatches and unmatched ties usually mean a messy source.
    - Read the `check … vs reference.mid` line. Anything short of "N of N notes match, 0 extra" (notes missing only because both hands strike the same key are fine) needs a reason: find where they part (compare beats, measure by measure). Fix the importer if it misreads the score; if the difference is on MuseScore's side (e.g. its playback ignores a volta), write it in plain words as `"referenceNote"` on the version, so the app shows it.
-   - No tempo in the score → 120 BPM, shown as not checked. No major/minor in the key signature → guessed from the notes, shown with "?".
+   - No tempo in the score → 120 BPM, shown as not checked. No major/minor in the key signature → guessed from the notes, shown as not checked.
+   - Read the `chords …` line: the chords counted from the notes (they make the card's "Keys" popup).
+5a. **Named sources** (the card shows "Key" and "Chords" as checked only with them): search the web for the song's key (Musicnotes "Original Published Key", Hooktheory "Key") and a chord chart (ukebuddy, guitartabs …). Read the page itself (web-fetch), quote only what it says, then add to meta.json:
+   `"keySource": { "key": "A♭ major", "site": "Musicnotes", "url": "…", "note": "\"Original Published Key: Ab Major\"." }` (the import stops if it does not fit the file's key signature: then it is another arrangement's key, leave it out)
+   `"chordSource": { "chords": ["Eb", "Bbm", "Fm"], "site": "ukebuddy", "url": "…" }` and a `"note"` in plain words for any difference the import shows (e.g. the arrangement plays F♯ minor where the record has F♯ major).
+   When Matija says it sounds right: `"heard": "YYYY-MM-DD"`.
 5. **Sanity check** the result: note count, measure count, both hands present, tempo plausible, key matches what the song is known to be in. Open `http://localhost:5173/klavir/#/play/<slug>/original` with `npm run dev` if in doubt.
 6. **Run** `npm test && npm run lint`.
 7. **Commit and push** `songs/<slug>/` and `public/songs/` (push deploys).
-8. **Tell Matija** in Croatian: what was added, what is checked and what is not (as the card's "What is checked" says), warnings in plain words, and ask him to press **Listen** (in Practise) and then "It sounds right" in that list.
+8. **Tell Matija** in Croatian: what was added, what is checked and what is not (as the card's two lines say), warnings in plain words, and ask him to press **Listen** (in Practise) and tell you if it sounds right.
 
 ## Nothing else to build
 The import is the whole job. The new song gets its library card with Practise and Perform, scoring, the progress chart, the note-by-note review, fingering chip, sheet link and video from `public/songs/index.json` automatically. Do not write song-specific code or tests.

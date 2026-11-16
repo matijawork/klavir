@@ -46,11 +46,24 @@ export function compareWithReference(score: SongFile, midi: SongFile): Reference
     );
     if (twin) twins++;
   });
+  // pedal: same down or up at the same beat (in beats, so a held last chord does not count)
+  const pedalUsed = new Array<boolean>(midi.pedal.length).fill(false);
+  let pedalMatched = 0;
+  for (const p of score.pedal) {
+    const k = midi.pedal.findIndex(
+      (q, j) => !pedalUsed[j] && q.on === p.on && Math.abs(q.b - p.b) < 0.02,
+    );
+    if (k < 0) continue;
+    pedalUsed[k] = true;
+    pedalMatched++;
+  }
   return {
     of: score.notes.length,
     matched,
     twins,
     extra: ref.filter((r) => !r.used).length,
     otherHand,
+    pedalOf: score.pedal.length,
+    pedalMatched,
   };
 }

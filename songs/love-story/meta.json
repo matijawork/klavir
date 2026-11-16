@@ -14,5 +14,17 @@
       "file": "original.mxl",
       "reference": "reference.mid"
     }
-  ]
+  ],
+  "chordSource": {
+    "chords": [
+      "Bbm",
+      "Fm",
+      "Gb",
+      "Ab"
+    ],
+    "site": "ukutabs",
+    "url": "https://ukutabs.com/i/indila/love-story-2/",
+    "note": "Read from the page's title in web search (\"Intro (x4): Bbm Fm Gb Ab\"); the page itself refuses automatic reading."
+  },
+  "heard": "2026-11-16"
 }

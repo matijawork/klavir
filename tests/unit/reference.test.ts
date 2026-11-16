@@ -25,7 +25,7 @@ describe('compareWithReference', () => {
   const score = song([n(48, 0, 'L'), n(60, 0), n(64, 1), n(67, 2)]);
 
   it('matches every note of an identical file', () => {
-    expect(compareWithReference(score, song([...score.notes]))).toEqual({
+    expect(compareWithReference(score, song([...score.notes]))).toMatchObject({
       of: 4,
       matched: 4,
       twins: 0,
@@ -46,7 +46,7 @@ describe('compareWithReference', () => {
   it('explains a note missing because both hands strike the same key together', () => {
     const both = song([n(60, 0, 'L'), n(60, 0, 'R'), n(64, 1)]);
     const midi = song([n(60, 0, 'R'), n(64, 1)]);
-    expect(compareWithReference(both, midi)).toEqual({
+    expect(compareWithReference(both, midi)).toMatchObject({
       of: 3,
       matched: 2,
       twins: 1,

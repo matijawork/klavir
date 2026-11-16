@@ -14,5 +14,24 @@
       "file": "original.mxl",
       "reference": "reference.mid"
     }
-  ]
+  ],
+  "keySource": {
+    "key": "A♭ major",
+    "site": "Musicnotes",
+    "url": "https://www.musicnotes.com/sheetmusic/coldplay/clocks/MN0095312",
+    "note": "\"Original Published Key: Ab Major\". The ukebuddy chord chart says B♭ minor instead, but that key has five flats and your file has four."
+  },
+  "chordSource": {
+    "chords": [
+      "Eb",
+      "Bbm",
+      "Fm",
+      "Gbmaj7",
+      "Db",
+      "Ab"
+    ],
+    "site": "ukebuddy",
+    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/clocks"
+  },
+  "heard": "2026-11-16"
 }

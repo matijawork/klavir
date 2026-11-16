@@ -455,6 +455,8 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
   song.tempos = song.tempos.filter((t, i, arr) => i === 0 || t.bpm !== arr[i - 1]!.bpm);
   if (song.tempos[0]!.b > 0) song.tempos.unshift({ b: 0, bpm: song.tempos[0]!.bpm });
   song.pedal.sort((a, b) => a.b - b.b || Number(a.on) - Number(b.on));
+  // two pedal lines drawn over each other give "down, down" or "up, up": keep the changes only
+  song.pedal = song.pedal.filter((p, i, arr) => (i === 0 ? p.on : p.on !== arr[i - 1]!.on));
   if (song.pedal.length) song.pedalSource = 'arranger';
 
   errors.push(...validateSong(song, opts.oneHand));

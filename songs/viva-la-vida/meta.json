@@ -14,5 +14,22 @@
       "file": "original.mxl",
       "reference": "reference.mid"
     }
-  ]
+  ],
+  "keySource": {
+    "key": "A♭ major",
+    "site": "ukebuddy",
+    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida",
+    "note": "\"Key: Ab Major\"."
+  },
+  "chordSource": {
+    "chords": [
+      "Db",
+      "Eb",
+      "Ab",
+      "Fm"
+    ],
+    "site": "ukebuddy",
+    "url": "https://ukebuddy.com/ukulele-tabs/coldplay/viva-la-vida"
+  },
+  "heard": "2026-11-16"
 }

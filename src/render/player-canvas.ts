@@ -278,7 +278,10 @@ export class PlayerCanvas {
           this.dueEnd[p] = e;
         }
         const st = state[i]!;
-        // green on time, yellow early, orange late, red let go too soon, grey missed
+        const handColor = hand[i] ? tk['hand-right'] : tk['hand-left'];
+        // green on time, yellow early, orange late, red let go too soon; missed: empty, in the
+        // colour of its hand, so it still says which hand it was for
+        const missed = st === MISSED;
         const base =
           st === HIT
             ? grade[i] === EARLY
@@ -286,20 +289,16 @@ export class PlayerCanvas {
               : grade[i] === LATE
                 ? tk['fb-late']
                 : tk['fb-correct']
-            : st === MISSED
-              ? tk['fb-missed']
-              : st === SHORT
-                ? tk['fb-wrong']
-                : hand[i]
-                  ? tk['hand-right']
-                  : tk['hand-left'];
+            : st === SHORT
+              ? tk['fb-wrong']
+              : handColor;
         const x = keyX[p]! * w + 1;
         const bw = keyW[p]! * w - 2;
         const yBottom = Math.min(hitY, hitY - (s - t) * pps);
         const yTop = hitY - (e - t) * pps;
         const bh = Math.max(4, yBottom - yTop - 2);
         const dim = !mine || !inRange;
-        if (!dim) {
+        if (!dim && !missed) {
           // soft halo around the note
           ctx.globalCompositeOperation = 'lighter';
           ctx.fillStyle = withAlphaCached(base, active ? 0.2 : 0.08);
@@ -308,16 +307,26 @@ export class PlayerCanvas {
           ctx.fill();
           ctx.globalCompositeOperation = 'source-over';
         }
+        // the other hand (or outside the section) stays in its hand's colour, only fainter
         ctx.fillStyle = dim
-          ? withAlphaCached(base, 0.18)
-          : pass
-            ? withAlphaCached(base, 0.8)
-            : base;
+          ? withAlphaCached(base, 0.38)
+          : missed
+            ? withAlphaCached(base, 0.14)
+            : pass
+              ? withAlphaCached(base, 0.8)
+              : base;
         ctx.beginPath();
         ctx.roundRect(x, yBottom - bh, bw, bh, NOTE_RADIUS);
         ctx.fill();
+        if (missed && !dim) {
+          ctx.strokeStyle = withAlphaCached(base, 0.9);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(x + 1, yBottom - bh + 1, bw - 2, bh - 2, NOTE_RADIUS - 1);
+          ctx.stroke();
+        }
         if (dim) continue;
-        if (bh > 8) {
+        if (bh > 8 && !missed) {
           ctx.fillStyle = sheen;
           ctx.beginPath();
           ctx.roundRect(x + 2, yBottom - bh + 2, Math.max(2, bw * 0.26), bh - 4, 3);

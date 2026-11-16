@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isBlack, keyW, keyX, noteName, WHITE_W } from '../../src/engine/keys.ts';
-import { loadSong, type SongFile, TempoMap } from '../../src/engine/song.ts';
+import { loadSong, type SongFile, soundingEnds, TempoMap } from '../../src/engine/song.ts';
 import { Transport } from '../../src/engine/transport.ts';
 
 describe('TempoMap', () => {
@@ -113,23 +113,74 @@ describe('Transport', () => {
   });
 });
 
-describe('library index: exercises to learn first', () => {
-  it('every prepare step names a real exercise in a valid key', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { EXERCISES, buildExercise } = await import('../../src/engine/exercises.ts');
-    const index = JSON.parse(readFileSync('public/songs/index.json', 'utf8')) as {
-      id: string;
-      prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
-    }[];
-    for (const s of index)
-      for (const p of s.prepare ?? []) {
-        expect(
-          EXERCISES.some((e) => e.kind === p.kind),
-          `${s.id}: ${p.kind}`,
-        ).toBe(true);
-        expect(Number.isInteger(p.key) && p.key >= 0 && p.key < 12).toBe(true);
-        expect(p.why.length).toBeGreaterThan(5);
-        expect(buildExercise(p.kind as never, p.key, p.minor).notes.length).toBeGreaterThan(0);
-      }
+describe('soundingEnds: the score pedal in playback', () => {
+  const song = (notes: SongFile['notes'], pedal: SongFile['pedal']) =>
+    loadSong({
+      format: 1,
+      id: 't',
+      version: 'original',
+      title: 'T',
+      composer: '',
+      tempos: [{ b: 0, bpm: 60 }],
+      measures: [0, 4, 8].map((b, i) => ({ b, len: 4, num: 4, den: 4, n: String(i + 1) })),
+      notes,
+      pedal,
+      pedalSource: 'arranger',
+      keys: [],
+      sections: [],
+      handsFromPitchSplit: false,
+      warnings: [],
+    });
+
+  it('a key let go while the pedal is down sounds until the pedal comes up', () => {
+    const s = song(
+      [
+        { p: 48, b: 0, d: 1, h: 'L' }, // let go at 1, pedal down 0.5..3 → sounds to 3
+        { p: 60, b: 0, d: 3.2, h: 'R' }, // let go at 3.2, pedal up from 3 to 3.5 → 3.2
+        { p: 52, b: 3, d: 1, h: 'L' }, // let go at 4: pedal pressed again at 3.5 → 6
+        { p: 55, b: 5, d: 1, h: 'L' }, // let go at 6 exactly when the pedal comes up → 6
+      ],
+      [
+        { b: 0.5, on: true },
+        { b: 3, on: false },
+        { b: 3.5, on: true },
+        { b: 6, on: false },
+      ],
+    );
+    expect([...soundingEnds(s)]).toEqual([3, 3.2, 6, 6]);
+  });
+
+  it('a pedal change exactly when a key comes up does not hold it', () => {
+    const s = song(
+      [{ p: 48, b: 0, d: 2, h: 'L' }],
+      [
+        { b: 0, on: true },
+        { b: 2, on: false },
+        { b: 2, on: true },
+        { b: 4, on: false },
+      ],
+    );
+    expect([...soundingEnds(s)]).toEqual([2]);
+  });
+
+  it('the same key struck again cuts the held sound; no pedal changes nothing', () => {
+    const held = song(
+      [
+        { p: 60, b: 0, d: 1, h: 'R' },
+        { p: 60, b: 2, d: 1, h: 'R' },
+      ],
+      [
+        { b: 0.5, on: true },
+        { b: 8, on: false },
+      ],
+    );
+    expect([...soundingEnds(held)]).toEqual([2, 8]);
+    const dry = song([{ p: 60, b: 0, d: 1, h: 'R' }], []);
+    expect([...soundingEnds(dry)]).toEqual([1]);
+  });
+
+  it('a pedal never lifted holds to the end of the piece', () => {
+    const s = song([{ p: 60, b: 0, d: 1, h: 'R' }], [{ b: 0.5, on: true }]);
+    expect([...soundingEnds(s)]).toEqual([s.duration]);
   });
 });
