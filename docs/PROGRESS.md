@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-15. Live: https://matijawork.github.io/klavir/ · 249 unit + 37 e2e green.
+Updated 2026-11-16. Live: https://matijawork.github.io/klavir/ · 249 unit + 37 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -24,7 +24,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Sound**: sampled piano (Salamander, CC BY 3.0), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
 - **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
 - **History**: performances only, IndexedDB `klavir` v3 / `performances` (`{song, at, score, hands}`, no `hands` = both) and `last`; fallback `klavir.performances` in localStorage. The older practice history (`passes` store, `klavir.history`) is deleted on load: he asked for that.
-- **Import pipeline** for MusicXML (`add-song` skill); five public-domain pieces plus `test-c`.
+- **Import pipeline** for MusicXML (`add-song` skill); library is only `test-c` for now (demo songs removed on his request, 2026-11-16).
 
 ## How sure we are (keep this table honest; the app shows the fingering rows as chips)
 | Thing | Status |
@@ -54,6 +54,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
+**0. Pending song: Hans Zimmer - Interstellar - Main Theme** (YouTube `https://www.youtube.com/watch?v=qJ8-QVm9TQk`). His files in ~/Downloads were not importable: `Zimmer Hans …[MIDIfind.com].mid` (1 track, one hand range, 3/2) and `Interstellar.pdf` (Flat, "Cornfield Chase", no note data). `325275286-…Piano-Version_2.mid` is a written (quantized) 1-track MIDI, F1–E6, 2024 notes, 83 bpm, 4/2, both hands in one track, so it needs `splitAt: 60` (392 notes below, 1632 above) and he must agree. He said "later"; prefer a MusicXML/.mxl from Flat or musescore.com. The matching PDF `540121407-…Piano-Version.pdf` is only for comparison.
 1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
 2. App is finished and reviewed (see Final review). Later, only if he asks: M8 tablet / PWA. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
 
@@ -65,7 +66,7 @@ Aplikacija je gotova i pregledana (2026-11-15); ne dodaji ništa novo bez da tra
 Ako šaljem pjesmu: add-song skill. Ako javim problem: prvo ga ponovi, pa popravi.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
-Nova pjesma: <putanja do datoteke + YouTube link ako ga imam>
+Nova pjesma: Interstellar (vidi "Next" 0): <putanja do datoteke + YouTube link ako ga imam>
 Prijava na dva uređaja: <radi / točan tekst greške>
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
 ```
