@@ -4,14 +4,15 @@
   "difficulty": 3,
   "youtube": "https://www.youtube.com/watch?v=4y33h81phKU",
   "source": {
-    "url": "unknown, supplied by Matija (musescore.com-style file)",
-    "license": "unknown, supplied by Matija"
+    "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Interestellar Main Theme\", arrangement credited to Piano Porg in the file)",
+    "license": "unknown, supplied by Matija (musescore.com user score)"
   },
   "versions": [
     {
       "id": "original",
       "label": "Original",
-      "file": "original.mxl"
+      "file": "original.mxl",
+      "reference": "reference.mid"
     }
   ],
   "prepare": [

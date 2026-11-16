@@ -47,6 +47,32 @@ describe('importMusicXml', () => {
     ]);
   });
 
+  it('plays staccato half as long, for the whole chord, but leaves tied notes alone', () => {
+    // Love Story's left hand: a bass note tied across the bar, chords marked staccato on their
+    // first note only (MuseScore's way of writing it)
+    const stac = '<notations><articulations><staccato/></articulations></notations>';
+    const xml = score(
+      m1(
+        note('C', 5, 8, 1) +
+          '<backup><duration>8</duration></backup>' +
+          note('C', 3, 2, 2, '<tie type="start"/>') +
+          note('C', 3, 2, 2, `<tie type="stop"/>${stac}`) +
+          note('E', 3, 2, 2, '<chord/>') +
+          note('G', 3, 2, 2, '<chord/>') +
+          note('D', 3, 4, 2),
+      ),
+    );
+    const { song, errors } = importMusicXml(xml, opts);
+    expect(errors).toEqual([]);
+    expect(song.notes.filter((n) => n.h === 'L')).toEqual([
+      { p: 48, b: 0, d: 2, h: 'L' },
+      { p: 52, b: 1, d: 0.5, h: 'L' },
+      { p: 55, b: 1, d: 0.5, h: 'L' },
+      { p: 50, b: 2, d: 2, h: 'L' },
+    ]);
+    expect(song.warnings.join(' ')).toMatch(/2 written staccato/);
+  });
+
   it('applies accidentals', () => {
     const sharp =
       '<note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>8</duration><staff>1</staff></note>';

@@ -961,3 +961,72 @@ dialog.video {
   padding: 0 var(--s-2);
   font-size: 12px;
 }
+
+/* what is checked about a song */
+button.badge.checks {
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+button.badge.checks[data-state="all"] {
+  color: var(--fb-correct);
+}
+button.badge.checks[data-state="some"] {
+  color: var(--fb-early);
+}
+button.badge.checks:hover {
+  color: var(--text);
+}
+dialog.checks-dialog {
+  width: min(620px, calc(100vw - var(--s-6)));
+}
+.checks-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.checks-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.checks-list li > div {
+  flex: 1;
+}
+.checks-mark {
+  width: 16px;
+  flex: none;
+  font-weight: 700;
+  text-align: center;
+}
+.checks-list li[data-state="source"] .checks-mark,
+.checks-list li[data-state="mine"] .checks-mark {
+  color: var(--fb-correct);
+}
+.checks-list li[data-state="open"] .checks-mark {
+  color: var(--fb-early);
+}
+.checks-list li[data-state="none"] .checks-mark {
+  color: var(--text-faint);
+}
+.checks-text {
+  color: var(--text-dim);
+}
+.checks-list .btn {
+  flex: none;
+  height: 28px;
+  padding: 0 var(--s-2);
+  font-size: 12px;
+}
+.checks-source {
+  margin: var(--s-4) 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

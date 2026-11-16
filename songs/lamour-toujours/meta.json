@@ -1,0 +1,19 @@
+{
+  "title": "L'amour toujours (I'll fly with you)",
+  "composer": "Gigi D'Agostino",
+  "difficulty": 2,
+  "youtube": null,
+  "source": {
+    "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Marien Bosch)",
+    "license": "unknown, supplied by Matija (musescore.com user score)"
+  },
+  "versions": [
+    {
+      "id": "original",
+      "label": "Original",
+      "file": "original.mxl",
+      "reference": "reference.mid",
+      "referenceNote": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
+    }
+  ]
+}

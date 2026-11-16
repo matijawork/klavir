@@ -289,6 +289,16 @@ export class PracticeSession {
   private readonly usedOn = new Float64Array(128);
   /** per pitch: the song note the player is currently holding, or -1 */
   private readonly holding = new Int32Array(128).fill(-1);
+  /**
+   * per note: song time until which the key can be held: its end, or earlier when the other hand
+   * strikes the same key again before then (the key has to come up for that)
+   */
+  private readonly holdEnd: Float64Array;
+  /**
+   * per note: another note of the same key starting at the same moment (both hands on one key),
+   * linked in a ring; -1 when there is none. One press plays them all.
+   */
+  private readonly twin: Int32Array;
 
   constructor(song: LoadedSong, transport: Transport) {
     this.song = song;
@@ -307,7 +317,50 @@ export class PracticeSession {
       this.noteMeasure[i] = m;
     }
     this.wrongIn = new Uint16Array(Math.max(1, ms.length));
+    this.holdEnd = Float64Array.from(song.end);
+    this.twin = new Int32Array(song.count).fill(-1);
+    const byPitch = new Map<number, number[]>();
+    for (let i = 0; i < song.count; i++) {
+      const list = byPitch.get(song.pitch[i]!) ?? [];
+      list.push(i);
+      byPitch.set(song.pitch[i]!, list);
+    }
+    for (const list of byPitch.values())
+      for (let k = 0; k < list.length; k++) {
+        const i = list[k]!;
+        let j = k + 1;
+        while (j < list.length && song.start[list[j]!]! - song.start[i]! <= 1e-4) j++;
+        if (j < list.length) this.holdEnd[i] = Math.min(song.end[i]!, song.start[list[j]!]!);
+        if (j - k > 1) this.twin[i] = list[k + 1]!;
+        else if (k > 0 && song.start[i]! - song.start[list[k - 1]!]! <= 1e-4) {
+          // last of a group of twins: close the ring at the first one
+          let first = k - 1;
+          while (first > 0 && song.start[i]! - song.start[list[first - 1]!]! <= 1e-4) first--;
+          this.twin[i] = list[first]!;
+        }
+      }
     this.configure(this.config);
+  }
+
+  /**
+   * Of the played notes of the same key and moment, the one held longest: a held key is judged
+   * by it (the other hand's shorter note cannot be let go on its own).
+   */
+  private longestTwin(i: number): number {
+    let best = i;
+    for (let j = this.twin[i]!; j >= 0 && j !== i; j = this.twin[j]!)
+      if (this.state[j] === HIT && this.holdEnd[j]! > this.holdEnd[best]!) best = j;
+    return best;
+  }
+
+  /** Is note `i` one of this pass's notes (hand and range)? */
+  private isActive(i: number): boolean {
+    const s = this.song.start[i]!;
+    return (
+      (this.config.handMask & (1 << this.song.hand[i]!)) !== 0 &&
+      s >= this.rangeStart - 1e-6 &&
+      s < this.rangeEnd - 1e-6
+    );
   }
 
   /** Applies a new configuration and rewinds to the start of the range. */
@@ -426,7 +479,7 @@ export class PracticeSession {
       this.revision++;
       const p = this.song.pitch[i]!;
       this.usedOn[p] = this.lastOn[p]!;
-      if (this.down[p]) this.holding[p] = i;
+      if (this.down[p]) this.holding[p] = this.longestTwin(i);
       else this.checkRelease(i, this.song.start[i]!);
     }
     this.group = g + 1;
@@ -480,8 +533,12 @@ export class PracticeSession {
   private checkRelease(i: number, t: number): void {
     if (this.state[i] !== HIT) return;
     this.releasedAt[i] = t;
+    // the same key in the other hand at the same moment: one key, released once
+    for (let j = this.twin[i]!; j >= 0 && j !== i; j = this.twin[j]!)
+      if (this.state[j] === HIT && Number.isNaN(this.releasedAt[j]!)) this.releasedAt[j] = t;
     if (this.pedalDown) return;
-    const { start, end } = this.song;
+    const start = this.song.start;
+    const end = this.holdEnd;
     const len = end[i]! - start[i]!;
     const left = end[i]! - t;
     const P = PRESETS[this.strictness];
@@ -583,13 +640,20 @@ export class PracticeSession {
       }
     }
     if (best >= 0) {
-      this.state[best] = HIT;
-      this.deviation[best] = bestDev;
-      this.grade[best] = Math.abs(bestDev) <= bestWin ? ON_TIME : bestDev < 0 ? EARLY : LATE;
-      this.timing[best] = timingScore(Math.abs(bestDev), bestWin, bestAccept);
-      this.hits++;
+      // both hands on the same key at the same moment: one press plays both notes
+      let i = best;
+      do {
+        if (this.state[i] === PENDING && this.isActive(i)) {
+          this.state[i] = HIT;
+          this.deviation[i] = bestDev;
+          this.grade[i] = Math.abs(bestDev) <= bestWin ? ON_TIME : bestDev < 0 ? EARLY : LATE;
+          this.timing[i] = timingScore(Math.abs(bestDev), bestWin, bestAccept);
+          this.hits++;
+        }
+        i = this.twin[i]!;
+      } while (i >= 0 && i !== best);
       this.revision++;
-      this.holding[p] = best;
+      this.holding[p] = this.longestTwin(best);
     } else if (t >= this.rangeStart - 0.05) this.countWrong(p, t);
   }
 

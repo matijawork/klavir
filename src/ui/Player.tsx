@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { outputLevel } from '../audio/synth.ts';
 import { tonicOf } from '../engine/exercises.ts';
 import { calibrationHint, feedback, readyToPerform } from '../engine/feedback.ts';
-import { noteName } from '../engine/keys.ts';
+import { noteName, usesFlats } from '../engine/keys.ts';
 import { type ReviewStep, reviewSteps } from '../engine/review.ts';
 import { type PassResult, type PassSnapshot, PracticeSession } from '../engine/session.ts';
 import { type LoadedSong, loadSong, type SongFile } from '../engine/song.ts';
@@ -44,10 +44,10 @@ interface Engine {
 }
 
 /** The keys held right now and the pedal. Its own component, so a key press re-renders only this. */
-function LiveInput() {
+function LiveInput({ flats }: { flats: boolean }) {
   inputVersion.value; // re-render when keys change
   const names: string[] = [];
-  for (let p = 21; p <= 108; p++) if (held[p]! > 0) names.push(noteName(p));
+  for (let p = 21; p <= 108; p++) if (held[p]! > 0) names.push(noteName(p, true, flats));
   return (
     <div class="live" data-testid="live-input">
       <span class="live-notes">{names.join('  ')}</span>
@@ -433,6 +433,7 @@ export function Player({
     const session = new PracticeSession(song, transport);
     const playback = new SongPlayback(song, transport);
     const view = new PlayerCanvas(canvasRef.current, session);
+    view.flats = usesFlats(song.file.keys);
     session.onSeek = () => playback.resync();
     const historyKey = `${song.file.id}/${song.file.version}`;
     session.onPass = (r) => {
@@ -1275,7 +1276,7 @@ export function Player({
         }}
       >
         {error ? <p class="empty">{error}</p> : <canvas ref={canvasRef} data-testid="stage" />}
-        <LiveInput />
+        <LiveInput flats={usesFlats(song?.file.keys ?? [])} />
         {now && !listen.value && (
           <div class="hud" data-testid="hud" title="This pass so far">
             {s.mode === 'tempo' && (

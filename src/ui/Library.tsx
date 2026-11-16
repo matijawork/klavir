@@ -4,6 +4,7 @@ import { EXERCISES, fingeringSourceOf, keyName } from '../engine/exercises.ts';
 import type { LibraryEntry } from '../engine/song.ts';
 import { days } from '../store/days.ts';
 import { bestOf, historyVersion, passesOf } from '../store/history.ts';
+import { Checks } from './Checks.tsx';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
 import { PedalChip } from './PedalChip.tsx';
@@ -193,13 +194,22 @@ export function Library() {
               </a>
               <div class="badges">
                 <Best id={`${s.id}/${s.versions[0]?.id ?? 'original'}`} title={s.title} />
-                <span class="badge" title="Key from the score's key signature">
+                <span
+                  class="badge"
+                  title={
+                    s.checks?.key === 'guessed'
+                      ? 'Key guessed from the notes: the score has only the key signature'
+                      : "Key from the score's key signature"
+                  }
+                  data-testid="song-key"
+                >
                   {s.key}
+                  {s.checks?.key === 'guessed' ? ' ?' : ''}
                 </span>
                 <span
                   class="badge"
                   role="img"
-                  title={`Difficulty ${s.difficulty} of 5`}
+                  title={`Difficulty ${s.difficulty} of 5 (estimated by Claude from speed and chords)`}
                   aria-label={`Difficulty ${s.difficulty} of 5`}
                 >
                   {'●'.repeat(s.difficulty)}
@@ -218,24 +228,31 @@ export function Library() {
                   />
                 )}
                 <PedalChip source={s.pedal ?? null} small />
+                <Checks song={s} version={s.versions[0]?.id ?? 'original'} />
               </div>
               {s.prepare && (
                 <div class="prepare" data-testid={`prepare-${s.id}`}>
                   <span class="faint" title="Exercises worth knowing before this song">
                     Learn first
                   </span>
-                  {s.prepare.map((p) => (
-                    <a
-                      key={`${p.kind}-${p.key}-${p.minor ?? false}`}
-                      class="btn"
-                      href={`#/exercise/${p.kind}/${p.key}${p.minor && p.kind !== 'scale-minor' ? '/minor' : ''}`}
-                      title={p.why}
-                      data-testid="prepare-link"
-                    >
-                      {keyName(p.key, p.minor)} {p.minor ? 'minor' : 'major'} ·{' '}
-                      {EXERCISES.find((e) => e.kind === p.kind)?.title ?? p.kind}
-                    </a>
-                  ))}
+                  {s.prepare.map((p) => {
+                    const minor = p.minor === true || p.kind === 'scale-minor';
+                    const scale = p.kind === 'scale-major' || p.kind === 'scale-minor';
+                    return (
+                      <a
+                        key={`${p.kind}-${p.key}-${p.minor ?? false}`}
+                        class="btn"
+                        href={`#/exercise/${p.kind}/${p.key}${p.minor && p.kind !== 'scale-minor' ? '/minor' : ''}`}
+                        title={p.why}
+                        data-testid="prepare-link"
+                      >
+                        {keyName(p.key, minor)} {minor ? 'minor' : 'major'} ·{' '}
+                        {scale
+                          ? 'Scale'
+                          : (EXERCISES.find((e) => e.kind === p.kind)?.title ?? p.kind)}
+                      </a>
+                    );
+                  })}
                 </div>
               )}
               <Actions path={`play/${s.id}/${s.versions[0]?.id ?? 'original'}`} testid={s.id} />
@@ -248,9 +265,11 @@ export function Library() {
                   Sheet
                 </a>
                 <VideoButton id={s.id} title={s.title} fromSong={s.youtube} />
-                <a href={s.source.url} target="_blank" rel="noreferrer" title={s.source.license}>
-                  Source
-                </a>
+                {/^https?:\/\//.test(s.source.url) && (
+                  <a href={s.source.url} target="_blank" rel="noreferrer" title={s.source.license}>
+                    Source
+                  </a>
+                )}
               </div>
             </article>
           ))}

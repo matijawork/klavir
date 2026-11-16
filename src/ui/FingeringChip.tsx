@@ -29,7 +29,8 @@ export function FingeringChip(props: {
           : `Not from a source (${props.source.text}).`
       } Click to ${byMe ? 'remove your mark' : 'mark that you checked it yourself'}.`}
     >
-      {state === 'open' ? '?' : '✓'} {props.small ? label.replace('Fingering: ', '') : label}
+      {state === 'open' ? '?' : '✓'}{' '}
+      {props.small && state === 'open' ? 'Fingering: not checked' : label}
     </button>
   );
 }

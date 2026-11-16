@@ -5,12 +5,17 @@ export const WHITE_COUNT = 52;
 
 const BLACK_PC = [false, true, false, true, false, false, true, false, true, false, true, false];
 const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
 
 export const isBlack = (pitch: number): boolean => BLACK_PC[pitch % 12]!;
 
-/** "C4", "F♯3" — middle C (60) is C4 */
-export const noteName = (pitch: number, octave = true): string =>
-  NAMES[pitch % 12]! + (octave ? Math.floor(pitch / 12) - 1 : '');
+/** "C4", "F♯3" — middle C (60) is C4; `flats`: black keys as "B♭3" */
+export const noteName = (pitch: number, octave = true, flats = false): string =>
+  (flats ? FLAT_NAMES : NAMES)[pitch % 12]! + (octave ? Math.floor(pitch / 12) - 1 : '');
+
+/** Black keys are named as flats when the piece starts in a key with flats (B♭ minor: B♭, not A♯). */
+export const usesFlats = (keys: readonly { fifths: number }[]): boolean =>
+  (keys[0]?.fifths ?? 0) < 0;
 
 export const WHITE_W = 1 / WHITE_COUNT;
 export const BLACK_W = WHITE_W * 0.58;

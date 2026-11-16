@@ -19,14 +19,93 @@
     "durationSec": 8,
     "noteCount": 3,
     "fingering": "claude",
-    "pedal": null
+    "pedal": null,
+    "checks": {
+      "hands": "one",
+      "tempo": "score",
+      "bpm": 60,
+      "key": "guessed"
+    }
+  },
+  {
+    "id": "lamour-toujours",
+    "title": "L'amour toujours (I'll fly with you)",
+    "composer": "Gigi D'Agostino",
+    "difficulty": 2,
+    "key": "D major",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": null,
+    "source": {
+      "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Marien Bosch)",
+      "license": "unknown, supplied by Matija (musescore.com user score)"
+    },
+    "durationSec": 146,
+    "noteCount": 949,
+    "fingering": "claude",
+    "pedal": null,
+    "checks": {
+      "hands": "score",
+      "tempo": "default",
+      "bpm": 120,
+      "key": "score",
+      "reference": {
+        "file": "reference.mid",
+        "of": 949,
+        "matched": 801,
+        "twins": 0,
+        "extra": 96,
+        "otherHand": 0,
+        "note": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
+      }
+    }
+  },
+  {
+    "id": "clocks",
+    "title": "Clocks",
+    "composer": "Coldplay",
+    "difficulty": 3,
+    "key": "F minor",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": null,
+    "source": {
+      "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Clocks - Coldplay\")",
+      "license": "unknown, supplied by Matija (musescore.com user score)"
+    },
+    "durationSec": 293,
+    "noteCount": 2571,
+    "fingering": "claude",
+    "pedal": "arranger",
+    "checks": {
+      "hands": "score",
+      "tempo": "score",
+      "bpm": 132,
+      "key": "guessed",
+      "reference": {
+        "file": "reference.mid",
+        "of": 2571,
+        "matched": 2565,
+        "twins": 6,
+        "extra": 0,
+        "otherHand": 0
+      }
+    }
   },
   {
     "id": "interstellar",
     "title": "Interstellar - Main Theme",
     "composer": "Hans Zimmer",
     "difficulty": 3,
-    "key": "C major",
+    "key": "A minor",
     "versions": [
       {
         "id": "original",
@@ -35,8 +114,8 @@
     ],
     "youtube": "https://www.youtube.com/watch?v=4y33h81phKU",
     "source": {
-      "url": "unknown, supplied by Matija (musescore.com-style file)",
-      "license": "unknown, supplied by Matija"
+      "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Interestellar Main Theme\", arrangement credited to Piano Porg in the file)",
+      "license": "unknown, supplied by Matija (musescore.com user score)"
     },
     "durationSec": 281,
     "noteCount": 2057,
@@ -76,6 +155,92 @@
         "minor": true,
         "why": "Slow chord changes with the pedal changing on each chord. Chosen by Claude, not from a source."
       }
-    ]
+    ],
+    "checks": {
+      "hands": "score",
+      "tempo": "score",
+      "bpm": 100,
+      "key": "guessed",
+      "reference": {
+        "file": "reference.mid",
+        "of": 2057,
+        "matched": 2057,
+        "twins": 0,
+        "extra": 0,
+        "otherHand": 0
+      }
+    }
+  },
+  {
+    "id": "love-story",
+    "title": "Love Story (piano ver.)",
+    "composer": "Indila",
+    "difficulty": 3,
+    "key": "B♭ minor",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": null,
+    "source": {
+      "url": "musescore.com, downloaded by Matija 2026-11-16 (arranged by Anastazja Szczepłek)",
+      "license": "unknown, supplied by Matija (musescore.com user score)"
+    },
+    "durationSec": 199,
+    "noteCount": 1190,
+    "fingering": "claude",
+    "pedal": "arranger",
+    "checks": {
+      "hands": "score",
+      "tempo": "score",
+      "bpm": 170,
+      "key": "guessed",
+      "reference": {
+        "file": "reference.mid",
+        "of": 1190,
+        "matched": 1184,
+        "twins": 6,
+        "extra": 0,
+        "otherHand": 0
+      }
+    }
+  },
+  {
+    "id": "viva-la-vida",
+    "title": "Viva La Vida",
+    "composer": "Coldplay",
+    "difficulty": 3,
+    "key": "A♭ major",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": null,
+    "source": {
+      "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Viva La Vida - Coldplay\")",
+      "license": "unknown, supplied by Matija (musescore.com user score)"
+    },
+    "durationSec": 233,
+    "noteCount": 2768,
+    "fingering": "claude",
+    "pedal": "arranger",
+    "checks": {
+      "hands": "score",
+      "tempo": "score",
+      "bpm": 140,
+      "key": "guessed",
+      "reference": {
+        "file": "reference.mid",
+        "of": 2768,
+        "matched": 2768,
+        "twins": 0,
+        "extra": 0,
+        "otherHand": 0
+      }
+    }
   }
 ]

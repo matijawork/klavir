@@ -1,5 +1,5 @@
 /** Note-by-note review of a finished pass: what happened at each step, in plain words. Pure, no DOM. */
-import { noteName } from './keys.ts';
+import { noteName, usesFlats } from './keys.ts';
 import { EARLY, HIT, LATE, MISSED, type PassSnapshot, SHORT } from './session.ts';
 import type { LoadedSong } from './song.ts';
 
@@ -48,6 +48,7 @@ export function reviewSteps(song: LoadedSong, snap: PassSnapshot): ReviewStep[] 
     return m;
   };
   const steps: ReviewStep[] = [];
+  const flats = usesFlats(song.file.keys);
   const n = snap.notes;
   for (let k = 0; k < n.length; ) {
     const t = start[n[k]!]!;
@@ -55,7 +56,7 @@ export function reviewSteps(song: LoadedSong, snap: PassSnapshot): ReviewStep[] 
     const wrong: string[] = [];
     for (; k < n.length && start[n[k]!]! - t <= 1e-4; k++) {
       const i = n[k]!;
-      const name = noteName(pitch[i]!, true);
+      const name = noteName(pitch[i]!, true, flats);
       const v = verdict(snap, song, i);
       if (v) wrong.push(`${name} ${v}`);
       else fine.push(name);

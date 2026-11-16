@@ -59,6 +59,8 @@ export class PlayerCanvas {
   /** how the hand that is not being practised is drawn */
   otherHand: 'dim' | 'hide' | 'play' = 'dim';
   noteNames: 'off' | 'upcoming' | 'all' = 'upcoming';
+  /** name black keys as flats (the song is in a flat key) */
+  flats = false;
   octaveNumbers = false;
   /** flash the hit line on metronome beats */
   beatPulse = false;
@@ -569,14 +571,14 @@ export class PlayerCanvas {
         ctx.font = `600 ${black ? 9 : 11}px Inter, system-ui, sans-serif`;
         ctx.fillStyle = black ? tk.text : withAlphaCached(tk.bg, 0.85);
         ctx.fillText(
-          noteName(p, this.octaveNumbers || isC),
+          noteName(p, this.octaveNumbers || isC, this.flats),
           cx,
           black ? top + blackH - 6 : top + kh - 6,
         );
       } else {
         ctx.font = '500 10px Inter, system-ui, sans-serif';
         ctx.fillStyle = withAlphaCached(tk.bg, 0.5);
-        ctx.fillText(noteName(p), cx, top + kh - 6);
+        ctx.fillText(noteName(p, true, this.flats), cx, top + kh - 6);
       }
     }
   }

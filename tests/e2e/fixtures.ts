@@ -30,6 +30,8 @@ export const test = base.extend({
   context: async ({ context }, use) => {
     await serveFixtureSongs(context);
     await use(context);
+    // a song list still loading when the test ends has nobody left to serve
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
   },
 });
 export { expect } from '@playwright/test';

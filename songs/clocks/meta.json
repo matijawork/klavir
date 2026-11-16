@@ -1,0 +1,18 @@
+{
+  "title": "Clocks",
+  "composer": "Coldplay",
+  "difficulty": 3,
+  "youtube": null,
+  "source": {
+    "url": "musescore.com, downloaded by Matija 2026-11-16 (\"Clocks - Coldplay\")",
+    "license": "unknown, supplied by Matija (musescore.com user score)"
+  },
+  "versions": [
+    {
+      "id": "original",
+      "label": "Original",
+      "file": "original.mxl",
+      "reference": "reference.mid"
+    }
+  ]
+}

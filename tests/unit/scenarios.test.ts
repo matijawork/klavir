@@ -147,3 +147,89 @@ describe('holding a 2-second note by strictness', () => {
     expect(s.result(true)).toMatchObject({ short: 0, long: 0, hold: 1 });
   });
 });
+
+/** 60 BPM (1 beat = 1 s); the given notes; hands 1 = left, 2 = right, 3 = both. */
+function setupNotes(
+  notes: SongFile['notes'],
+  mode: 'tempo' | 'wait' = 'tempo',
+  handMask = 3,
+): PracticeSession {
+  const file: SongFile = {
+    format: 1,
+    id: 't',
+    version: 'original',
+    title: 'T',
+    composer: '',
+    tempos: [{ b: 0, bpm: 60 }],
+    measures: [0, 4, 8, 12].map((b, i) => ({ b, len: 4, num: 4, den: 4, n: String(i + 1) })),
+    notes,
+    pedal: [],
+    pedalSource: null,
+    keys: [],
+    sections: [],
+    handsFromPitchSplit: false,
+    warnings: [],
+  };
+  const song = loadSong(file);
+  const transport = new Transport();
+  transport.duration = song.duration;
+  const session = new PracticeSession(song, transport);
+  session.configure({ mode, handMask, range: null, loop: false, countIn: false }, 0);
+  session.play(0);
+  return session;
+}
+
+describe('one key, two hands (Clocks, Love Story, Interstellar)', () => {
+  // both hands strike middle C together: right for half a beat, left for two beats
+  const twins: SongFile['notes'] = [
+    { p: 60, b: 4, d: 0.5, h: 'R' },
+    { p: 60, b: 4, d: 2, h: 'L' },
+  ];
+
+  for (const mode of ['tempo', 'wait'] as const) {
+    it(`${mode}: one press plays both notes; holding the key for the longer one is right`, () => {
+      const s = setupNotes(twins, mode);
+      s.update(at(4));
+      s.noteOn(60, at(4));
+      s.update(at(4) + 16);
+      s.noteOff(60, at(6));
+      s.update(at(9));
+      const r = s.result(true);
+      expect([...s.state]).toEqual([HIT, HIT]);
+      expect(r).toMatchObject({ hits: 2, missed: 0, wrong: 0, short: 0, long: 0, hold: 1 });
+    });
+  }
+
+  it('practising one hand: only that hand counts, judged by its own length', () => {
+    const s = setupNotes(twins, 'tempo', 2); // right hand: half a beat
+    s.noteOn(60, at(4));
+    s.noteOff(60, at(4.5));
+    s.update(at(9));
+    expect(s.result(true)).toMatchObject({ hits: 1, missed: 0, short: 0, long: 0, hold: 1 });
+  });
+
+  it('letting go so the other hand can strike the same key again is not "too soon"', () => {
+    // right hand holds A4 for 3 beats; the left hand strikes the same key after 1 beat
+    const s = setupNotes([
+      { p: 69, b: 4, d: 3, h: 'R' },
+      { p: 69, b: 5, d: 0.5, h: 'L' },
+    ]);
+    s.noteOn(69, at(4));
+    s.noteOff(69, at(4.9));
+    s.noteOn(69, at(5));
+    s.noteOff(69, at(5.5));
+    s.update(at(9));
+    expect([...s.state]).toEqual([HIT, HIT]);
+    expect(s.result(true)).toMatchObject({ short: 0, long: 0, hold: 1 });
+  });
+
+  it('still says "too soon" when the key comes up long before the other hand needs it', () => {
+    const s = setupNotes([
+      { p: 69, b: 4, d: 3, h: 'R' },
+      { p: 69, b: 6, d: 0.5, h: 'L' },
+    ]);
+    s.noteOn(69, at(4));
+    s.noteOff(69, at(4.3));
+    expect(s.state[0]).toBe(SHORT);
+  });
+});

@@ -90,3 +90,11 @@ Short ADRs. Status: **Proposed** = needs Matija's OK (scope or account impact). 
 - **Reads:** a full sync (start, sign-in, back online, tab back after a minute, "Sync now") lists the collections; in between, changes are pushed 4 s after they happen against what the last full sync saw.
 - **Backend:** Firestore Lite + Google popup sign-in, loaded only when `config.ts` has a project; `users/<uid>/…`, rules in `firestore.rules`. A stand-in backend (`?mocksync`) speaks plain HTTP so tests can run two devices against one cloud.
 - **Limits accepted:** last-change-wins uses device clocks; a device with a badly wrong clock can lose a video-link edit. Scores and practice time cannot be lost that way.
+
+## ADR-018 How a score is read, and how that is checked — Decided (2026-11-16)
+- **Check:** musescore.com offers a MIDI of each score; it is what MuseScore plays. It is kept as `songs/<slug>/reference.mid` and every imported note is compared with it (same key, same moment within 30 ms). The card's "What is checked" list shows the result; differences are either fixed in the importer or explained there in plain words (`referenceNote`).
+- **Voltas beat the repeat count:** brackets "1, 2, 3" then "4" mean four passes even when the file says play twice (L'amour toujours). MuseScore's own playback there goes three times; the app follows the sheet.
+- **Staccato** sounds half as long, as MuseScore plays it; a tied note keeps its length. Without this the hold score called written staccato "let go too soon".
+- **One key, two hands:** when both hands strike the same key together, one press counts for both; a key let go so the other hand can strike it again is not "too soon".
+- **Key:** a key signature without major/minor is a guess from the notes (Krumhansl-Kessler profiles), marked "?" in the app.
+- **Never committed:** musescore.com PDFs and MP3s. The PDF prints Matija's e-mail on every page; the importer makes its own sheet with MuseScore.

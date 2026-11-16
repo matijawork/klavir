@@ -39,12 +39,40 @@ export interface SongFile {
   pedal: { b: number; on: boolean }[];
   pedalSource: Provenance | null;
   keys: { b: number; fifths: number; mode: 'major' | 'minor' | null }[];
+  /** the first key's major/minor is not in the score: guessed from the notes (scripts/lib/key.ts) */
+  keyGuessed?: true;
   sections: { b: number; name: string }[];
   /** where the finger numbers come from, for display; absent = see the notes' `fs` */
   fingeringSource?: { checked: boolean; text: string };
   /** true when hands came from a pitch split instead of staves/tracks */
   handsFromPitchSplit: boolean;
   warnings: string[];
+}
+
+/** Comparison of an imported score with MuseScore's MIDI export of it (scripts/lib/reference.ts). */
+export interface ReferenceCheck {
+  /** notes in the score */
+  of: number;
+  /** score notes found in the MIDI: same key, same moment */
+  matched: number;
+  /** score notes missing from the MIDI because the other hand plays the same key at that moment */
+  twins: number;
+  /** MIDI notes with no score note */
+  extra: number;
+  /** matched notes that the MIDI puts in the other hand */
+  otherHand: number;
+}
+
+/** What the import could check by itself; the card's "What's checked" list shows it. */
+export interface SongChecks {
+  /** hands from the score's two staves (or named tracks), from track height, or a pitch split */
+  hands: 'score' | 'height' | 'split' | 'one';
+  /** tempo written in the score, or 120 because it has none */
+  tempo: 'score' | 'default';
+  bpm: number;
+  /** major/minor written in the score, guessed from the notes, or no key signature at all */
+  key: 'score' | 'guessed' | 'none';
+  reference?: ReferenceCheck & { file: string; note?: string };
 }
 
 export interface LibraryEntry {
@@ -63,6 +91,7 @@ export interface LibraryEntry {
   pedal: Provenance | null;
   /** exercises worth knowing before this song, each with the reason */
   prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
+  checks?: SongChecks;
 }
 
 /** Converts beats to seconds (at 100 % speed) through a tempo map. */

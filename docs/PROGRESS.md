@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-16. Live: https://matijawork.github.io/klavir/ · 250 unit + 38 e2e green.
+Updated 2026-11-16 (evening). Live: https://matijawork.github.io/klavir/ · 274 unit + 39 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -24,7 +24,8 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Sound**: sampled piano (Salamander, CC BY 3.0, five loudness layers: soft keys use soft recordings; 27 MB, loaded layer by layer in the background, cached by the browser), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
 - **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
 - **History**: performances only, IndexedDB `klavir` v3 / `performances` (`{song, at, score, hands}`, no `hands` = both) and `last`; fallback `klavir.performances` in localStorage. The older practice history (`passes` store, `klavir.history`) is deleted on load: he asked for that.
-- **Import pipeline** for MusicXML (`add-song` skill); library: `test-c` and `interstellar`. Card shows a pedal chip (✓ score / ? suggested) and, if `meta.json` has `prepare`, "Learn first" buttons to exercises (`#/exercise/...`); the player shows the pedal chip too.
+- **Import pipeline** for MusicXML (`add-song` skill); library: `test-c`, `interstellar`, `clocks`, `lamour-toujours`, `love-story`, `viva-la-vida` (all his musescore.com files). Card shows fingering and pedal chips ("? Fingering: not checked", "✓ Pedal: in the score") and, if `meta.json` has `prepare`, "Learn first" buttons to exercises (`#/exercise/...`); the player shows both chips too.
+- **What is checked** (his request, 2026-11-16): "4 of 7 checked" on every card opens a list in words: Notes (compared with MuseScore's MIDI of the same score), Hands, Tempo, Key, Fingering, Pedal, By ear. He can mark fingering and "It sounds right" himself (synced like the fingering marks; `ear:<song>/<version>` in `klavir.fingeringChecked2`). Key badge shows "?" when major/minor was guessed. Black keys are named as flats in flat keys (B♭, not A♯). "Source" is a link only when it is a web address.
 
 ## How sure we are (keep this table honest; the app shows the fingering rows as chips)
 | Thing | Status |
@@ -34,6 +35,9 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Chord inversion fingerings | pianoguidelessons.com (?p=4136), matches. |
 | I–IV–V–I and five-finger fingering | No source found. Common practice; shown as "suggested, not checked". |
 | Song fingerings | Computed by `scripts/lib/fingering.ts`, not from the scores; shown as "suggested, not checked". |
+| Song notes (2026-11-16) | Every note compared with musescore.com's MIDI of the same score (`songs/<slug>/reference.mid`, on each import). Interstellar 2057/2057, Viva La Vida 2768/2768. Clocks 2571 and Love Story 1190: all match except 6 each where both hands strike one key together (a MIDI file keeps one). L'amour toujours: 801 of 949; checked part by part that the only difference is a 4th time through measures 47-49, which the sheet's brackets "1, 2, 3 / 4" ask for and MuseScore's playback skips (app follows the sheet). Found and fixed on the way: voltas beyond the repeat count were ignored (L'amour played 2× instead of 4×, volta 4 never), staccato played full length (Love Story, 650 notes). Lengths are not compared note by note: MuseScore plays 95 % of each note; tied notes under a staccato chord differ on purpose. **Not checked: whether each arrangement sounds like the song he knows** (his ears; "It sounds right" in the list). |
+| Song tempo, key | Tempo from the score for all but L'amour toujours (none written: 120, as MuseScore plays it, shown "?"). Key from the signature; major/minor guessed for Interstellar (A minor), Clocks (F minor), Love Story (B♭ minor), Viva La Vida (A♭ major): Krumhansl-Kessler, unit-tested on made-up tunes, shown "?". L'amour toujours says D major in the file (MuseScore 1.3 may write "major" for every key). |
+| One key, two hands | Scenario tests: one press plays both notes struck together; letting a key up so the other hand can strike it is not "too soon"; letting it up long before still is. Both failed before the fix. Interstellar has 7 such spots, Love Story 30, Viva 1, Clocks and Love Story 6 struck together. |
 | Strictness, hold, timing rules | Tables in `tests/unit/scenarios.test.ts` (93 cases). |
 | Every button, shortcut, setting | `tests/e2e/controls.spec.ts` with the virtual piano. |
 | Calibration | Logic: table of 12 cases (late, early, wobble, slips, skipped clicks, too few, too uneven). E2E: a virtual player 45 ms late gets 45 ms and the offset is set; clicks measured as sound through the computer. **Not checked: whether the number it gives him on the Korg makes "on time" feel right.** |
@@ -46,7 +50,8 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Practice days | Streak, calendar, levels: 11 unit cases. E2E: seeded days, 12 s of playing tips today over a minute, listening adds nothing. |
 | MIDI import | 9 unit cases on generated files (hands by name / by height / by channel, one track, tempo, 3/4, 6/8 change, pedal, bad files, played-in recording). Ran the real `import-song` on a generated two-track file: JSON, index entry and sheet PDF came out; then removed. **No real-world MIDI file tried yet**: files from the web often have one track or are played-in recordings; the importer says so instead of guessing. |
 | Sync | Rules: 12 unit cases (copy what is missing, later change wins, days add up, saved performance survives packing bit for bit). E2E with two separate browsers and a stand-in cloud: data made before sign-in goes up, a fresh device gets it all and can review and hear the other device's performance, offline changes are kept and sent later, a later removal wins, practice time is not counted twice, a sync with nothing new writes nothing, sign-out keeps the device's data. **Real Firebase, 2026-11-15, on localhost with the virtual piano:** Google popup sign-in, survives reload; a performance of `test-c` arrived in `users/<uid>/performances`, `last`, `days`, `kv` (read back over the REST API); after wiping the device's data the score and the other device's seconds came back; another user's path and a request without sign-in both get 403; test data removed afterwards. **Not checked: sign-in on the live site (github.io) and two real devices** — his to do. |
-| Pedal marks | Chip says ✓ "the score" (marks written in the file) or ? "suggested"; E2E with a fake index. Interstellar's 274 are from the file; not checked by ear. |
+| Pedal marks | Chip says ✓ "in the score" (marks written in the file) or ? "suggested"; E2E with a fake index. Interstellar 274, Clocks 248, Love Story 372, Viva 268 from the files, each within 2 of MuseScore's MIDI; L'amour toujours has none. Not checked by ear. |
+| "What is checked" list | Unit: rows and counts for a made-up song, mismatch only "checked" when explained, missing fields left out; every library song passes a generic check (files there, both hands, right hand higher, MIDI comparison holds or is explained). E2E: badge count, rows, his two marks survive reload, no broken Source link. Looked at on screenshots. |
 | "Learn first" exercises | Which exercises: Pianote names arpeggios and broken triads (pianote.com/blog/?p=8550); scales, inversions, cadence are Claude's choice, tooltips say so. Unit test: every entry is a real exercise; E2E: buttons lead to the exercise. |
 | Video | Link parsing: 13 cases in a unit test. E2E: add, shown as an embedded frame, remembered, per song, remove. **Not checked: that a real video plays** (tests block YouTube); some videos forbid embedding, then "Open on YouTube". |
 | Sound | Measured, not heard: five Salamander loudness layers (2.0 MB of one layer before). Single notes peak 0.14 (soft, vel 25) / 0.52 (mf) / 0.64 (hard); 8-key chord 0.81, 10-key hammered 0.86, no clipping (`DRIVE` 1.2, `LAYER_GAIN` in `synth.ts`); e2e checks hard is over 2× softer rms and chords louder than a note. **Not checked by ear: whether it sounds good to him, whether soft keys are too quiet or loud ones too loud.** Not in yet: key-release and pedal noises, resonance (the Tone.js repo has them) |
@@ -56,7 +61,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-**0. Interstellar added 2026-11-16** (his `.mxl`, YouTube `4y33h81phKU`): 2057 notes, 156 measures, 274 pedal events from the score (arranger), no fingering in the file (computed, unchecked). Waiting for his ears: Listen, hands the right way round, tempo 100 bpm.
+**0. Five songs in the library (2026-11-16)**: Interstellar, Clocks, L'amour toujours, Love Story, Viva La Vida, all from his musescore.com downloads (`~/Desktop/Klavir - Pjesme`). Checked by machine: see "Song notes" above; Listen measured as sound through the computer for each (peaks 0.42-0.72, no silent gaps, no clipping, no console errors). Waiting for his ears: Listen each, then "It sounds right" in the card's list. No YouTube links for the four new ones (he can add with "+ Video").
 1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
 2. App is finished and reviewed (see Final review). Later, only if he asks: M8 tablet / PWA. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
 
@@ -64,12 +69,12 @@ Matija marks fingerings he checked himself by clicking the chip ("checked by you
 ```
 Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
 (posebno "Next", "How sure we are", "Final review" i "Working agreement").
-Aplikacija je gotova i pregledana (2026-11-15); ne dodaji ništa novo bez da tražim.
 Ako šaljem pjesmu: add-song skill. Ako javim problem: prvo ga ponovi, pa popravi.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
-Interstellar je dodan (vidi "Next" 0). Novi zvuk klavira (5 slojeva jačine) čeka moje uho.
-Nova pjesma: <putanja do datoteke + YouTube link ako ga imam>
+U biblioteci je 5 pjesama; na kartici "What is checked" piše što je provjereno.
+Pjesme koje sam preslušao (It sounds right): <popis>
+Pjesme koje ne zvuče dobro: <pjesma + takt + što ne valja>
 Zvuk klavira: <ok / pretiho / preglasno + koje tipke>
 Prijava na dva uređaja: <radi / točan tekst greške>
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
@@ -97,7 +102,9 @@ Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed 
 - A key held from one note into a repeated note of the same pitch shows green although a new press is needed.
 - Exercises have no sheet. History is per browser until he signs in (then synced).
 - Calibration measures against the click sound; with Bluetooth speakers the result includes their lag (wanted for judging by ear, but then the picture needs the Picture slider).
-- Library holds only `test-c` until he supplies songs (2026-11-16: demo songs removed). E2E tests serve two fixture pieces (`tests/fixtures/songs`, via `tests/e2e/fixtures.ts`) on top of the real library, so they never depend on it.
+- E2E tests serve two fixture pieces (`tests/fixtures/songs`, via `tests/e2e/fixtures.ts`) on top of the real library, so they never depend on it.
+- Fermatas are not played as pauses (only at the very end in his songs); accents are not louder.
+- On computer sound the count-in clicks (peak 0.81) are louder than the music (0.42-0.72); Click volume in ⚙ turns them down.
 - Real MIDI-out timing and 120 Hz frame times never measured on his Mac (`?debug`).
 
 ## Working agreement (from his feedback)

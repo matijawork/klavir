@@ -74,6 +74,8 @@ interface RawNote {
   g?: 1;
   tieStart: boolean;
   tieStop: boolean;
+  /** staccato: written on this note or on another note of its chord */
+  stac?: boolean;
 }
 
 interface RawMeasure {
@@ -111,12 +113,14 @@ function parsePart(
   part: X,
   staffToHand: (staff: number) => Hand | null,
   errors: string[],
+  warnings: string[],
 ): RawMeasure[] {
   const out: RawMeasure[] = [];
   let divisions = 1;
   let timeNum = 4;
   let timeDen = 4;
   let openEndings: number[] | undefined;
+  let staccatos = 0;
 
   for (const measure of findAll(part, 'measure')) {
     const ma = attrs(measure);
@@ -136,6 +140,9 @@ function parsePart(
     let cursor = 0;
     let maxCursor = 0;
     let lastStart = 0;
+    // notes of the chord being read: MuseScore writes a chord's staccato on its first note only
+    let chord: RawNote[] = [];
+    let chordStac = false;
 
     for (const el of kids(measure)) {
       const tag = tagOf(el);
@@ -173,6 +180,8 @@ function parsePart(
           lastStart = cursor;
           cursor += dur;
           maxCursor = Math.max(maxCursor, cursor);
+          chord = [];
+          chordStac = false;
         }
         if (isRest || isCue) continue;
         const pitch = find(el, 'pitch');
@@ -201,6 +210,17 @@ function parsePart(
         };
         if (finger >= 1 && finger <= 5) note.f = finger;
         if (isGrace) note.g = 1;
+        else {
+          const stac = findAll(el, 'notations').some((ns) =>
+            findAll(ns, 'articulations').some((a) => !!find(a, 'staccato')),
+          );
+          if (stac && !chordStac) {
+            chordStac = true;
+            for (const c of chord) c.stac = true;
+          }
+          if (chordStac) note.stac = true;
+          chord.push(note);
+        }
         raw.notes.push(note);
       } else if (tag === 'direction' || tag === 'sound') {
         const sound = tag === 'sound' ? el : find(el, 'sound');
@@ -255,10 +275,21 @@ function parsePart(
       }
     }
 
+    // Staccato sounds half as long, as MuseScore plays it; a tied note keeps its length (the tie
+    // says hold on), so only untied notes are shortened.
+    for (const n of raw.notes)
+      if (n.stac && !n.tieStart && !n.tieStop) {
+        n.d /= 2;
+        staccatos++;
+      }
     raw.nominal = (raw.num * 4) / raw.den;
     raw.len = r6(maxCursor > 0 ? maxCursor : raw.nominal);
     out.push(raw);
   }
+  if (staccatos)
+    warnings.push(
+      `${staccatos} written staccato note(s) sound half as long, as MuseScore plays them`,
+    );
   return out;
 }
 
@@ -298,10 +329,15 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
   let measures: RawMeasure[];
   const staffCounts = parts.map(staves);
   if (parts.length === 1 && staffCounts[0] === 2) {
-    measures = parsePart(parts[0]!, (s) => (s === 1 ? 'R' : s === 2 ? 'L' : null), errors);
+    measures = parsePart(
+      parts[0]!,
+      (s) => (s === 1 ? 'R' : s === 2 ? 'L' : null),
+      errors,
+      warnings,
+    );
   } else if (parts.length === 2 && staffCounts.every((c) => c === 1)) {
-    const right = parsePart(parts[0]!, () => 'R', errors);
-    const left = parsePart(parts[1]!, () => 'L', errors);
+    const right = parsePart(parts[0]!, () => 'R', errors, warnings);
+    const left = parsePart(parts[1]!, () => 'L', errors, warnings);
     if (right.length !== left.length)
       throw new Error('The two parts have different measure counts');
     measures = right.map((m, i) => {
@@ -317,7 +353,7 @@ export function importMusicXml(xml: string, opts: ImportOptions): ImportResult {
   } else if (parts.length === 1 && staffCounts[0] === 1 && opts.splitAt !== undefined) {
     handsFromPitchSplit = true;
     warnings.push(`Hands assigned by pitch split at MIDI ${opts.splitAt}`);
-    measures = parsePart(parts[0]!, () => 'R', errors);
+    measures = parsePart(parts[0]!, () => 'R', errors, warnings);
     for (const m of measures) for (const n of m.notes) n.h = n.p < opts.splitAt ? 'L' : 'R';
   } else {
     throw new Error(

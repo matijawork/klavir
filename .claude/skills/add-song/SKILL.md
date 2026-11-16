@@ -16,6 +16,8 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
      - Hands come from two note tracks (or two channels). One track only → the import stops; ask him for a two-track file, or, only if he agrees, add `"splitAt": 60` (or `"oneHand": true` for a one-hand piece) to the version.
      - Warning "looks like a recorded performance": the file was played in, not written; measures and metronome will not line up. Tell him and ask for a score-based file.
      - Warning "the higher track was taken as the right hand": check in the app that the hands are the right way round.
+   - **Also a `.mid` from the same page** (musescore.com gives .mxl, .mscz, .mid, .mp3, .pdf together): copy it to `songs/<slug>/reference.mid` and add `"reference": "reference.mid"` to the version. The import compares every note with it (that MIDI is what MuseScore plays) and the card's "What is checked" shows the result.
+   - **Never copy the musescore.com PDF or MP3.** The PDF prints his e-mail on every page ("downloaded by …") and the repo is public. The importer makes its own sheet PDF.
 3. **Write `songs/<slug>/meta.json`**:
    ```json
    {
@@ -27,23 +29,26 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
      "versions": [{ "id": "original", "label": "Original", "file": "original.mxl" }]
    }
    ```
-   - `difficulty` 1–5: 1 = single notes, slow; 3 = both hands independent; 5 = fast, wide leaps.
+   - `difficulty` 1–5: 1 = single notes, slow; 3 = both hands independent; 5 = fast, wide leaps. Your estimate; the app says so.
+   - `source.url`: a web address if known (shown as a "Source" link), otherwise words such as "musescore.com, downloaded by Matija <date> (<title or arranger on the sheet>)". Never his e-mail.
    - `youtube`: the link Matija gave with the song (any YouTube form: `watch?v=`, `youtu.be/`, shorts). Otherwise `null`; he can also paste one himself in the app ("+ Video" on the card).
    - Single-staff score (no hand split): add `"splitAt": 60` to the version as a last resort and tell him.
 4. **Import**: `npm run import-song <slug>`
    - It writes `public/songs/<slug>/original.json`, a sheet PDF (via MuseScore) and updates `public/songs/index.json`.
    - **Errors stop the import.** Do not work around them by editing notes. Report the message to Matija.
    - Read every warning: measure-length mismatches and unmatched ties usually mean a messy source.
+   - Read the `check … vs reference.mid` line. Anything short of "N of N notes match, 0 extra" (notes missing only because both hands strike the same key are fine) needs a reason: find where they part (compare beats, measure by measure). Fix the importer if it misreads the score; if the difference is on MuseScore's side (e.g. its playback ignores a volta), write it in plain words as `"referenceNote"` on the version, so the app shows it.
+   - No tempo in the score → 120 BPM, shown as not checked. No major/minor in the key signature → guessed from the notes, shown with "?".
 5. **Sanity check** the result: note count, measure count, both hands present, tempo plausible, key matches what the song is known to be in. Open `http://localhost:5173/klavir/#/play/<slug>/original` with `npm run dev` if in doubt.
 6. **Run** `npm test && npm run lint`.
 7. **Commit and push** `songs/<slug>/` and `public/songs/` (push deploys).
-8. **Tell Matija** in Croatian: what was added, warnings in plain words, whether fingering and pedal were in the file, and ask him to press **Listen** (in Practise) to check it by ear.
+8. **Tell Matija** in Croatian: what was added, what is checked and what is not (as the card's "What is checked" says), warnings in plain words, and ask him to press **Listen** (in Practise) and then "It sounds right" in that list.
 
 ## Nothing else to build
 The import is the whole job. The new song gets its library card with Practise and Perform, scoring, the progress chart, the note-by-note review, fingering chip, sheet link and video from `public/songs/index.json` automatically. Do not write song-specific code or tests.
 
 ## What the importer handles
-Two staves or two single-staff parts as hands; chords; voices; ties; grace notes; tempo changes; time and key signature changes; fingering; pedal marks; repeats, voltas, D.C./D.S./Fine/Coda.
+Two staves or two single-staff parts as hands; chords; voices; ties; grace notes; staccato (half length); tempo changes; time and key signature changes; fingering; pedal marks; repeats, voltas (as many passes as the brackets say), D.C./D.S./Fine/Coda. Not played: fermatas (no pause), accents (no louder).
 
 ## Not yet
 Easy (C major / A minor) transposed versions, adding suggested fingering or pedal.

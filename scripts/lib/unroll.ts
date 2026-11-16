@@ -31,6 +31,17 @@ export function unrollMeasures(flow: MeasureFlow[]): number[] {
     }
     return max;
   };
+  /** Highest volta number in the bracket group around measure `i`: "1, 2, 3" then "4" = four passes. */
+  const voltaMax = (i: number): number => {
+    let max = 0;
+    for (let k = i; k >= 0 && flow[k]!.endings; k--) {
+      for (const e of flow[k]!.endings!) max = Math.max(max, e);
+      if (flow[k]!.endings!.includes(1)) break;
+    }
+    for (let k = i + 1; k < n && flow[k]!.endings && !flow[k]!.endings!.includes(1); k++)
+      for (const e of flow[k]!.endings!) max = Math.max(max, e);
+    return max;
+  };
 
   let i = 0;
   let repStart = 0;
@@ -71,7 +82,8 @@ export function unrollMeasures(flow: MeasureFlow[]): number[] {
       continue;
     }
     if (m.repeatEnd && !jumped) {
-      if (pass < m.repeatEnd) {
+      // the voltas printed on the page win over a missing or smaller repeat count
+      if (pass < Math.max(m.repeatEnd, voltaMax(i))) {
         pass++;
         i = repStart;
         continue;

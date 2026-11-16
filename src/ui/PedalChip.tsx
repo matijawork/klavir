@@ -15,8 +15,14 @@ export function PedalChip(props: { source: Provenance | null; small?: boolean })
           : 'Not in the score: suggested by the app, not checked.'
       }
     >
-      {fromScore ? '✓' : '?'} {props.small ? '' : 'Pedal: '}
-      {fromScore ? 'the score' : 'suggested, not checked'}
+      {fromScore ? '✓' : '?'} Pedal:{' '}
+      {fromScore
+        ? props.small
+          ? 'in the score'
+          : 'the score'
+        : props.small
+          ? 'suggested'
+          : 'suggested, not checked'}
     </span>
   );
 }

@@ -28,6 +28,16 @@ describe('unrollMeasures', () => {
     expect(unrollMeasures(f)).toEqual([0, 1, 0, 2, 3]);
   });
 
+  it('plays as many passes as the voltas say ("1, 2, 3" then "4"), even without a repeat count', () => {
+    // L'amour toujours, measures 47-51: the file says play twice, the brackets say four times
+    const f = flow(6, {
+      1: { repeatStart: true },
+      3: { endings: [1, 2, 3], repeatEnd: 2 },
+      4: { endings: [4] },
+    });
+    expect(unrollMeasures(f)).toEqual([0, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 4, 5]);
+  });
+
   it('handles two repeated sections in a row, each with voltas', () => {
     const f = flow(8, {
       1: { endings: [1], repeatEnd: 2 },

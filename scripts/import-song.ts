@@ -20,11 +20,13 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { LibraryEntry, SongFile } from '../src/engine/song.ts';
+import type { LibraryEntry, SongChecks, SongFile } from '../src/engine/song.ts';
 import { TempoMap } from '../src/engine/song.ts';
 import { autoFinger, measurePedal } from './lib/fingering.ts';
+import { guessMode } from './lib/key.ts';
 import { importMidi } from './lib/midi.ts';
 import { importMusicXml, readScoreXml } from './lib/musicxml.ts';
+import { compareWithReference } from './lib/reference.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const songsDir = join(root, 'songs');
@@ -36,7 +38,17 @@ interface Meta {
   difficulty: number;
   youtube: string | null;
   source: { url: string; license: string; notes?: string };
-  versions: { id: string; label: string; file: string; splitAt?: number; oneHand?: boolean }[];
+  versions: {
+    id: string;
+    label: string;
+    file: string;
+    splitAt?: number;
+    oneHand?: boolean;
+    /** MuseScore's MIDI export of the same score: every note is compared with it */
+    reference?: string;
+    /** known, explained differences from the reference, in plain words (shown in the app) */
+    referenceNote?: string;
+  }[];
   /** 'auto' (default) suggests fingering when the source has none; 'none' leaves it empty */
   fingering?: 'auto' | 'none';
   /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
@@ -57,6 +69,7 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
   const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')) as Meta;
   mkdirSync(join(outDir, slug), { recursive: true });
   let first: SongFile | undefined;
+  let checks: SongChecks | undefined;
 
   for (const v of meta.versions) {
     const src = join(dir, v.file);
@@ -79,6 +92,48 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
       for (const e of errors.slice(0, 30)) console.error(`  ERROR ${slug}/${v.id}: ${e}`);
       throw new Error(`${slug}/${v.id}: ${errors.length} validation error(s)`);
     }
+    const key = song.keys[0];
+    if (key && key.mode === null) {
+      const until = song.keys[1]?.b ?? Number.POSITIVE_INFINITY;
+      key.mode = guessMode(
+        song.notes.filter((n) => n.b < until),
+        key.fifths,
+      );
+      song.keyGuessed = true;
+    }
+    const versionChecks: SongChecks = {
+      hands: v.oneHand
+        ? 'one'
+        : song.handsFromPitchSplit
+          ? 'split'
+          : song.warnings.some((w) => w.includes('higher track was taken'))
+            ? 'height'
+            : 'score',
+      tempo: song.warnings.some((w) => w.startsWith('No tempo in the source'))
+        ? 'default'
+        : 'score',
+      bpm: song.tempos[0]!.bpm,
+      key: !key ? 'none' : song.keyGuessed ? 'guessed' : 'score',
+    };
+    if (v.reference) {
+      const { song: midi, errors: midiErrors } = importMidi(readFileSync(join(dir, v.reference)), {
+        id: slug,
+        version: v.id,
+      });
+      if (midiErrors.length) throw new Error(`${slug}/${v.reference}: ${midiErrors[0]}`);
+      const r = compareWithReference(song, midi);
+      versionChecks.reference = {
+        file: v.reference,
+        ...r,
+        ...(v.referenceNote ? { note: v.referenceNote } : {}),
+      };
+      console.log(
+        `  check ${slug}/${v.id} vs ${v.reference}: ${r.matched} of ${r.of} notes match` +
+          `${r.twins ? `, ${r.twins} same key in both hands` : ''}, ${r.extra} extra in the MIDI` +
+          `${r.otherHand ? `, ${r.otherHand} in the other hand` : ''}`,
+      );
+    }
+    checks ??= versionChecks;
     if (meta.fingering !== 'none' && !song.notes.some((n) => n.f)) autoFinger(song.notes);
     if (meta.pedal === 'measure' && song.pedal.length === 0) {
       song.pedal = measurePedal(song.measures, song.notes);
@@ -120,6 +175,7 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     fingering: song.notes.find((n) => n.f)?.fs ?? null,
     pedal: song.pedal.length ? song.pedalSource : null,
     ...(meta.prepare?.length ? { prepare: meta.prepare } : {}),
+    checks,
   };
 }
 
