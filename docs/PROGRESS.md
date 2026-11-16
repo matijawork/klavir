@@ -68,7 +68,9 @@ Aplikacija je gotova i pregledana (2026-11-15); ne dodaji ništa novo bez da tra
 Ako šaljem pjesmu: add-song skill. Ako javim problem: prvo ga ponovi, pa popravi.
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; objašnjavaj jednostavnim riječima; ne ubrzavaj mi ništa sam.
-Nova pjesma: Interstellar (vidi "Next" 0): <putanja do datoteke + YouTube link ako ga imam>
+Interstellar je dodan (vidi "Next" 0). Novi zvuk klavira (5 slojeva jačine) čeka moje uho.
+Nova pjesma: <putanja do datoteke + YouTube link ako ga imam>
+Zvuk klavira: <ok / pretiho / preglasno + koje tipke>
 Prijava na dva uređaja: <radi / točan tekst greške>
 Moje primjedbe nakon testa na Korgu: <upiši što ne radi i što si točno kliknuo>
 ```
