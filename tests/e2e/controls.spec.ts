@@ -389,8 +389,8 @@ test('navigation: warm-up opens the scale of the song key, Again restarts', asyn
 test('sound: a big chord is louder than one note and never clips', async ({ page }) => {
   await open(page, { mode: 'tempo', soundOut: 'computer', monitor: true, volume: 1.2 });
   await page.getByTestId('stage').click({ position: { x: 40, y: 200 } }); // unlocks audio, loads samples
-  await page.waitForFunction(() => window.__klavir!.level().loaded === 30, null, {
-    timeout: 20_000,
+  await page.waitForFunction(() => window.__klavir!.level().loaded === 150, null, {
+    timeout: 60_000,
   });
   /** presses the keys, returns the loudest peak and RMS seen over 600 ms, then releases */
   const play = (pitches: number[], velocity: number) =>
@@ -414,6 +414,12 @@ test('sound: a big chord is louder than one note and never clips', async ({ page
     );
   const one = await play([60], 80);
   const chord = await play([48, 52, 55, 60, 64, 67, 72, 76], 80);
+  const soft = await play([60], 25);
+  const loud = await play([60], 120);
+  console.log('layers', JSON.stringify({ soft, loud }));
+  expect(soft.peak, 'a soft note is audible').toBeGreaterThan(0.03);
+  expect(loud.rms, 'a hard note is clearly louder than a soft one').toBeGreaterThan(soft.rms * 2);
+  expect(loud.peak, 'no clipping').toBeLessThan(1);
   const hard = await play([36, 43, 48, 52, 55, 60, 64, 67, 72, 76], 127);
   console.log('levels', JSON.stringify({ one, chord, hard }));
   expect(one.peak, 'a single note is clearly audible').toBeGreaterThan(0.25);

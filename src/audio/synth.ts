@@ -1,8 +1,8 @@
 /**
  * Built-in sound so the app can play through the computer: metronome clicks, song playback and
  * (optionally) the player's own keys. Uses sampled grand-piano notes (public/samples/piano, one
- * every minor third, pitch-shifted in between); until they are loaded a simple synthesized tone
- * stands in. Times are performance.now() milliseconds, like the MIDI output.
+ * every minor third, pitch-shifted in between, five loudness layers: soft keys are recorded soft,
+ * not just turned down); until they are loaded a simple synthesized tone stands in. Times are performance.now() milliseconds, like the MIDI output.
  */
 
 interface Voice {
@@ -16,37 +16,69 @@ const SAMPLE_NAMES = ['A', 'C', 'Ds', 'Fs'];
 const SAMPLE_LOW = 21;
 const SAMPLE_STEP = 3;
 const SAMPLE_COUNT = 30;
-const buffers: (AudioBuffer | null)[] = new Array(SAMPLE_COUNT).fill(null);
+/** Salamander velocity layers present in the folder (of 16), soft to hard */
+export const LAYERS = [2, 5, 9, 13, 16];
+/** order of loading: the middle layer first, so something good plays early */
+const LOAD_ORDER = [2, 1, 3, 0, 4];
+/** buffers[layer][k] */
+const buffers: (AudioBuffer | null)[][] = LAYERS.map(() => new Array(SAMPLE_COUNT).fill(null));
 /** seconds of silence at the start of each decoded sample, skipped on playback */
-const lead = new Float32Array(SAMPLE_COUNT);
+const lead: Float32Array[] = LAYERS.map(() => new Float32Array(SAMPLE_COUNT));
+
+/** The mp3 layers come out nearly equally loud; this brings back the difference between soft and hard. */
+const LAYER_GAIN = [0.3, 0.42, 0.54, 0.63, 0.7];
+
+/** Which layer a key velocity (0..127) plays. */
+export function layerFor(velocity: number): number {
+  return Math.min(
+    LAYERS.length - 1,
+    Math.max(0, Math.round((velocity / 127) * (LAYERS.length - 1))),
+  );
+}
+/** The velocity (0..1) a layer was recorded at, roughly. */
+const layerCenter = (l: number): number => l / (LAYERS.length - 1);
 let loading = false;
 let volume = 1;
 
-/** File name of sample k: A0, C1, Ds1, Fs1, A1, ... C8. */
-export function sampleName(k: number): string {
+/** File name of sample k in a layer: A0v2, C1v2, Ds1v2, ... C8v16. */
+export function sampleName(k: number, layer: number): string {
   const pitch = SAMPLE_LOW + k * SAMPLE_STEP;
-  return `${SAMPLE_NAMES[k % 4]}${Math.floor(pitch / 12) - 1}`;
+  return `${SAMPLE_NAMES[k % 4]}${Math.floor(pitch / 12) - 1}v${LAYERS[layer]}`;
 }
 
 function loadSamples(c: AudioContext): void {
   if (loading) return;
   loading = true;
-  for (let k = 0; k < SAMPLE_COUNT; k++) {
-    fetch(`${import.meta.env.BASE_URL}samples/piano/${sampleName(k)}.mp3`)
-      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-      .then((data) => c.decodeAudioData(data))
-      .then((buf) => {
-        // MP3 decoding leaves a little silence in front; find where the note really starts
-        const d = buf.getChannelData(0);
-        let i = 0;
-        while (i < d.length && Math.abs(d[i]!) < 0.003) i++;
-        lead[k] = Math.max(0, i / buf.sampleRate - 0.002);
-        buffers[k] = buf;
-      })
-      .catch(() => {
-        /* sample unavailable: the synthesized tone keeps standing in for it */
-      });
-  }
+  // one layer after the other, so the first one is ready as early as possible
+  let chain: Promise<unknown> = Promise.resolve();
+  for (const layer of LOAD_ORDER)
+    chain = chain.then(() =>
+      Promise.all(
+        Array.from({ length: SAMPLE_COUNT }, (_, k) =>
+          fetch(`${import.meta.env.BASE_URL}samples/piano/${sampleName(k, layer)}.mp3`)
+            .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+            .then((data) => c.decodeAudioData(data))
+            .then((buf) => {
+              // MP3 decoding leaves a little silence in front; find where the note really starts
+              const d = buf.getChannelData(0);
+              let i = 0;
+              while (i < d.length && Math.abs(d[i]!) < 0.003) i++;
+              lead[layer]![k] = Math.max(0, i / buf.sampleRate - 0.002);
+              buffers[layer]![k] = buf;
+            })
+            .catch(() => {
+              /* sample unavailable: another layer or the synthesized tone stands in */
+            }),
+        ),
+      ),
+    );
+}
+
+/** The loaded layer closest to the wanted one for key k, or -1 when none is loaded yet. */
+function pickLayer(want: number, k: number): number {
+  for (let d = 0; d < LAYERS.length; d++)
+    for (const l of [want - d, want + d]) if (buffers[l]?.[k]) return l;
+  return -1;
 }
 
 /** Overall loudness, 0..2 (1 = default). */
@@ -60,7 +92,7 @@ export const VOICE_PLAYER = 0;
 export const VOICE_SONG = 1;
 
 /** Drive into the limiter: the samples peak near 0.4, so this lifts them to a healthy level. */
-const DRIVE = 1.5;
+const DRIVE = 1.2;
 /** share of the piano sent through the room reverb */
 const ROOM = 0.14;
 
@@ -75,7 +107,7 @@ let meter: AnalyserNode | null = null;
 
 /** Peak and RMS of the last ~45 ms of what goes to the speakers (tests and diagnostics). */
 export function outputLevel(): { peak: number; rms: number; loaded: number } {
-  const loaded = buffers.filter(Boolean).length;
+  const loaded = buffers.reduce((n, layer) => n + layer.filter(Boolean).length, 0);
   if (!ctx || !output) return { peak: 0, rms: 0, loaded };
   if (!meter) {
     meter = ctx.createAnalyser();
@@ -184,20 +216,19 @@ export function synthOn(group: number, pitch: number, velocity: number, time?: n
   sustained.delete(key);
 
   const k = Math.min(SAMPLE_COUNT - 1, Math.max(0, Math.round((pitch - SAMPLE_LOW) / SAMPLE_STEP)));
-  const buf = buffers[k];
   const vel = velocity / 127;
+  const layer = pickLayer(layerFor(velocity), k);
+  const buf = layer >= 0 ? buffers[layer]![k] : null;
   if (buf) {
     const src = c.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = 2 ** ((pitch - (SAMPLE_LOW + k * SAMPLE_STEP)) / 12);
-    // soft notes are duller as well as quieter
-    const filter = c.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 1200 + 17000 * vel ** 2;
+    // the layer already has the right tone; only the step between two layers is evened out
     const gain = c.createGain();
-    gain.gain.setValueAtTime(0.25 + 1.75 * vel ** 1.7, when);
-    src.connect(filter).connect(gain).connect(piano);
-    src.start(when, lead[k]);
+    const rel = (0.55 + 0.9 * vel) / (0.55 + 0.9 * layerCenter(layer));
+    gain.gain.setValueAtTime(rel * LAYER_GAIN[layer]!, when);
+    src.connect(gain).connect(piano);
+    src.start(when, lead[layer]![k]);
     voices.set(key, { gain, sources: [src], startAt: when });
     return;
   }

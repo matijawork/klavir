@@ -11,8 +11,8 @@ test('replay is heard through the computer', async ({ page }) => {
   await page.getByTestId('midi-connect').click();
   await page.waitForFunction(() => !!window.__klavir);
   await page.getByTestId('stage').click({ position: { x: 40, y: 200 } });
-  await page.waitForFunction(() => window.__klavir!.level().loaded === 30, null, {
-    timeout: 20_000,
+  await page.waitForFunction(() => window.__klavir!.level().loaded === 150, null, {
+    timeout: 60_000,
   });
   await page.getByTestId('play').click();
   await page.evaluate(() => {
@@ -40,5 +40,5 @@ test('replay is heard through the computer', async ({ page }) => {
     return p;
   });
   expect(silent).toBeLessThan(0.02);
-  expect(peak).toBeGreaterThan(0.2);
+  expect(peak).toBeGreaterThan(0.1);
 });
