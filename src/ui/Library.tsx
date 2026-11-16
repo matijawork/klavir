@@ -6,6 +6,7 @@ import { days } from '../store/days.ts';
 import { bestOf, historyVersion, passesOf } from '../store/history.ts';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
+import { PedalChip } from './PedalChip.tsx';
 import { ProgressChart } from './ProgressChart.tsx';
 import { SyncChip } from './SyncChip.tsx';
 import { Video, videoOf } from './Video.tsx';
@@ -216,7 +217,27 @@ export function Library() {
                     }
                   />
                 )}
+                <PedalChip source={s.pedal ?? null} small />
               </div>
+              {s.prepare && (
+                <div class="prepare" data-testid={`prepare-${s.id}`}>
+                  <span class="faint" title="Exercises worth knowing before this song">
+                    Learn first
+                  </span>
+                  {s.prepare.map((p) => (
+                    <a
+                      key={`${p.kind}-${p.key}-${p.minor ?? false}`}
+                      class="btn"
+                      href={`#/exercise/${p.kind}/${p.key}${p.minor && p.kind !== 'scale-minor' ? '/minor' : ''}`}
+                      title={p.why}
+                      data-testid="prepare-link"
+                    >
+                      {keyName(p.key, p.minor)} {p.minor ? 'minor' : 'major'} ·{' '}
+                      {EXERCISES.find((e) => e.kind === p.kind)?.title ?? p.kind}
+                    </a>
+                  ))}
+                </div>
+              )}
               <Actions path={`play/${s.id}/${s.versions[0]?.id ?? 'original'}`} testid={s.id} />
               <div class="links">
                 <a

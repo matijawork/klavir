@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-16. Live: https://matijawork.github.io/klavir/ · 249 unit + 37 e2e green.
+Updated 2026-11-16. Live: https://matijawork.github.io/klavir/ · 250 unit + 38 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -24,7 +24,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 - **Sound**: sampled piano (Salamander, CC BY 3.0), light reverb, limiter; Volume 0–3; player's keys and pedal through the computer.
 - **Exercises**: major / minor, 12 keys: five-finger warm-up, scale (major, harmonic minor), chord inversions, I–IV–V–I, arpeggio. Warm-up button in a song opens the scale of its key.
 - **History**: performances only, IndexedDB `klavir` v3 / `performances` (`{song, at, score, hands}`, no `hands` = both) and `last`; fallback `klavir.performances` in localStorage. The older practice history (`passes` store, `klavir.history`) is deleted on load: he asked for that.
-- **Import pipeline** for MusicXML (`add-song` skill); library is only `test-c` for now (demo songs removed on his request, 2026-11-16).
+- **Import pipeline** for MusicXML (`add-song` skill); library: `test-c` and `interstellar`. Card shows a pedal chip (✓ score / ? suggested) and, if `meta.json` has `prepare`, "Learn first" buttons to exercises (`#/exercise/...`); the player shows the pedal chip too.
 
 ## How sure we are (keep this table honest; the app shows the fingering rows as chips)
 | Thing | Status |
@@ -46,6 +46,8 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 | Practice days | Streak, calendar, levels: 11 unit cases. E2E: seeded days, 12 s of playing tips today over a minute, listening adds nothing. |
 | MIDI import | 9 unit cases on generated files (hands by name / by height / by channel, one track, tempo, 3/4, 6/8 change, pedal, bad files, played-in recording). Ran the real `import-song` on a generated two-track file: JSON, index entry and sheet PDF came out; then removed. **No real-world MIDI file tried yet**: files from the web often have one track or are played-in recordings; the importer says so instead of guessing. |
 | Sync | Rules: 12 unit cases (copy what is missing, later change wins, days add up, saved performance survives packing bit for bit). E2E with two separate browsers and a stand-in cloud: data made before sign-in goes up, a fresh device gets it all and can review and hear the other device's performance, offline changes are kept and sent later, a later removal wins, practice time is not counted twice, a sync with nothing new writes nothing, sign-out keeps the device's data. **Real Firebase, 2026-11-15, on localhost with the virtual piano:** Google popup sign-in, survives reload; a performance of `test-c` arrived in `users/<uid>/performances`, `last`, `days`, `kv` (read back over the REST API); after wiping the device's data the score and the other device's seconds came back; another user's path and a request without sign-in both get 403; test data removed afterwards. **Not checked: sign-in on the live site (github.io) and two real devices** — his to do. |
+| Pedal marks | Chip says ✓ "the score" (marks written in the file) or ? "suggested"; E2E with a fake index. Interstellar's 274 are from the file; not checked by ear. |
+| "Learn first" exercises | Which exercises: Pianote names arpeggios and broken triads (pianote.com/blog/?p=8550); scales, inversions, cadence are Claude's choice, tooltips say so. Unit test: every entry is a real exercise; E2E: buttons lead to the exercise. |
 | Video | Link parsing: 13 cases in a unit test. E2E: add, shown as an embedded frame, remembered, per song, remove. **Not checked: that a real video plays** (tests block YouTube); some videos forbid embedding, then "Open on YouTube". |
 | Sound | Measured, not heard: one mf note peaks 0.57, 8-key chord 0.95 at 1.2× the RMS, no clipping. Chords are held back ~7 dB by the limiter (`DRIVE` 1.5); less drive = more natural chords but quieter notes. He has to judge by ear. |
 | Hold on the real piano | Rules pass their table; he once said it "does not really work" without details. Unexplained. |
@@ -54,7 +56,7 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-**0. Pending song: Hans Zimmer - Interstellar - Main Theme** (YouTube `https://www.youtube.com/watch?v=qJ8-QVm9TQk`). His files in ~/Downloads were not importable: `Zimmer Hans …[MIDIfind.com].mid` (1 track, one hand range, 3/2) and `Interstellar.pdf` (Flat, "Cornfield Chase", no note data). `325275286-…Piano-Version_2.mid` is a written (quantized) 1-track MIDI, F1–E6, 2024 notes, 83 bpm, 4/2, both hands in one track, so it needs `splitAt: 60` (392 notes below, 1632 above) and he must agree. He said "later"; prefer a MusicXML/.mxl from Flat or musescore.com. The matching PDF `540121407-…Piano-Version.pdf` is only for comparison.
+**0. Interstellar added 2026-11-16** (his `.mxl`, YouTube `4y33h81phKU`): 2057 notes, 156 measures, 274 pedal events from the score (arranger), no fingering in the file (computed, unchecked). Waiting for his ears: Listen, hands the right way round, tempo 100 bpm.
 1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
 2. App is finished and reviewed (see Final review). Later, only if he asks: M8 tablet / PWA. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
 

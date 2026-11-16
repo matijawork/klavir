@@ -950,3 +950,14 @@ dialog.video {
 .menu.sync .panel {
   width: 220px;
 }
+.prepare {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.prepare .btn {
+  height: 28px;
+  padding: 0 var(--s-2);
+  font-size: 12px;
+}

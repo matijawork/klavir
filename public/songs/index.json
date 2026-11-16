@@ -18,6 +18,64 @@
     },
     "durationSec": 8,
     "noteCount": 3,
-    "fingering": "claude"
+    "fingering": "claude",
+    "pedal": null
+  },
+  {
+    "id": "interstellar",
+    "title": "Interstellar - Main Theme",
+    "composer": "Hans Zimmer",
+    "difficulty": 3,
+    "key": "C major",
+    "versions": [
+      {
+        "id": "original",
+        "label": "Original"
+      }
+    ],
+    "youtube": "https://www.youtube.com/watch?v=4y33h81phKU",
+    "source": {
+      "url": "unknown, supplied by Matija (musescore.com-style file)",
+      "license": "unknown, supplied by Matija"
+    },
+    "durationSec": 281,
+    "noteCount": 2057,
+    "fingering": "claude",
+    "pedal": "arranger",
+    "prepare": [
+      {
+        "kind": "arpeggio",
+        "key": 9,
+        "minor": true,
+        "why": "Left hand is broken chords, mostly A minor. Pianote lists arpeggios and broken triads as the warm-up for this piece (pianote.com/blog/?p=8550)."
+      },
+      {
+        "kind": "arpeggio",
+        "key": 0,
+        "why": "Left hand also plays C major broken chords. Pianote lists arpeggios and broken triads as the warm-up for this piece (pianote.com/blog/?p=8550)."
+      },
+      {
+        "kind": "chords",
+        "key": 9,
+        "minor": true,
+        "why": "Triads and their inversions: the broken chords are built from them (Pianote: triads are 'helpful'). Chosen by Claude for the key."
+      },
+      {
+        "kind": "scale-minor",
+        "key": 9,
+        "why": "The melody sits in A minor. Chosen by Claude, not from a source."
+      },
+      {
+        "kind": "scale-major",
+        "key": 0,
+        "why": "Relative major (C), used in the piece. Chosen by Claude, not from a source."
+      },
+      {
+        "kind": "cadence",
+        "key": 9,
+        "minor": true,
+        "why": "Slow chord changes with the pedal changing on each chord. Chosen by Claude, not from a source."
+      }
+    ]
   }
 ]

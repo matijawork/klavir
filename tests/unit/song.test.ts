@@ -112,3 +112,24 @@ describe('Transport', () => {
     expect(t.time(5000)).toBe(1);
   });
 });
+
+describe('library index: exercises to learn first', () => {
+  it('every prepare step names a real exercise in a valid key', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { EXERCISES, buildExercise } = await import('../../src/engine/exercises.ts');
+    const index = JSON.parse(readFileSync('public/songs/index.json', 'utf8')) as {
+      id: string;
+      prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
+    }[];
+    for (const s of index)
+      for (const p of s.prepare ?? []) {
+        expect(
+          EXERCISES.some((e) => e.kind === p.kind),
+          `${s.id}: ${p.kind}`,
+        ).toBe(true);
+        expect(Number.isInteger(p.key) && p.key >= 0 && p.key < 12).toBe(true);
+        expect(p.why.length).toBeGreaterThan(5);
+        expect(buildExercise(p.kind as never, p.key, p.minor).notes.length).toBeGreaterThan(0);
+      }
+  });
+});

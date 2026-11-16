@@ -59,6 +59,10 @@ export interface LibraryEntry {
   durationSec: number;
   noteCount: number;
   fingering: Provenance | null;
+  /** where the pedal marks come from; null = the song has none */
+  pedal: Provenance | null;
+  /** exercises worth knowing before this song, each with the reason */
+  prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
 }
 
 /** Converts beats to seconds (at 100 % speed) through a tempo map. */

@@ -41,6 +41,8 @@ interface Meta {
   fingering?: 'auto' | 'none';
   /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
   pedal?: 'measure';
+  /** exercises to learn first, shown on the song's card as buttons (key = tonic pitch class 0-11) */
+  prepare?: { kind: string; key: number; minor?: boolean; why: string }[];
 }
 
 const MAJOR = ['C♭', 'G♭', 'D♭', 'A♭', 'E♭', 'B♭', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F♯', 'C♯'];
@@ -116,6 +118,8 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     durationSec: Math.round(tempo.toSeconds(last.b + last.len)),
     noteCount: song.notes.length,
     fingering: song.notes.find((n) => n.f)?.fs ?? null,
+    pedal: song.pedal.length ? song.pedalSource : null,
+    ...(meta.prepare?.length ? { prepare: meta.prepare } : {}),
   };
 }
 

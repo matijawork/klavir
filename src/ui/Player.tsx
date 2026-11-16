@@ -18,6 +18,7 @@ import { clampSpeed, type Settings, setSetting, settings } from '../store/settin
 import { Calibrate } from './Calibrate.tsx';
 import { FingeringChip } from './FingeringChip.tsx';
 import { MidiChip } from './MidiChip.tsx';
+import { PedalChip } from './PedalChip.tsx';
 import { Timeline } from './Timeline.tsx';
 
 const base = import.meta.env.BASE_URL;
@@ -872,6 +873,7 @@ export function Player({
               source={fingerSource(song.file)!}
             />
           )}
+          {song && song.file.pedal.length > 0 && <PedalChip source={song.file.pedalSource} />}
         </div>
         {song && !file && !perform && (
           <a
