@@ -1,8 +1,7 @@
 /**
- * The chords a piece is built on, read from its notes: one chord per measure (half measure in 4/4
- * when the harmony changes there), matched against the 24 major and minor triads. Only what the
- * notes show is reported; a measure that fits no triad well (a melody alone, a passing figure)
- * counts for nothing.
+ * The chords a piece is built on, read from its notes: one chord per measure, matched against the
+ * 24 major and minor triads. Only what the notes show is reported; a measure that fits no triad
+ * well (a melody alone, a passing figure) counts for nothing.
  */
 import type { ChordUse, SongChord, SongFile, SongNote } from '../../src/engine/song.ts';
 
@@ -73,14 +72,24 @@ export function triadOf(
   return found && found.inside >= 0.6 * total ? { root: found.root, minor: found.minor } : null;
 }
 
-/** How one hand plays the chord in one measure, or null when it plays none of its notes. */
-function useIn(notes: SongNote[], t: { root: number; minor: boolean }): ChordUse | null {
+/**
+ * How one hand plays the chord in one measure, or null when it plays none of its notes. A right
+ * hand that touches one note of the chord among other notes plays a melody (Love Story: B♭–C over
+ * A♭ major is not "only C"); a left hand doing that is still the bass note.
+ */
+function useIn(
+  notes: SongNote[],
+  t: { root: number; minor: boolean },
+  hand: 'L' | 'R',
+): ChordUse | null {
   const chord = [t.root, (t.root + (t.minor ? 3 : 4)) % 12, (t.root + 7) % 12];
   const tones = notes.filter((n) => chord.includes(n.p % 12));
   if (tones.length === 0) return null;
   const sorted = [...tones].sort((x, y) => x.p - y.p);
   const order = [...new Set(sorted.map((n) => n.p % 12))];
-  if (notes.length - tones.length > tones.length) return { style: 'melody', tones: order };
+  const others = notes.length - tones.length;
+  if (others > tones.length || (hand === 'R' && order.length === 1 && others > 0))
+    return { style: 'melody', tones: order };
   const atOnce = new Map<number, Set<number>>();
   for (const n of tones) atOnce.set(n.b, (atOnce.get(n.b) ?? new Set()).add(n.p % 12));
   const stacked = Math.max(...[...atOnce.values()].map((x) => x.size));
@@ -94,7 +103,8 @@ function useIn(notes: SongNote[], t: { root: number; minor: boolean }): ChordUse
 function mostCommon(uses: ChordUse[]): ChordUse | undefined {
   const count = new Map<string, { use: ChordUse; n: number }>();
   for (const u of uses) {
-    const k = `${u.style}:${u.tones.join(',')}`;
+    // a melody is one way of playing, whichever chord notes it passes through
+    const k = u.style === 'melody' ? 'melody' : `${u.style}:${u.tones.join(',')}`;
     const e = count.get(k) ?? { use: u, n: 0 };
     e.n++;
     count.set(k, e);
@@ -150,12 +160,14 @@ export function chordsOf(song: SongFile, key: { tonic: number; minor: boolean })
       useIn(
         starting.filter((n) => n.h === 'R'),
         t,
+        'R',
       ),
     );
     c.L.push(
       useIn(
         starting.filter((n) => n.h === 'L'),
         t,
+        'L',
       ),
     );
     found.set(id, c);

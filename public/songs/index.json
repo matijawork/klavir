@@ -166,8 +166,8 @@
         "note": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
       },
       "claudeFingering": {
-        "note": "The right-hand riff is Claude's fingering, not from a page: the thumb stays on D (or C♯) and fingers 5, 4, 3 play A, G, F♯, the same in every measure",
-        "notes": 230
+        "note": "The right-hand riff is Claude's fingering, not from a page: the thumb stays on D (or C♯) and fingers 5, 4, 3 play A, G, F♯, the same in every measure of the riff; the measures in octaves keep the app's suggestion (1 and 5 on each octave)",
+        "notes": 112
       }
     },
     "chords": [
@@ -326,7 +326,7 @@
           "quote": "Key: Bb Minor"
         }
       ],
-      "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice.",
+      "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice. Only measures 97-112 add G♭ (100 of the 2571 notes, the G♭ chord).",
       "charts": [
         {
           "site": "ukebuddy",
@@ -821,7 +821,7 @@
         "minor": false,
         "count": 56,
         "right": {
-          "style": "single",
+          "style": "melody",
           "tones": [
             0
           ]

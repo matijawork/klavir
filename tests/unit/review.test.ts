@@ -121,6 +121,25 @@ describe('note-by-note review', () => {
     ]);
   });
 
+  it('names black keys as flats in a flat key, wrong keys included', () => {
+    const { song, snap } = play(
+      [R(70, 0), R(72, 1)],
+      'tempo',
+      [
+        [70, 0, 0.95],
+        [61, 0.5, 0.6], // C♯ / D♭, not in the song
+        [72, 1, 1.95],
+      ],
+      1,
+    );
+    song.file.keys = [{ b: 0, fifths: -5, mode: 'minor' }]; // B♭ minor
+    expect(reviewSteps(song, snap).map((s) => s.text)).toEqual([
+      'B♭4 on time',
+      'D♭4 is not in the song here',
+      'C5 on time',
+    ]);
+  });
+
   it('a snapshot survives the rewind and can be put back for drawing', () => {
     const { session, snap } = play(song1, 'tempo', [[62, 1.2, 1.95]]);
     session.rewind(0);

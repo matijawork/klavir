@@ -97,6 +97,31 @@ describe('how a hand plays a chord', () => {
     const [chord] = chordsOf({ measures, notes } as unknown as SongFile, aMinor);
     expect(chord!.right).toEqual({ style: 'melody', tones: [4, 9] });
   });
+  it('a right hand on one chord note among others plays the melody; a left hand plays the bass', () => {
+    // A♭ major (Love Story): left A♭–E♭ together, right B♭ then C, three measures
+    const notes = measures.flatMap((m) => [
+      { p: 44, b: m.b, d: 4, h: 'L' as const },
+      { p: 51, b: m.b, d: 4, h: 'L' as const },
+      { p: 70, b: m.b, d: 2, h: 'R' as const },
+      { p: 72, b: m.b + 2, d: 2, h: 'R' as const },
+    ]);
+    const [chord] = chordsOf({ measures, notes } as unknown as SongFile, {
+      tonic: 10,
+      minor: true,
+    });
+    expect(chord).toMatchObject({ root: 8, minor: false, right: { style: 'melody' } });
+    expect(chord!.left).toEqual({ style: 'block', tones: [8, 3] });
+    // the left hand with a passing note is still the bass note
+    const bass = measures.flatMap((m) => [
+      { p: 44, b: m.b, d: 3, h: 'L' as const },
+      { p: 46, b: m.b + 3, d: 1, h: 'L' as const },
+      ...[68, 72, 75].map((p) => ({ p, b: m.b, d: 4, h: 'R' as const })),
+    ]);
+    expect(
+      chordsOf({ measures, notes: bass } as unknown as SongFile, { tonic: 8, minor: false })[0]!
+        .left,
+    ).toEqual({ style: 'single', tones: [8] });
+  });
 });
 
 describe('chord and key names', () => {

@@ -74,6 +74,25 @@ describe('library', () => {
         expect(hits.length, `${p.notes.join('-')} found`).toBeGreaterThan(0);
         for (const n of hits) expect(n.f).toBe(p.fingers[pcs.indexOf(n.p % 12)]);
       }
+      // keys struck together by one hand: a finger each, and an octave only with 1-5 or 1-4
+      const together = new Map<string, SongFile['notes']>();
+      for (const n of song.notes) {
+        if (!n.f || n.g) continue;
+        const k = `${n.h}${n.b}`;
+        together.set(k, [...(together.get(k) ?? []), n]);
+      }
+      for (const g of together.values()) {
+        if (g.length < 2) continue;
+        const where = `${s.id}: ${g[0]!.h} at beat ${g[0]!.b}`;
+        expect(new Set(g.map((n) => n.f)).size, `${where}: one finger per key`).toBe(g.length);
+        const low = g.reduce((a, b) => (b.p < a.p ? b : a));
+        const high = g.reduce((a, b) => (b.p > a.p ? b : a));
+        if (high.p - low.p >= 12) {
+          const outer = g[0]!.h === 'R' ? [low.f, high.f] : [high.f, low.f];
+          expect(outer[0], `${where}: thumb on the octave`).toBe(1);
+          expect(outer[1]!, `${where}: 4 or 5 on the octave`).toBeGreaterThanOrEqual(4);
+        }
+      }
       // the card always says something
       const g = checkedSplit(checklist(s, { fingering: false, ear: false }));
       expect(g.claude.length + g.you.length + g.added.length + g.no.length).toBeGreaterThan(0);
@@ -271,6 +290,44 @@ describe('learnList', () => {
       { label: 'Arpeggio', href: '#/exercise/arpeggio/6', main: true },
       { label: 'Inversions', href: '#/exercise/chords/6', main: true },
     ]);
+  });
+
+  it('says how the Scale (harmonic minor) differs from what a minor song plays', () => {
+    const minorSong = (chords: { root: number; minor: boolean }[]) =>
+      learnList({
+        ...entry,
+        key: 'A minor',
+        flats: undefined,
+        checks: { ...entry.checks!, key: 'score' },
+        chords: chords.map((c) => ({ ...c, count: 3 })),
+      })[0]!.detail;
+    // Interstellar: E minor, so G and never G♯
+    expect(
+      minorSong([
+        { root: 4, minor: true },
+        { root: 9, minor: true },
+      ]),
+    ).toBe(
+      'The key of the song: written in the score. Scale is the harmonic minor scale, which raises the 7th note to G♯; this song plays G instead (its E chord is minor).',
+    );
+    expect(minorSong([{ root: 4, minor: false }])).toMatch(
+      /its 7th note is raised \(G♯\), as in this song's E major chord\.$/,
+    );
+    expect(minorSong([])).toMatch(/its 7th note is raised \(G♯\)\.$/);
+    // B♭ minor in flats: A is the raised 7th, A♭ the plain one
+    expect(
+      learnList({
+        ...entry,
+        key: 'B♭ minor',
+        flats: true,
+        checks: { ...entry.checks!, key: 'score' },
+        chords: [{ root: 5, minor: true, count: 3 }],
+      })[0]!.detail,
+    ).toMatch(/raises the 7th note to A; this song plays A♭ instead \(its F chord is minor\)\.$/);
+    expect(
+      learnList({ ...entry, key: 'C major', checks: { ...entry.checks!, key: 'score' } })[0]!
+        .detail,
+    ).toMatch(/Its scale has the notes the song is built on\.$/);
   });
 
   it('a test pattern without a key has nothing to practise', () => {

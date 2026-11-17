@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildExercise, EXERCISES, keyName, tonicOf } from '../../src/engine/exercises.ts';
 import { calibrationHint, feedback, readyToPerform } from '../../src/engine/feedback.ts';
+import { usesFlats } from '../../src/engine/keys.ts';
 import { hitWindowMs, type PassResult, PracticeSession, SHORT } from '../../src/engine/session.ts';
 import { loadSong } from '../../src/engine/song.ts';
 import { Transport } from '../../src/engine/transport.ts';
@@ -324,5 +325,20 @@ describe('exercises', () => {
     expect(keyName(6)).toBe('F♯');
     expect(tonicOf(1, false)).toBe(7);
     expect(tonicOf(0, true)).toBe(9);
+  });
+
+  it('gives every exercise the key signature of the key in its title', () => {
+    for (let pc = 0; pc < 12; pc++)
+      for (const minor of [false, true]) {
+        const file = buildExercise(minor ? 'scale-minor' : 'scale-major', pc);
+        const k = file.keys[0]!;
+        expect(tonicOf(k.fifths, minor), file.title).toBe(pc);
+        // black keys are drawn as flats exactly when the title names a flat key
+        const name = keyName(pc, minor);
+        if (name.includes('♭')) expect(usesFlats(file.keys), file.title).toBe(true);
+        if (name.includes('♯')) expect(usesFlats(file.keys), file.title).toBe(false);
+      }
+    expect(buildExercise('scale-minor', 3).title).toBe('E♭ minor: minor scale');
+    expect(buildExercise('scale-minor', 3).keys[0]!.fifths).toBe(-6);
   });
 });

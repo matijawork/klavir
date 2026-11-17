@@ -49,7 +49,7 @@
       "quote": "Key: Bb Minor"
     }
   ],
-  "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice.",
+  "keyNote": "The pages disagree on the key. All but ukebuddy name the same seven notes as your file (four flats: E♭ F G A♭ B♭ C D♭); Pianote's \"E♭ with D♭\" is those notes too. The A♭ major scale is exactly those notes, so Claude chose it for practice. Only measures 97-112 add G♭ (100 of the 2571 notes, the G♭ chord).",
   "tempoSources": [
     {
       "bpm": 131,

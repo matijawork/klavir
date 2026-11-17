@@ -106,7 +106,10 @@ function Seg<T extends string>(props: {
   );
 }
 
-/** Per song: play the score's pedal in Listen and the other hand (default: on, off when only suggested). */
+/**
+ * Per song: show the score's pedal marks and play them in Listen and for the other hand, or hide
+ * them and play without (default: on, off when only suggested).
+ */
 const PEDAL_STORE = 'klavir.pedalPlay';
 function pedalPlayOf(song: LoadedSong): boolean {
   try {
@@ -409,7 +412,7 @@ export function Player({
   const playing = useSignal(false);
   const listen = useSignal(false);
   const loop = useSignal(false);
-  /** play the score's pedal marks (per song, remembered) */
+  /** show and play the score's pedal marks (per song, remembered) */
   const pedalPlay = useSignal(true);
   const range = useSignal<{ a: number; b: number } | null>(null);
   const lastPass = useSignal<PassInfo | null>(null);
@@ -512,6 +515,7 @@ export function Player({
     lastClicks.current = '';
     pedalPlay.value = pedalPlayOf(song);
     playback.setPedal(pedalPlay.value);
+    view.showPedal = pedalPlay.value;
     engineSig.value = { transport, session, playback, view };
 
     const onHide = () => {
@@ -1132,13 +1136,16 @@ export function Player({
             label="Pedal"
             title={
               song.file.pedalSource === 'claude'
-                ? 'Play the pedal Claude suggested when the app plays (Listen, the other hand); it is not in the score, so it starts off. Your own pedal always works.'
-                : "Play the score's pedal marks when the app plays (Listen, the other hand). Your own pedal always works."
+                ? 'On: shows the pedal Claude suggested and plays it when the app plays (Listen, the other hand). Off: hidden, and the app plays without it. Not in the score, so it starts off. Your own pedal always works.'
+                : "On: shows the score's pedal marks and plays them when the app plays (Listen, the other hand). Off: hidden, and the app plays without pedal. Your own pedal always works."
             }
             onChange={(v) => {
               pedalPlay.value = v;
               savePedalPlay(song.file.id, v);
-              engine?.playback.setPedal(v);
+              if (engine) {
+                engine.playback.setPedal(v);
+                engine.view.showPedal = v;
+              }
             }}
             testid="pedal-play"
           />

@@ -76,7 +76,7 @@ export function reviewSteps(song: LoadedSong, snap: PassSnapshot): ReviewStep[] 
       time: t,
       measure: measureOf(Math.max(0, t)),
       bad: true,
-      text: `${noteName(snap.wrongPitch[w]!, true)} is not in the song here`,
+      text: `${noteName(snap.wrongPitch[w]!, true, flats)} is not in the song here`,
     });
   }
   return steps.sort((a, b) => a.time - b.time);

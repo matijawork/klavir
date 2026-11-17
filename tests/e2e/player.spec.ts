@@ -120,6 +120,46 @@ test('listen plays the score pedal: a key let go under the pedal sounds until it
   ).toBe(false);
 });
 
+test('one key in both hands: let go right before it is struck again, sounds to the later end', async ({
+  page,
+}) => {
+  const { readFileSync } = await import('node:fs');
+  const song = JSON.parse(
+    readFileSync(new URL('../fixtures/songs/ode-to-joy/original.json', import.meta.url), 'utf8'),
+  );
+  // the left hand holds G3 (55) and D4 (62) for beats 0-4; the right hand also strikes G3 on beat
+  // 0 for two beats (both hands, one moment) and D4 on beat 1 for one beat (while it is held)
+  song.notes.push({ p: 55, b: 0, d: 2, h: 'R' }, { p: 62, b: 1, d: 1, h: 'R' });
+  await page.route('**/songs/ode-to-joy/original.json', (route) => route.fulfill({ json: song }));
+  await open(page);
+  await page.getByTestId('listen').click();
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(3600);
+  await page.getByTestId('play').click();
+  const sent = await page.evaluate(() => window.__midi!.sent);
+  const beat = 60000 / 140;
+  const t0 = sent.find((m) => m.data[0] === 0x92)!.time;
+  const of = (p: number) =>
+    sent
+      .filter((m) => (m.data[0] === 0x92 || m.data[0] === 0x82) && m.data[1] === p)
+      .map((m) => ({ on: m.data[0] === 0x92, beat: (m.time - t0) / beat }));
+  for (const p of [55, 62]) {
+    const ev = of(p);
+    // every strike is let go before the key is struck again, never after
+    for (let k = 0; k + 1 < ev.length; k++)
+      if (ev[k]!.on) expect(ev[k + 1]!.on, `key ${p}: no strike on a sounding key`).toBe(false);
+    // the last strike in the first measure sounds on to the end of the held note
+    const lastOn = ev.findLastIndex((e) => e.on && e.beat < 3.5);
+    expect(ev[lastOn + 1]?.beat, `key ${p} sounds to beat 4`).toBeCloseTo(4, 1);
+  }
+  // D4: struck on beat 0, let go just before beat 1, struck again on beat 1
+  expect(
+    of(62)
+      .filter((e) => e.on && e.beat < 3.5)
+      .map((e) => Math.round(e.beat * 10) / 10),
+  ).toEqual([0, 1]);
+});
+
 test('the Pedal switch: on for score pedal, off for a suggested one, remembered per song', async ({
   page,
 }) => {
@@ -146,17 +186,40 @@ test('the Pedal switch: on for score pedal, off for a suggested one, remembered 
     const off = sent.find((m) => m.data[0] === 0x82 && m.data[1] === 72 && m.time > on.time)!;
     return (off.time - on.time) / (60000 / 140);
   };
+  /** share of the pixels in the pedal lane (left edge, above the keys) that are not background */
+  const lane = () =>
+    page.evaluate(async () => {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const c = document.querySelector<HTMLCanvasElement>('[data-testid="stage"]')!;
+      const dpr = c.width / c.clientWidth;
+      const hitY = c.clientHeight * 0.6; // well above the keys
+      const px = c.getContext('2d')!.getImageData(Math.round(13 * dpr), 0, 1, hitY * dpr).data;
+      let lit = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i]! + px[i + 1]! + px[i + 2]! > 0) lit++;
+      return lit / (px.length / 4);
+    });
+  expect(await lane(), 'switched off: no pedal lane').toBeLessThan(0.1);
   await page.getByTestId('listen').click();
   expect(await heldD5(), 'switched off: as written').toBeCloseTo(1, 1);
   await pedal.click();
   await expect(pedal).toHaveAttribute('aria-pressed', 'true');
-  // remembered for this song; from the start again, now held to the pedal
+  expect(await lane(), 'switched on: the pedal lane is drawn').toBeGreaterThan(0.9);
+  // takes effect at once, without reloading
+  await page.getByRole('button', { name: 'Restart' }).click();
+  expect(await heldD5(), 'switched on: held to the pedal').toBeCloseTo(1.5, 1);
+  // remembered for this song
   await page.reload();
   await page.getByTestId('midi-connect').click();
   await page.waitForFunction(() => !!window.__klavir);
   await expect(page.getByTestId('pedal-play')).toHaveAttribute('aria-pressed', 'true');
+  expect(await lane(), 'remembered: lane drawn after reload').toBeGreaterThan(0.9);
   await page.getByTestId('listen').click();
-  expect(await heldD5(), 'switched on: held to the pedal').toBeCloseTo(1.5, 1);
+  expect(await heldD5(), 'remembered: held to the pedal').toBeCloseTo(1.5, 1);
+  // and off again: hidden, as written
+  await page.getByTestId('pedal-play').click();
+  expect(await lane(), 'switched off again: lane gone').toBeLessThan(0.1);
+  await page.getByRole('button', { name: 'Restart' }).click();
+  expect(await heldD5(), 'switched off again: as written').toBeCloseTo(1, 1);
 });
 
 test('wait mode holds the song until the right keys are pressed', async ({ page }) => {

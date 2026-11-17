@@ -53,6 +53,24 @@ function how(ch: SongChord, use: ChordUse, hand: 'L' | 'R', flats: boolean): str
   return `${way}: ${played}${use.tones.includes(third) ? '' : ' (no third)'}`;
 }
 
+/**
+ * What the Scale exercise is next to the song. A minor key's Scale is the harmonic minor (the only
+ * minor scale with checked fingering): its 7th note is raised. A song whose chord on the 5th note
+ * is minor plays the plain 7th instead (Interstellar: E minor, so G, never G♯), and says so.
+ */
+function scaleWords(tonic: number, minor: boolean, chords: SongChord[], flats: boolean): string {
+  if (!minor) return 'Its scale has the notes the song is built on.';
+  const names = flats ? FLAT : SHARP;
+  const five = (tonic + 7) % 12;
+  const raised = names[(tonic + 11) % 12];
+  const has = (m: boolean) => chords.some((c) => c.root === five && c.minor === m);
+  if (has(true) && !has(false))
+    return `Scale is the harmonic minor scale, which raises the 7th note to ${raised}; this song plays ${names[(tonic + 10) % 12]} instead (its ${names[five]} chord is minor).`;
+  if (has(false))
+    return `Scale is the harmonic minor scale: its 7th note is raised (${raised}), as in this song's ${names[five]} major chord.`;
+  return `Scale is the harmonic minor scale: its 7th note is raised (${raised}).`;
+}
+
 export function learnList(s: LibraryEntry): LearnGroup[] {
   const c = s.checks;
   if (c?.key === 'none') return [];
@@ -74,7 +92,7 @@ export function learnList(s: LibraryEntry): LearnGroup[] {
             : 'written in the score';
     groups.push({
       title: title(key.tonic, key.minor, flats),
-      detail: `The key of the song: ${from}. Its scale has the notes the song uses.`,
+      detail: `The key of the song: ${from}. ${scaleWords(key.tonic, key.minor, s.chords ?? [], flats)}`,
       links: [
         { label: 'Scale', href: exercise('scale', key.tonic, key.minor), main: true },
         { label: 'Five-finger', href: exercise('five-finger', key.tonic, key.minor) },

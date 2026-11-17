@@ -81,7 +81,7 @@ function pickLayer(want: number, k: number): number {
   return -1;
 }
 
-/** Overall loudness, 0..2 (1 = default). */
+/** Overall loudness, 0..3 (the Volume slider; 1.2 = default). */
 export function setVolume(v: number): void {
   volume = v;
   if (master && ctx) master.gain.setTargetAtTime(v * DRIVE, ctx.currentTime, 0.02);

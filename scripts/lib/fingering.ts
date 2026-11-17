@@ -45,6 +45,18 @@ export function stepCost(a: number, p1: number, b: number, p2: number, dir: numb
   return 1.5 + Math.max(0, -d - 2) + (isBlack(thumbPitch) ? 3 : 0);
 }
 
+/**
+ * Widest span in semitones a lower finger (row) and a higher finger (column) can hold at once:
+ * an octave is 1-5 or 1-4, never 1-3 or 2-5 (chosen by Claude, not from a source).
+ */
+const HOLD_SPAN: number[][] = [
+  [],
+  [0, 0, 8, 10, 12, 13],
+  [0, 0, 0, 4, 6, 9],
+  [0, 0, 0, 0, 3, 5],
+  [0, 0, 0, 0, 0, 3],
+];
+
 const noteCost = (finger: number, pitch: number): number =>
   (isBlack(pitch) ? (finger === 1 ? 1.5 : finger === 5 ? 0.6 : 0) : 0) + (finger === 4 ? 0.15 : 0);
 
@@ -87,6 +99,9 @@ function fingerHand(notes: SongNote[], dir: number): void {
       for (let k = 0; k < fs.length; k++) {
         c += noteCost(fs[k]!, s.notes[k]!.p);
         if (k > 0) c += stepCost(fs[k - 1]!, s.notes[k - 1]!.p, fs[k]!, s.notes[k]!.p, dir);
+        // keys struck together must fit under the hand
+        for (let j = 0; j < k; j++)
+          if (Math.abs(s.notes[k]!.p - s.notes[j]!.p) > HOLD_SPAN[fs[j]!]![fs[k]!]!) c += 40;
       }
       return c;
     }),
@@ -297,8 +312,10 @@ export function applyTriadFingering(notes: SongNote[]): number {
 
 /**
  * Claude's own fingering for a figure that keeps one hand in place: in every measure where that
- * hand plays only the given notes (at least four of them), each note gets its finger. Not from a
- * source: stays marked `claude`. Returns how many notes it covered.
+ * hand plays only the given notes (at least four of them), one at a time, each note gets its
+ * finger. A measure with two notes at once (octaves) is another figure: one finger cannot play
+ * both, so it keeps the suggested fingering. Not from a source: stays marked `claude`. Returns how
+ * many notes it covered.
  */
 export function applyFingerMap(
   notes: SongNote[],
@@ -312,6 +329,8 @@ export function applyFingerMap(
       (n) => n.h === hand && !n.g && n.b >= m.b - 1e-6 && n.b < m.b + m.len - 1e-6,
     );
     if (own.length < 4 || !own.every((n) => map.has(n.p % 12))) continue;
+    const together = own.some((n, k) => own.some((x, j) => j !== k && Math.abs(x.b - n.b) < 1e-6));
+    if (together) continue;
     for (const n of own) {
       n.f = map.get(n.p % 12)!;
       n.fs = 'claude';

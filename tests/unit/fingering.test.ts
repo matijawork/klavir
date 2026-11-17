@@ -69,6 +69,13 @@ test("Claude's map fingers a figure that keeps the hand in place, only where it 
   const notes: SongNote[] = [
     ...riff.map((p, k) => ({ p, b: k * 0.5, d: 0.5, h: 'R' as const })),
     ...[74, 76, 81, 83].map((p, k) => ({ p, b: 4 + k, d: 1, h: 'R' as const })), // has E and B
+    // octaves G5+G6, F♯5+F♯6 (measure 21): two keys at once, one finger cannot play both
+    ...[79, 91, 78, 90, 79, 91, 78, 90].map((p, k) => ({
+      p,
+      b: 8 + Math.floor(k / 2),
+      d: 1,
+      h: 'R' as const,
+    })),
   ];
   const map = new Map([
     [2, 1],
@@ -79,9 +86,11 @@ test("Claude's map fingers a figure that keeps the hand in place, only where it 
   const measures = [
     { b: 0, len: 4 },
     { b: 4, len: 4 },
+    { b: 8, len: 4 },
   ];
   expect(applyFingerMap(notes, measures, 'R', map)).toBe(7);
   expect(notes.slice(0, 7).map((n) => n.f)).toEqual([1, 5, 1, 4, 1, 3, 1]);
   expect(notes[0]!.fs).toBe('claude');
   expect(notes[7]!.f).toBeUndefined();
+  expect(notes.slice(11).every((n) => n.f === undefined)).toBe(true);
 });

@@ -51,6 +51,7 @@ const SPARKS = 256;
 /** sparks per second from one sounding key */
 const SPARK_RATE = 10;
 const BLACK_RADII = [0, 0, 3, 3];
+const NO_PEDAL = new Float64Array(0);
 
 export class PlayerCanvas {
   /** vertical zoom: pixels per second of song time at 100 % speed */
@@ -77,6 +78,8 @@ export class PlayerCanvas {
   reviewAt = Number.NaN;
   /** live sustain pedal state, set by the UI */
   pedalDown = false;
+  /** draw the song's pedal marks (the Pedal switch); the player's own pedal is always shown */
+  showPedal = true;
   readonly stats: RenderStats = {
     hz: 0,
     avgFrameMs: 0,
@@ -431,7 +434,7 @@ export class PlayerCanvas {
   /** Lane at the left edge: where the song holds the sustain pedal, and the live pedal. */
   private drawPedalLane(t: number, pps: number, hitY: number): void {
     const { ctx, tk, song, w } = this;
-    const pt = song.pedalTime;
+    const pt = this.showPedal ? song.pedalTime : NO_PEDAL;
     const laneW = 14;
     const x = 6;
     let wanted = false;

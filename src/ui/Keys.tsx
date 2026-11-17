@@ -49,8 +49,9 @@ export function Keys({ song }: { song: LibraryEntry }) {
             </button>
           </header>
           <ul class="keys-list">
-            {groups.map((g) => (
-              <li key={g.title} data-testid="keys-group">
+            {groups.map((g, i) => (
+              // the key and a chord can share a name (A minor and the A minor chord)
+              <li key={i} data-testid="keys-group">
                 <div>
                   <strong>{g.title}</strong>
                   <span class="keys-detail">{g.detail}</span>

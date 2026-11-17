@@ -31,6 +31,8 @@ export const EXERCISES: { kind: ExerciseKind; title: string; about: string }[] =
 const MAJOR_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const MINOR_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
 const MAJOR_FIFTHS = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
+/** key signature of each minor key as named in MINOR_NAMES (E♭ minor: six flats, not six sharps) */
+const MINOR_FIFTHS = [-3, 4, -1, -6, 1, -4, 3, -2, 5, 0, -5, 2];
 
 export const keyName = (pc: number, minor = false): string =>
   (minor ? MINOR_NAMES : MAJOR_NAMES)[((pc % 12) + 12) % 12]!;
@@ -394,7 +396,7 @@ export function buildExercise(kind: ExerciseKind, pcRaw: number, minorMode = fal
     pedal: [],
     pedalSource: null,
     keys: [
-      { b: 0, fifths: MAJOR_FIFTHS[minor ? (pc + 3) % 12 : pc]!, mode: minor ? 'minor' : 'major' },
+      { b: 0, fifths: (minor ? MINOR_FIFTHS : MAJOR_FIFTHS)[pc]!, mode: minor ? 'minor' : 'major' },
     ],
     sections: [],
     fingeringSource: SOURCES[kind],

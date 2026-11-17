@@ -138,6 +138,8 @@ export class SongPlayback {
   private nextClick = 0;
   /** indices of notes that are sounding and still need a note-off */
   private readonly offs = new Int32Array(256);
+  /** per entry of `offs`: song time the key must sound to at least (taken over from a restruck key) */
+  private readonly offFrom = new Float64Array(256);
   private offCount = 0;
   private readonly song: LoadedSong;
   private readonly transport: Transport;
@@ -223,16 +225,6 @@ export class SongPlayback {
     const { start, pitch, hand, count } = this.song;
     const end = this.soundEnd;
 
-    // note-offs first, so a repeated pitch is released before it is struck again
-    let kept = 0;
-    for (let k = 0; k < this.offCount; k++) {
-      const i = this.offs[k]!;
-      const offAt = tr.wallAt(end[i]!) - 8;
-      if (offAt <= horizon) send([0x80 | CH_PLAYBACK, pitch[i]!, 64], Math.max(offAt, now));
-      else this.offs[kept++] = i;
-    }
-    this.offCount = kept;
-
     const limit = this.getLimit ? this.getLimit() : Number.POSITIVE_INFINITY;
     while (this.next < count) {
       const i = this.next;
@@ -241,9 +233,43 @@ export class SongPlayback {
       if (onAt > horizon) break;
       this.next++;
       if (!(this.handMask & (1 << hand[i]!))) continue;
-      send([0x90 | CH_PLAYBACK, pitch[i]!, 72], Math.max(onAt, now));
-      if (this.offCount < this.offs.length) this.offs[this.offCount++] = i;
+      const p = pitch[i]!;
+      const when = Math.max(onAt, now);
+      // One key sounds once. When it is still sounding (a repeated note, the other hand on the same
+      // key, the pedal), it is let go right before this strike, never after it (that note-off would
+      // silence the new note), and the key sounds on to whichever of the two ends later.
+      let from = 0;
+      for (let k = 0; k < this.offCount; k++) {
+        const j = this.offs[k]!;
+        if (pitch[j] !== p) continue;
+        const until = Math.max(end[j]!, this.offFrom[k]!);
+        from = until;
+        send([0x80 | CH_PLAYBACK, p, 64], Math.max(now, Math.min(when, tr.wallAt(until) - 8)));
+        this.offCount--;
+        this.offs[k] = this.offs[this.offCount]!;
+        this.offFrom[k] = this.offFrom[this.offCount]!;
+        break;
+      }
+      send([0x90 | CH_PLAYBACK, p, 72], when);
+      if (this.offCount < this.offs.length) {
+        this.offs[this.offCount] = i;
+        this.offFrom[this.offCount] = from;
+        this.offCount++;
+      }
     }
+
+    let kept = 0;
+    for (let k = 0; k < this.offCount; k++) {
+      const i = this.offs[k]!;
+      const offAt = tr.wallAt(Math.max(end[i]!, this.offFrom[k]!)) - 8;
+      if (offAt <= horizon) send([0x80 | CH_PLAYBACK, pitch[i]!, 64], Math.max(offAt, now));
+      else {
+        this.offs[kept] = i;
+        this.offFrom[kept] = this.offFrom[k]!;
+        kept++;
+      }
+    }
+    this.offCount = kept;
 
     while (this.nextClick < this.clickTime.length) {
       const at = tr.wallAt(this.clickTime[this.nextClick]!);
