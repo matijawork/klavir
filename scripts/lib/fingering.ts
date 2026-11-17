@@ -217,3 +217,106 @@ export function applyFingerPattern(
   }
   return covered;
 }
+
+/**
+ * Suggested pedalling, one change on every beat (release on the beat, press just after): for music
+ * whose melody moves by step within a measure, so neighbouring notes do not ring together.
+ */
+export function beatPedal(
+  measures: { b: number; len: number; num: number; den: number }[],
+  notes: SongNote[],
+): { b: number; on: boolean }[] {
+  const out: { b: number; on: boolean }[] = [];
+  let down = false;
+  for (const m of measures) {
+    const hasNotes = notes.some((n) => n.b >= m.b - 1e-6 && n.b < m.b + m.len - 1e-6);
+    const compound = m.den === 8 && m.num % 3 === 0 && m.num > 3;
+    const beat = compound ? 1.5 : 4 / m.den;
+    for (let x = m.b; x < m.b + m.len - 1e-6; x += beat) {
+      if (down) out.push({ b: x, on: false });
+      down = hasNotes;
+      if (hasNotes) out.push({ b: x + Math.min(0.125, beat / 8), on: true });
+    }
+  }
+  const last = measures[measures.length - 1];
+  if (down && last) out.push({ b: last.b + last.len, on: false });
+  return out;
+}
+
+/** Chord-inversion fingering as pianoguidelessons.com (?p=4136) gives it, low note first. */
+const TRIAD_FINGERS: Record<'R' | 'L', number[][]> = {
+  // root position, first inversion, second inversion
+  R: [
+    [1, 3, 5],
+    [1, 2, 5],
+    [1, 3, 5],
+  ],
+  L: [
+    [5, 3, 1],
+    [5, 3, 1],
+    [5, 2, 1],
+  ],
+};
+
+/**
+ * Every close major or minor triad one hand plays all at once gets the source's inversion
+ * fingering (marked `verified`). Returns how many notes it covered.
+ */
+export function applyTriadFingering(notes: SongNote[]): number {
+  let covered = 0;
+  for (const hand of ['R', 'L'] as const) {
+    const own = notes.filter((n) => n.h === hand && !n.g).sort((a, b) => a.b - b.b || a.p - b.p);
+    for (let i = 0; i < own.length; ) {
+      let j = i + 1;
+      while (j < own.length && Math.abs(own[j]!.b - own[i]!.b) < 1e-6) j++;
+      const group = own.slice(i, j);
+      i = j;
+      if (group.length !== 3) continue;
+      const [a, b, c] = group.map((n) => n.p) as [number, number, number];
+      if (c - a > 9) continue; // close position only
+      const shape = `${b - a},${c - a}`;
+      // root position 4,7 / 3,7; first inversion 3,8 / 4,9; second inversion 5,9 / 5,8
+      const inv = ['4,7', '3,7'].includes(shape)
+        ? 0
+        : ['3,8', '4,9'].includes(shape)
+          ? 1
+          : ['5,9', '5,8'].includes(shape)
+            ? 2
+            : -1;
+      if (inv < 0) continue;
+      const fingers = TRIAD_FINGERS[hand][inv]!;
+      group.forEach((n, k) => {
+        n.f = fingers[k]!;
+        n.fs = 'verified';
+      });
+      covered += 3;
+    }
+  }
+  return covered;
+}
+
+/**
+ * Claude's own fingering for a figure that keeps one hand in place: in every measure where that
+ * hand plays only the given notes (at least four of them), each note gets its finger. Not from a
+ * source: stays marked `claude`. Returns how many notes it covered.
+ */
+export function applyFingerMap(
+  notes: SongNote[],
+  measures: { b: number; len: number }[],
+  hand: 'L' | 'R',
+  map: Map<number, number>,
+): number {
+  let covered = 0;
+  for (const m of measures) {
+    const own = notes.filter(
+      (n) => n.h === hand && !n.g && n.b >= m.b - 1e-6 && n.b < m.b + m.len - 1e-6,
+    );
+    if (own.length < 4 || !own.every((n) => map.has(n.p % 12))) continue;
+    for (const n of own) {
+      n.f = map.get(n.p % 12)!;
+      n.fs = 'claude';
+    }
+    covered += own.length;
+  }
+  return covered;
+}

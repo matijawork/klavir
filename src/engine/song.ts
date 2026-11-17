@@ -108,6 +108,10 @@ export interface SongChecks {
   chordsNote?: string;
   /** where finger numbers were looked for, when none were found */
   fingeringNote?: string;
+  /** chords played all at once that got a named source's inversion fingering */
+  chordFingering?: WebSource & { notes: number };
+  /** Claude's own fingering for a figure, in words, and how many notes */
+  claudeFingering?: { note: string; notes: number };
 }
 
 /**

@@ -65,8 +65,11 @@ describe('library', () => {
       // finger numbers copied from a source: every pattern note carries the source's finger
       for (const p of meta.fingeringSource?.patterns ?? []) {
         const pcs = p.notes.map((n: string) => parseChord(n)!.root);
+        // single notes only: chords played all at once have their own (inversion) fingering
+        const alone = (n: SongFile['notes'][number]) =>
+          !song.notes.some((m) => m !== n && m.h === n.h && Math.abs(m.b - n.b) < 1e-6);
         const hits = song.notes.filter(
-          (n) => n.h === p.hand && n.fs === 'verified' && pcs.includes(n.p % 12),
+          (n) => n.h === p.hand && n.fs === 'verified' && pcs.includes(n.p % 12) && alone(n),
         );
         expect(hits.length, `${p.notes.join('-')} found`).toBeGreaterThan(0);
         for (const n of hits) expect(n.f).toBe(p.fingers[pcs.indexOf(n.p % 12)]);

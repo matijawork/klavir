@@ -18,6 +18,7 @@ export interface CheckRow {
     | 'key'
     | 'chords'
     | 'fingering-source'
+    | 'fingering-chords'
     | 'fingering'
     | 'pedal'
     | 'ear';
@@ -144,9 +145,18 @@ export function checklist(
       state: 'source',
       text: `Copied from ${fsrc.site} for ${fsrc.notes} of ${fsrc.of} notes: ${list(fsrc.patterns)}.${fsrc.note ? ` ${fsrc.note}` : ''}`,
     });
+  const tri = c?.chordFingering;
+  if (tri)
+    rows.push({
+      id: 'fingering-chords',
+      what: 'Fingering (chords)',
+      state: 'source',
+      text: `Chords played all at once (${tri.notes} notes) use the inversion fingering of ${tri.site}: ${tri.quote ?? ''} (root position, first and second inversion, low note first).`,
+    });
+  const own = c?.claudeFingering;
   rows.push({
     id: 'fingering',
-    what: fsrc ? 'Fingering (rest)' : 'Fingering',
+    what: fsrc || tri ? 'Fingering (rest)' : 'Fingering',
     state: marks.fingering
       ? 'mine'
       : !s.fingering
@@ -159,7 +169,7 @@ export function checklist(
       : !s.fingering
         ? 'No finger numbers.'
         : s.fingering === 'claude'
-          ? `Suggested by the app (Claude's program), not in the score; nobody has checked it.${c?.fingeringNote ? ` ${c.fingeringNote}` : ''}`
+          ? `${own ? `${own.note} (${own.notes} notes). ` : ''}The rest suggested by the app (Claude's program), not in the score; nobody has checked it.${c?.fingeringNote ? ` ${c.fingeringNote}` : ''}`
           : 'Written in the score.',
   });
 
@@ -171,7 +181,7 @@ export function checklist(
     text: !s.pedal
       ? (c?.pedalNote ?? 'The score has no pedal marks.')
       : s.pedal === 'claude'
-        ? `Added by Claude: one pedal change per measure.${c?.pedalNote ? ` ${c.pedalNote}` : ''}`
+        ? `Added by Claude, not in the score; it starts switched off (Pedal in the player).${c?.pedalNote ? ` ${c.pedalNote}` : ''}`
         : pedalSame
           ? `Written in the score: ${Math.ceil(ref.pedalOf / 2)} times down and up; Claude compared every one with ${MUSESCORE}: same moments. Listen plays it: a key let go while the pedal is down keeps sounding until it comes up.`
           : 'Written in the score. Listen plays it: a key let go while the pedal is down keeps sounding until it comes up.',

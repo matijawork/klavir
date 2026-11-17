@@ -84,7 +84,19 @@
       "note": "Shown only as a link; Claude read I V/vi vi IV in D major as D, F♯, B minor, G."
     }
   ],
-  "pedalNote": "The score has no pedal marks, and Claude did not add any: in every measure the right hand plays A, G and F♯ over the same bass note, and a pedal held through the measure would make G and F♯, two neighbouring keys, ring together. Pedal it yourself if you like the sound.",
+  "pedalNote": "The score has no pedal marks. Claude added a change on every beat: a pedal held through the whole measure would make the right hand's A, G and F♯ (neighbouring keys) ring together, while a change on each beat keeps each melody note with the bass only. It sounds fine without pedal too, so it starts switched off.",
   "chordsNote": "Both pages have F♯ major; this arrangement plays F♯ minor there (A instead of A♯). Claude checked those measures note by note.",
-  "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites)."
+  "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites).",
+  "pedal": "beat",
+  "fingeringClaude": {
+    "hand": "R",
+    "map": {
+      "D": 1,
+      "C#": 1,
+      "A": 5,
+      "G": 4,
+      "F#": 3
+    },
+    "note": "The right-hand riff is Claude's fingering, not from a page: the thumb stays on D (or C♯) and fingers 5, 4, 3 play A, G, F♯, the same in every measure"
+  }
 }

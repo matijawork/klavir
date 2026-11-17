@@ -57,7 +57,7 @@
     "durationSec": 126,
     "noteCount": 949,
     "fingering": "claude",
-    "pedal": null,
+    "pedal": "claude",
     "checks": {
       "hands": "score",
       "tempo": "claude",
@@ -104,7 +104,7 @@
           "quote": "9B / G"
         }
       ],
-      "pedalNote": "The score has no pedal marks, and Claude did not add any: in every measure the right hand plays A, G and F♯ over the same bass note, and a pedal held through the measure would make G and F♯, two neighbouring keys, ring together. Pedal it yourself if you like the sound.",
+      "pedalNote": "The score has no pedal marks. Claude added a change on every beat: a pedal held through the whole measure would make the right hand's A, G and F♯ (neighbouring keys) ring together, while a change on each beat keeps each melody note with the bass only. It sounds fine without pedal too, so it starts switched off.",
       "chordsNote": "Both pages have F♯ major; this arrangement plays F♯ minor there (A instead of A♯). Claude checked those measures note by note.",
       "fingeringNote": "No page with finger numbers for this song was found (searched: Pianote, Hooktheory, Musicnotes, chord sites).",
       "charts": [
@@ -164,6 +164,10 @@
         "pedalOf": 0,
         "pedalMatched": 0,
         "note": "MuseScore's own playback goes through measures 47-50 three times and then on to 51. The brackets on the sheet (1, 2, 3 and 4) say a fourth time through 47-49 before 51, so the app plays those 3 measures once more. Everything else is the same note for note."
+      },
+      "claudeFingering": {
+        "note": "The right-hand riff is Claude's fingering, not from a page: the thumb stays on D (or C♯) and fingers 5, 4, 3 play A, G, F♯, the same in every measure",
+        "notes": 230
       }
     },
     "chords": [
@@ -382,6 +386,12 @@
         "otherHand": 0,
         "pedalOf": 248,
         "pedalMatched": 248
+      },
+      "chordFingering": {
+        "site": "pianoguidelessons.com",
+        "url": "https://www.pianoguidelessons.com/?p=4136",
+        "quote": "right hand 1-3-5, 1-2-5, 1-3-5; left hand 5-3-1, 5-3-1, 5-2-1",
+        "notes": 1194
       },
       "fingering": {
         "site": "Artie's Piano (artmaster.com)",
@@ -1000,6 +1010,12 @@
         "otherHand": 0,
         "pedalOf": 268,
         "pedalMatched": 268
+      },
+      "chordFingering": {
+        "site": "pianoguidelessons.com",
+        "url": "https://www.pianoguidelessons.com/?p=4136",
+        "quote": "right hand 1-3-5, 1-2-5, 1-3-5; left hand 5-3-1, 5-3-1, 5-2-1",
+        "notes": 876
       }
     },
     "chords": [

@@ -120,6 +120,45 @@ test('listen plays the score pedal: a key let go under the pedal sounds until it
   ).toBe(false);
 });
 
+test('the Pedal switch: on for score pedal, off for a suggested one, remembered per song', async ({
+  page,
+}) => {
+  const { readFileSync } = await import('node:fs');
+  const song = JSON.parse(
+    readFileSync(new URL('../fixtures/songs/ode-to-joy/original.json', import.meta.url), 'utf8'),
+  );
+  song.pedal = [
+    { b: 0.5, on: true },
+    { b: 3.5, on: false },
+  ];
+  song.pedalSource = 'claude'; // suggested, not in the score: starts off
+  await page.route('**/songs/ode-to-joy/original.json', (route) => route.fulfill({ json: song }));
+  await open(page);
+  const pedal = page.getByTestId('pedal-play');
+  await expect(pedal).toHaveAttribute('aria-pressed', 'false');
+  const heldD5 = async () => {
+    await page.evaluate(() => window.__midi!.sent.splice(0));
+    await page.getByTestId('play').click();
+    await page.waitForTimeout(3000); // one second of lead-in, then D5 on beats 2-3.5
+    await page.getByTestId('play').click();
+    const sent = await page.evaluate(() => window.__midi!.sent);
+    const on = sent.find((m) => m.data[0] === 0x92 && m.data[1] === 72)!;
+    const off = sent.find((m) => m.data[0] === 0x82 && m.data[1] === 72 && m.time > on.time)!;
+    return (off.time - on.time) / (60000 / 140);
+  };
+  await page.getByTestId('listen').click();
+  expect(await heldD5(), 'switched off: as written').toBeCloseTo(1, 1);
+  await pedal.click();
+  await expect(pedal).toHaveAttribute('aria-pressed', 'true');
+  // remembered for this song; from the start again, now held to the pedal
+  await page.reload();
+  await page.getByTestId('midi-connect').click();
+  await page.waitForFunction(() => !!window.__klavir);
+  await expect(page.getByTestId('pedal-play')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByTestId('listen').click();
+  expect(await heldD5(), 'switched on: held to the pedal').toBeCloseTo(1.5, 1);
+});
+
 test('wait mode holds the song until the right keys are pressed', async ({ page }) => {
   await open(page, { mode: 'wait' });
   await page.getByTestId('play').click();

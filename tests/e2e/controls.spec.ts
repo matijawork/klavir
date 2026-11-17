@@ -819,6 +819,13 @@ test('speed can be typed; Review is on the toolbar once a pass exists; Wait mode
   await box.fill('');
   await box.blur();
   await expect(box, 'empty keeps the speed').toHaveValue('150');
+  // the tempo in beats a minute (test-c is written at 60): shown, and typed it sets the speed
+  const bpm = page.getByTestId('bpm-number');
+  await expect(bpm).toHaveValue('90');
+  await bpm.fill('45');
+  await bpm.press('Enter');
+  await until(page, () => window.__klavir!.transport.rate === 0.75);
+  await expect(box).toHaveValue('75');
   // typing digits in the box must not trigger the 1/2/3 hand shortcuts
   expect(await page.evaluate(() => window.__klavir!.session.config.handMask)).toBe(3);
 

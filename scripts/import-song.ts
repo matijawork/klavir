@@ -31,7 +31,14 @@ import { usesFlats } from '../src/engine/keys.ts';
 import type { LibraryEntry, SongChecks, SongChord, SongFile } from '../src/engine/song.ts';
 import { TempoMap } from '../src/engine/song.ts';
 import { chordsOf } from './lib/chords.ts';
-import { applyFingerPattern, autoFinger, measurePedal } from './lib/fingering.ts';
+import {
+  applyFingerMap,
+  applyFingerPattern,
+  applyTriadFingering,
+  autoFinger,
+  beatPedal,
+  measurePedal,
+} from './lib/fingering.ts';
 import { guessMode } from './lib/key.ts';
 import { importMidi } from './lib/midi.ts';
 import { importMusicXml, readScoreXml } from './lib/musicxml.ts';
@@ -60,8 +67,8 @@ interface Meta {
   }[];
   /** 'auto' (default) suggests fingering when the source has none; 'none' leaves it empty */
   fingering?: 'auto' | 'none';
-  /** 'measure' suggests one pedal change per measure when the source has no pedal marks */
-  pedal?: 'measure';
+  /** suggested pedal when the source has none: a change every measure, or every beat */
+  pedal?: 'measure' | 'beat';
   /** in plain words: why there is no pedal, or why Claude added one (shown in the app) */
   pedalNote?: string;
   /** the key the app uses ("A♭ major") when Claude chose it; else the first key source's */
@@ -79,6 +86,8 @@ interface Meta {
   chordsNote?: string;
   /** in plain words: where finger numbers were looked for (shown when none were found) */
   fingeringNote?: string;
+  /** Claude's own fingering for a figure that keeps the hand in place (not from a source) */
+  fingeringClaude?: { hand: 'L' | 'R'; map: Record<string, number>; note: string };
   /** finger numbers copied from a named source for repeating figures */
   fingeringSource?: Source & {
     patterns: { hand: 'L' | 'R'; notes: string[]; fingers: number[] }[];
@@ -245,7 +254,27 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
     }
     // a tempo Claude set (the score has none) applies after the comparison with MuseScore's MIDI
     if (meta.tempo && noTempo) song.tempos = [{ b: 0, bpm: meta.tempo }];
-    if (meta.fingering !== 'none' && !song.notes.some((n) => n.f)) autoFinger(song.notes);
+    const fromScore = song.notes.some((n) => n.f);
+    if (meta.fingering !== 'none' && !fromScore) {
+      autoFinger(song.notes);
+      // chords played all at once: the inversion fingering of a named source
+      const triads = applyTriadFingering(song.notes);
+      if (triads)
+        versionChecks.chordFingering = {
+          site: 'pianoguidelessons.com',
+          url: 'https://www.pianoguidelessons.com/?p=4136',
+          quote: 'right hand 1-3-5, 1-2-5, 1-3-5; left hand 5-3-1, 5-3-1, 5-2-1',
+          notes: triads,
+        };
+      if (meta.fingeringClaude) {
+        const fc = meta.fingeringClaude;
+        const map = new Map(Object.entries(fc.map).map(([n, f]) => [pcOf(n), f]));
+        const n = applyFingerMap(song.notes, song.measures, fc.hand, map);
+        versionChecks.claudeFingering = { note: fc.note, notes: n };
+        console.log(`  finger ${slug}/${v.id}: ${n} notes by Claude's map`);
+      }
+      console.log(`  finger ${slug}/${v.id}: ${triads} chord notes from pianoguidelessons`);
+    }
     if (meta.fingeringSource) {
       const fsrc = meta.fingeringSource;
       let covered = 0;
@@ -269,8 +298,11 @@ function importSong(slug: string, makePdf: boolean): LibraryEntry {
       console.log(`  finger ${slug}/${v.id}: ${covered} notes from ${fsrc.site}`);
     }
     checks ??= versionChecks;
-    if (meta.pedal === 'measure' && song.pedal.length === 0) {
-      song.pedal = measurePedal(song.measures, song.notes);
+    if (meta.pedal && song.pedal.length === 0) {
+      song.pedal =
+        meta.pedal === 'beat'
+          ? beatPedal(song.measures, song.notes)
+          : measurePedal(song.measures, song.notes);
       song.pedalSource = 'claude';
     }
     writeFileSync(join(outDir, slug, `${v.id}.json`), JSON.stringify(song));

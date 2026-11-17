@@ -45,3 +45,43 @@ test('measure pedal releases on each barline and presses just after', () => {
     { b: 6, on: false },
   ]);
 });
+
+test('chords played all at once get the inversion fingering of pianoguidelessons', async () => {
+  const { applyTriadFingering } = await import('../../scripts/lib/fingering.ts');
+  const notes: SongNote[] = [
+    // right hand: C major root position, first inversion, second inversion
+    ...[60, 64, 67].map((p) => ({ p, b: 0, d: 1, h: 'R' as const })),
+    ...[64, 67, 72].map((p) => ({ p, b: 1, d: 1, h: 'R' as const })),
+    ...[67, 72, 76].map((p) => ({ p, b: 2, d: 1, h: 'R' as const })),
+    // left hand: B flat minor second inversion (Clocks): F B♭ D♭
+    ...[41, 46, 49].map((p) => ({ p, b: 0, d: 1, h: 'L' as const })),
+    // not a triad: left alone
+    ...[60, 62, 64].map((p) => ({ p, b: 3, d: 1, h: 'R' as const })),
+  ];
+  expect(applyTriadFingering(notes)).toBe(12);
+  expect(notes.slice(0, 12).map((n) => n.f)).toEqual([1, 3, 5, 1, 2, 5, 1, 3, 5, 5, 2, 1]);
+  expect(notes.slice(12).every((n) => n.f === undefined)).toBe(true);
+});
+
+test("Claude's map fingers a figure that keeps the hand in place, only where it fits", async () => {
+  const { applyFingerMap } = await import('../../scripts/lib/fingering.ts');
+  const riff = [74, 81, 74, 79, 74, 78, 74]; // D A D G D F♯ D (L'amour toujours)
+  const notes: SongNote[] = [
+    ...riff.map((p, k) => ({ p, b: k * 0.5, d: 0.5, h: 'R' as const })),
+    ...[74, 76, 81, 83].map((p, k) => ({ p, b: 4 + k, d: 1, h: 'R' as const })), // has E and B
+  ];
+  const map = new Map([
+    [2, 1],
+    [9, 5],
+    [7, 4],
+    [6, 3],
+  ]);
+  const measures = [
+    { b: 0, len: 4 },
+    { b: 4, len: 4 },
+  ];
+  expect(applyFingerMap(notes, measures, 'R', map)).toBe(7);
+  expect(notes.slice(0, 7).map((n) => n.f)).toEqual([1, 5, 1, 4, 1, 3, 1]);
+  expect(notes[0]!.fs).toBe('claude');
+  expect(notes[7]!.f).toBeUndefined();
+});

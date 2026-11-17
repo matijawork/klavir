@@ -106,6 +106,29 @@ function Seg<T extends string>(props: {
   );
 }
 
+/** Per song: play the score's pedal in Listen and the other hand (default: on, off when only suggested). */
+const PEDAL_STORE = 'klavir.pedalPlay';
+function pedalPlayOf(song: LoadedSong): boolean {
+  try {
+    const saved = (
+      JSON.parse(localStorage.getItem(PEDAL_STORE) ?? '{}') as Record<string, boolean>
+    )[song.file.id];
+    if (typeof saved === 'boolean') return saved;
+  } catch {
+    /* not remembered */
+  }
+  return song.file.pedalSource !== 'claude';
+}
+function savePedalPlay(id: string, on: boolean): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(PEDAL_STORE) ?? '{}') as Record<string, boolean>;
+    all[id] = on;
+    localStorage.setItem(PEDAL_STORE, JSON.stringify(all));
+  } catch {
+    /* not remembered */
+  }
+}
+
 function Toggle(props: {
   on: boolean;
   label: string;
@@ -378,12 +401,16 @@ export function Player({
       : s;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [song, setSong] = useState<LoadedSong | null>(null);
+  /** the song's own tempo (its first one), for the BPM box next to the speed */
+  const songBpm = song?.file.tempos[0]?.bpm ?? 120;
   const [error, setError] = useState<string | null>(null);
   const engineSig = useSignal<Engine | null>(null);
   const engine = engineSig.value;
   const playing = useSignal(false);
   const listen = useSignal(false);
   const loop = useSignal(false);
+  /** play the score's pedal marks (per song, remembered) */
+  const pedalPlay = useSignal(true);
   const range = useSignal<{ a: number; b: number } | null>(null);
   const lastPass = useSignal<PassInfo | null>(null);
   /** running result of the pass being played; null before anything is judged */
@@ -483,6 +510,8 @@ export function Player({
     window.__klavir = { stats: view.stats, transport, session, playback, view, level: outputLevel };
     lastConfig.current = '';
     lastClicks.current = '';
+    pedalPlay.value = pedalPlayOf(song);
+    playback.setPedal(pedalPlay.value);
     engineSig.value = { transport, session, playback, view };
 
     const onHide = () => {
@@ -1048,6 +1077,30 @@ export function Player({
                 data-testid="speed-number"
               />
               %
+              <input
+                type="number"
+                min={1}
+                max={400}
+                step={1}
+                value={Math.round(songBpm * s.speed)}
+                onChange={(e) => {
+                  const el = e.target as HTMLInputElement;
+                  const v = Number(el.value);
+                  const next =
+                    Number.isFinite(v) && v > 0 && el.value !== ''
+                      ? clampSpeed(v / songBpm)
+                      : s.speed;
+                  setSetting('speed', next);
+                  el.value = String(Math.round(songBpm * next));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                aria-label="Tempo in beats a minute"
+                title={`Beats a minute at this speed. The song's own tempo is ${Math.round(songBpm)} (100 %). Type a number to change the speed.`}
+                data-testid="bpm-number"
+              />
+              BPM
             </label>
             <span class="sep" />
             <Toggle
@@ -1073,6 +1126,23 @@ export function Player({
           onChange={(v) => setSetting('metronome', v)}
           testid="metronome"
         />
+        {song && song.pedalTime.length > 0 && (
+          <Toggle
+            on={pedalPlay.value}
+            label="Pedal"
+            title={
+              song.file.pedalSource === 'claude'
+                ? 'Play the pedal Claude suggested when the app plays (Listen, the other hand); it is not in the score, so it starts off. Your own pedal always works.'
+                : "Play the score's pedal marks when the app plays (Listen, the other hand). Your own pedal always works."
+            }
+            onChange={(v) => {
+              pedalPlay.value = v;
+              savePedalPlay(song.file.id, v);
+              engine?.playback.setPedal(v);
+            }}
+            testid="pedal-play"
+          />
+        )}
         <button
           type="button"
           class="btn"

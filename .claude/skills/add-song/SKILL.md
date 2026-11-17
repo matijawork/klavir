@@ -45,7 +45,8 @@ Matija supplies the file. **Never write, arrange or "fix" the music yourself.** 
    - `"tempoSources": [{ "bpm": 131, "site": "songbpm", "url": "…", "quote": "Tempo (BPM) 131" }]` and `"tempoNote"`. If the score has no tempo, `"tempo": 139` sets it (shown as "Added by Claude"); the MIDI comparison still uses the file as written.
    - `"chordSources": [{ "chords": ["Eb", "Bbm", "Fm"], "site": "ukebuddy", "url": "…", "quote": "…", "note": "how you read it, if it took reading" }]` (capo charts: move them to sounding pitch and say so) and `"chordsNote"` for a difference you checked note by note.
    - `"fingeringSource": { "site", "url", "quote", "patterns": [{ "hand": "R", "notes": ["Eb", "Bb", "G"], "fingers": [5, 2, 1] }] }` when a page gives finger numbers for a repeating figure: every run of that figure gets them (the library test checks the digits). Otherwise `"fingeringNote"`: where you looked.
-   - No pedal in the score: decide whether the music wants it; add `"pedal": "measure"` only if a held pedal would not smear the melody, and say why either way in `"pedalNote"`.
+   - No pedal in the score: decide whether the music wants it. `"pedal": "measure"` (change every measure) or `"beat"` (every beat, when the melody moves by step), and say why either way in `"pedalNote"`. A suggested pedal starts switched off in the player (his "Pedal" switch).
+   - Fingering: chords played all at once get the inversion fingering automatically. For a figure that keeps the hand in place and has no source, `"fingeringClaude": { "hand": "R", "map": { "D": 1, "A": 5 }, "note": "…Claude's fingering, not from a page…" }` (applied to every measure that uses only those notes, at least four).
    - When Matija says it sounds right: `"heard": "YYYY-MM-DD"`. His YouTube link: `"youtube"`.
 6. **Run** `npm test && npm run lint`.
 7. **Commit and push** `songs/<slug>/` and `public/songs/` (push deploys).

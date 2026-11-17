@@ -141,13 +141,18 @@ export class SongPlayback {
   private offCount = 0;
   private readonly song: LoadedSong;
   private readonly transport: Transport;
-  /** per note: when its sound stops, with the score's pedal (soundingEnds) */
-  private readonly soundEnd: Float64Array;
+  /** per note: when its sound stops, with the score's pedal (soundingEnds) or without */
+  private soundEnd: Float64Array;
 
   constructor(song: LoadedSong, transport: Transport) {
     this.song = song;
     this.transport = transport;
     this.soundEnd = soundingEnds(song);
+  }
+
+  /** Plays the score's pedal (a key let go under it sounds on) or not: notes end as written. */
+  setPedal(on: boolean): void {
+    this.soundEnd = on ? soundingEnds(this.song) : Float64Array.from(this.song.end);
   }
 
   get running(): boolean {
