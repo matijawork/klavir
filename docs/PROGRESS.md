@@ -1,6 +1,6 @@
 # Progress
 
-Updated 2026-11-17 (night, final review). Live: https://matijawork.github.io/klavir/ · 295 unit + 42 e2e green.
+Updated 2026-11-17 (night). **Final build** (his words: "to je final build"; he reports if something does not work). Live: https://matijawork.github.io/klavir/ · 295 unit + 42 e2e green.
 Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes from the Mac.
 
 ## What exists
@@ -68,24 +68,24 @@ Matija plays a Korg D1 (no speakers) over CME C2MIDI Pro into a Mac; sound comes
 Matija marks fingerings he checked himself by clicking the chip ("checked by you", stored in `klavir.fingeringChecked`).
 
 ## Next
-**0. Five songs in the library (2026-11-16/17)**: Interstellar, Clocks, L'amour toujours, Love Story, Viva La Vida, from his musescore.com downloads (`~/Desktop/Klavir - Pjesme`), each with his YouTube link. He listened: they sound right; piano sound good; with the pedal "it works" (he asked to check: done, see Pedal marks). Waiting for him: L'amour toujours at 139 BPM, Claude's riff fingering there, the Clocks riff fingering, the chord fingering in Clocks/Viva, and Claude's choices (Clocks key A♭ major). musescore.com refuses automatic reading (403), so the arrangement pages themselves were not read; the arrangements are checked against MuseScore's playback of his files instead. If he wants, the pages can be opened in his Chrome (Claude in Chrome).
-0b. **After the final review (2026-11-17)**: his ears and eyes on the Korg: Pedal switch off/on in Listen (lane gone / back, sound dry / held); Clocks and Interstellar in Listen sound fuller where both hands share a key. Open question for him: Interstellar and Love Story use natural minor, but the only minor Scale exercise is harmonic minor (one note differs, the popup says which); a natural-minor scale would be a new exercise, not added without his yes.
-1. **Matija: sign in on the live site on two devices** (hard-reload first), play one Perform on one, see the score on the other. If the popup is blocked or says the domain is not allowed, report the exact text.
-2. App is finished and reviewed (see Final review). Later, only if he asks: M8 tablet / PWA. Open questions for him: strictness in Perform is fixed to Normal (he was told, has not answered); nothing on the Korg from 2026-11-14/15 has been confirmed by him yet (Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file).
+**Final build, 2026-11-17.** No new features unless he asks. Next sessions are his reports from the Korg: reproduce first (a test that fails), then fix, then push.
+Waiting for his ears and hands (none confirmed yet):
+- Pedal switch off/on in Listen (lane gone / back, sound dry / held); Clocks and Interstellar in Listen where both hands share a key.
+- L'amour toujours at 139 BPM; fingering: L'amour riff (Claude's), Clocks riff (Artie's Piano), chords in Clocks/Viva, octaves (1-5 / 1-4); Clocks key A♭ major (Claude's choice).
+- From 2026-11-14/15: Measure, Review marks, Hear it, Perform on a real song, a real YouTube video, a real MIDI file; sign-in on the live site on two devices (hard-reload first; if the popup is blocked or the domain refused, the exact text).
+Open questions he has not answered: a natural-minor Scale exercise for Interstellar / Love Story (the only minor scale is harmonic, one note differs; offered, not added); strictness in Perform fixed to Normal. Later, only if he asks: M8 tablet / PWA.
+Songs: five in the library (Interstellar, Clocks, L'amour toujours, Love Story, Viva La Vida) from his musescore.com downloads (`~/Desktop/Klavir - Pjesme`), each with his YouTube link; he listened 2026-11-16: they sound right. musescore.com refuses automatic reading (403); arrangements are checked against MuseScore's playback of his files.
 
 ## Prompt for the next session (he pastes this after /clear)
 ```
 Nastavljamo Klavir (/Users/matija/Desktop/Klavir). Pročitaj CLAUDE.md i docs/PROGRESS.md
 (posebno "Next", "How sure we are", "Final review" i "Working agreement").
-Ako šaljem pjesmu: add-song skill (više izvora po stavci, sve citirano). Ako javim problem: prvo ga ponovi, pa popravi.
+Ovo je final build: ništa novo bez mog traženja. Ako javim problem: prvo ga ponovi testom, pa popravi.
+Ako šaljem pjesmu: add-song skill (više izvora po stavci, sve citirano).
 Pravila: sve testiraj sam (?mockmidi, ?mocksync), meni ostavi samo ono za uho i ruke;
 ne piši "radi" ako nisi provjerio; što ti dodaš piši kao "Added by Claude"; objašnjavaj jednostavno, s primjerom.
-U biblioteci 5 pjesama; kartica piše tko je što provjerio, "Keys" kaže što vježbati.
-L'amour toujours na 139 BPM: <dobro / prebrzo / presporo>
-Prsti (Clocks riff, akordi, L'amour riff): <odgovaraju / ne + gdje>
-Pedala (prekidač): <ok / primjedba>
+Što ne radi na Korgu: <što sam kliknuo, što sam očekivao, što se dogodilo>
 Nova pjesma: <putanja + YouTube link>
-Moje primjedbe nakon testa na Korgu: <što ne radi i što sam kliknuo>
 ```
 
 Removed 2026-11-14 on his request: automatic speed-up ("I will change the speed by hand"). Do not bring it back.
